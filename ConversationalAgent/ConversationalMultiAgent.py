@@ -461,24 +461,25 @@ class ConversationalMultiAgent(ConversationalAgent):
                     }
                 )
 
-                print(
-                    '{0} > {1}'.format(
-                        self.agent_role.upper(),
-                        response_utterance
-                    )
-                )
+                # print(
+                #     '{0} > {1}'.format(
+                #         self.agent_role.upper(),
+                #         response_utterance
+                #     )
+                # )
 
                 if self.USE_SPEECH:
                     tts = gTTS(text=response_utterance, lang='en')
                     tts.save('sys_output.mp3')
                     os.system('afplay sys_output.mp3')
             else:
-                print(
-                    '{0} > {1}'.format(
-                        self.agent_role.upper(),
-                        '; '.join([str(sr) for sr in response])
-                    )
-                )
+             pass
+                # print(
+                #     '{0} > {1}'.format(
+                #         self.agent_role.upper(),
+                #         '; '.join([str(sr) for sr in response])
+                #     )
+                # )
 
         # TODO: Generate output depending on initiative - i.e.
         # have users also start the dialogue
@@ -581,19 +582,20 @@ class ConversationalMultiAgent(ConversationalAgent):
                 }
             ) + ' '
 
-            print('{0} > {1}'.format(self.agent_role.upper(), sys_utterance))
+            # print('{0} > {1}'.format(self.agent_role.upper(), sys_utterance))
 
             if self.USE_SPEECH:
                 tts = gTTS(text=sys_utterance, lang='en')
                 tts.save('sys_output.mp3')
                 os.system('afplay sys_output.mp3')
         else:
-            print(
-                '{0} > {1} \n'.format(
-                    self.agent_role.upper(),
-                    '; '.join([str(sr) for sr in response])
-                )
-            )
+            pass
+            # print(
+            #     '{0} > {1} \n'.format(
+            #         self.agent_role.upper(),
+            #         '; '.join([str(sr) for sr in response])
+            #     )
+            # )
 
         if self.prev_state:
             self.recorder.record(
