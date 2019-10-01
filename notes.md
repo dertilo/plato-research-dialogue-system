@@ -35,8 +35,6 @@ manually download [metalwoz](https://www.microsoft.com/en-us/research/project/me
 
     python runPlatoRDS.py -config Examples/config/metalwoz_generic.yaml
 
-slack-bot-token: xoxb-720951931457-735283358736-SXsWx6t1eg25NuZL6IMziei4
-
 ## Paper: Collaborative Multi-Agent Dialogue Model Training Via Reinforcement
 Learning [Papangelis 2019]
 * DSTC2 as seed data, we trained (NLU) and (NLG) 
