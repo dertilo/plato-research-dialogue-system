@@ -821,8 +821,8 @@ class ConversationalSingleAgent(ConversationalAgent):
             self.num_task_success += \
                 int(self.recorder.dialogues[-1][-1]['task_success'])
 
-        print('OBJECTIVE TASK SUCCESS: {0}'.
-              format(self.recorder.dialogues[-1][-1]['task_success']))
+        # print('OBJECTIVE TASK SUCCESS: {0}'.
+        #       format(self.recorder.dialogues[-1][-1]['task_success']))
 
     def terminated(self):
         """

@@ -421,14 +421,14 @@ class ConversationalMultiAgent(ConversationalAgent):
             self.agent_goal = self.goal_generator.generate()
             self.dialogue_manager.update_goal(self.agent_goal)
 
-            print('DEBUG > Usr goal:')
-            for c in self.agent_goal.constraints:
-                print(f'\t\tConstr({self.agent_goal.constraints[c].slot}='
-                      f'{self.agent_goal.constraints[c].value})')
-            print('\t\t-------------')
-            for r in self.agent_goal.requests:
-                print(f'\t\tReq({self.agent_goal.requests[r].slot})')
-            print('\n')
+            # print('DEBUG > Usr goal:')
+            # for c in self.agent_goal.constraints:
+            #     print(f'\t\tConstr({self.agent_goal.constraints[c].slot}='
+            #           f'{self.agent_goal.constraints[c].value})')
+            # print('\t\t-------------')
+            # for r in self.agent_goal.requests:
+            #     print(f'\t\tReq({self.agent_goal.requests[r].slot})')
+            # print('\n')
 
         elif goal:
             # No deep copy here so that all agents see the same goal.
@@ -667,13 +667,13 @@ class ConversationalMultiAgent(ConversationalAgent):
                 if (self.dialogue_episode+1) % self.train_interval == 0 and \
                         len(self.recorder.dialogues) >= self.minibatch_length:
                     for epoch in range(self.train_epochs):
-                        print(
-                            '{0}: Training epoch {1} of {2}'.format(
-                                self.agent_role,
-                                (epoch+1),
-                                self.train_epochs
-                            )
-                        )
+                        # print(
+                        #     '{0}: Training epoch {1} of {2}'.format(
+                        #         self.agent_role,
+                        #         (epoch+1),
+                        #         self.train_epochs
+                        #     )
+                        # )
 
                         # Sample minibatch
                         minibatch = random.sample(
@@ -701,22 +701,23 @@ class ConversationalMultiAgent(ConversationalAgent):
 
         # Count successful dialogues
         if self.recorder.dialogues[-1][-1]['success']:
-            print(
-                '{0} SUCCESS! (reward: {1})'.format(
-                    self.agent_role,
-                    sum([t['reward'] for t in self.recorder.dialogues[-1]])
-                )
-            )
+            # print(
+            #     '{0} SUCCESS! (reward: {1})'.format(
+            #         self.agent_role,
+            #         sum([t['reward'] for t in self.recorder.dialogues[-1]])
+            #     )
+            # )
             self.num_successful_dialogues += \
                 int(self.recorder.dialogues[-1][-1]['success'])
 
         else:
-            print(
-                '{0} FAILURE. (reward: {1})'.format(
-                    self.agent_role,
-                    sum([t['reward'] for t in self.recorder.dialogues[-1]])
-                )
-            )
+            pass
+            # print(
+            #     '{0} FAILURE. (reward: {1})'.format(
+            #         self.agent_role,
+            #         sum([t['reward'] for t in self.recorder.dialogues[-1]])
+            #     )
+            # )
 
         if self.recorder.dialogues[-1][-1]['task_success']:
             self.num_task_success += int(
