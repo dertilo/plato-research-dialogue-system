@@ -243,8 +243,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                           f'pi ({self.agent_role}).\n')
 
             if random.random() < 0.5:
-                print('--- {0}: Selecting warmup action.'
-                      .format(self.agent_role))
+                # print('--- {0}: Selecting warmup action.'
+                #       .format(self.agent_role))
                 self.statistics['supervised_turns'] += 1
 
                 if self.agent_role == 'system':
@@ -255,9 +255,9 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                         state.user_acts, state.user_goal)
                     return self.warmup_simulator.respond()
             else:
-                print(
-                    '--- {0}: Selecting random action.'.format(self.agent_role)
-                )
+                # print(
+                #     '--- {0}: Selecting random action.'.format(self.agent_role)
+                # )
                 return self.decode_action(
                     random.choice(range(0, self.NActions)),
                     self.agent_role == 'system')
@@ -587,7 +587,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         if self.epsilon > 0.25:
             self.epsilon *= self.epsilon_decay
 
-        print('[alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
+        # print('[alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
 
     def save(self, path=None):
         """

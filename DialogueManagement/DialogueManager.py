@@ -424,9 +424,10 @@ class DialogueManager(ConversationalModule):
                                 d_state.slots_filled[slot])]))
 
                 else:
-                    print('DialogueManager Warning! No slot provided by '
-                          'policy for canthelp and cannot find a reasonable '
-                          'one!')
+                    pass
+                    # print('DialogueManager Warning! No slot provided by '
+                    #       'policy for canthelp and cannot find a reasonable '
+                    #       'one!')
 
             if sys_act.intent == 'offer' and not sys_act.params:
                 # Remove the empty offer

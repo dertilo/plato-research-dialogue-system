@@ -8,6 +8,8 @@ You may obtain a copy of the License at the root directory of this project.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from pprint import pprint
+from tqdm import tqdm
 
 __author__ = "Alexandros Papangelis"
 
@@ -150,66 +152,74 @@ class Controller(object):
 
         conv_sys_agents[0].initialize()
 
-        for dialogue in range(num_dialogues):
-            print('\n=====================================================\n\n'
-                  'Dialogue %d (out of %d)\n' % (dialogue+1, num_dialogues))
+        params_to_monitor = {'dialogue': 0, 'usr-success': 0.0,'sys-success': 0.0}
+        running_factor=.99
+        with tqdm(postfix=[params_to_monitor]) as pbar:
 
-            # WARNING: FOR NOW ASSUMING WE HAVE ONE SYSTEM AGENT.
-            _, _, goal = conv_user_agents[0].start_dialogue()
-            sys_output, sys_output_dacts, _ = \
-                conv_sys_agents[0].start_dialogue(goal)
-
-            while not all(ca.terminated() for ca in conv_sys_agents) \
-                    and not all(ca.terminated() for ca in conv_user_agents):
-                # WARNING: FOR NOW ASSUMING WE HAVE ONE USER AGENT.
-                user_output, user_output_dacts, goal = \
-                    conv_user_agents[0].continue_dialogue(
-                        {'other_input_raw': sys_output,
-                         'other_input_dacts': sys_output_dacts})
-
-                # Need to check for termination condition again, for the case
-                # where the system says 'bye' and then the user says bye too.
-                if all(ca.terminated() for ca in conv_sys_agents) \
-                        or all(ca.terminated() for ca in conv_user_agents):
-                    break
-
+            for dialogue in range(num_dialogues):
                 # WARNING: FOR NOW ASSUMING WE HAVE ONE SYSTEM AGENT.
-                sys_output, sys_output_dacts, goal = \
-                    conv_sys_agents[0].continue_dialogue(
-                        {'other_input_raw': user_output,
-                         'other_input_dacts': user_output_dacts})
+                _, _, goal = conv_user_agents[0].start_dialogue()
+                sys_output, sys_output_dacts, _ = \
+                    conv_sys_agents[0].start_dialogue(goal)
 
-                # Sync goals (user has ground truth)
-                conv_sys_agents[0].set_goal(conv_user_agents[0].get_goal())
+                while not all(ca.terminated() for ca in conv_sys_agents) \
+                        and not all(ca.terminated() for ca in conv_user_agents):
+                    # sys.stdout.write('\r'); sys.stdout.flush()
+                    # WARNING: FOR NOW ASSUMING WE HAVE ONE USER AGENT.
+                    user_output, user_output_dacts, goal = \
+                        conv_user_agents[0].continue_dialogue(
+                            {'other_input_raw': sys_output,
+                             'other_input_dacts': sys_output_dacts})
 
-            # Check if there is a goal. For example, if the agents are generic
-            # there may not be a tracked goal.
-            if not goal:
-                continue
+                    # Need to check for termination condition again, for the case
+                    # where the system says 'bye' and then the user says bye too.
+                    if all(ca.terminated() for ca in conv_sys_agents) \
+                            or all(ca.terminated() for ca in conv_user_agents):
+                        break
 
-            # Consolidate goals to track objective success (each agent tracks
-            # different things)
+                    # WARNING: FOR NOW ASSUMING WE HAVE ONE SYSTEM AGENT.
+                    sys_output, sys_output_dacts, goal = \
+                        conv_sys_agents[0].continue_dialogue(
+                            {'other_input_raw': user_output,
+                             'other_input_dacts': user_output_dacts})
 
-            # From the Sys we keep everything except the status of actual
-            # requests (filled or not)
-            goal = conv_sys_agents[0].agent_goal
-            goal.actual_requests = \
-                conv_user_agents[0].agent_goal.actual_requests
+                    # Sync goals (user has ground truth)
+                    conv_sys_agents[0].set_goal(conv_user_agents[0].get_goal())
 
-            _, _, obj_succ = conv_sys_agents[0].reward_func.calculate(
-                conv_sys_agents[0].curr_state, [], goal=goal,
-                agent_role="system")
+                # Check if there is a goal. For example, if the agents are generic
+                # there may not be a tracked goal.
+                if not goal:
+                    continue
 
-            objective_success += 1 if obj_succ else 0
+                # Consolidate goals to track objective success (each agent tracks
+                # different things)
 
-            print(f'OBJECTIVE TASK COMPLETION: {obj_succ}')
+                # From the Sys we keep everything except the status of actual
+                # requests (filled or not)
+                goal = conv_sys_agents[0].agent_goal
+                goal.actual_requests = \
+                    conv_user_agents[0].agent_goal.actual_requests
 
-            for ca in conv_sys_agents:
-                ca.end_dialogue()
+                _, _, obj_succ = conv_sys_agents[0].reward_func.calculate(
+                    conv_sys_agents[0].curr_state, [], goal=goal,
+                    agent_role="system")
 
-            for ca in conv_user_agents:
-                ca.end_dialogue()
+                objective_success += 1 if obj_succ else 0
 
+                # print(f'OBJECTIVE TASK COMPLETION: {obj_succ}')
+
+                for ca in conv_sys_agents:
+                    ca.end_dialogue()
+
+                for ca in conv_user_agents:
+                    ca.end_dialogue()
+
+                pbar.postfix[0]['dialogue']=dialogue
+                success = int(conv_sys_agents[0].recorder.dialogues[-1][-1]['success'])
+                pbar.postfix[0]['sys-success']= round(running_factor * pbar.postfix[0]['sys-success'] + (1-running_factor) * success,2)
+                success = int(conv_sys_agents[0].recorder.dialogues[-1][-1]['success'])
+                pbar.postfix[0]['usr-success']= round(running_factor * pbar.postfix[0]['usr-success'] + (1-running_factor) * success,2)
+                pbar.update()
         # Collect statistics
         statistics = {}
         
@@ -285,6 +295,7 @@ def arg_parse(args=None):
     # Parse arguments
     if len(arg_vec) < 3:
         print('WARNING: No configuration file.')
+        arg_vec+=['-config','Examples/config/CamRest_MA_train_acts.yaml']
 
     test_mode = arg_vec[1] == '-t'
 
@@ -395,7 +406,7 @@ def run_controller(args):
             print('\nPlato error! {0}\n'.format(err))
             return -1
 
-    print(f'Results:\n{statistics}')
+    pprint(f'Results:\n{statistics}')
     return 0
 
 

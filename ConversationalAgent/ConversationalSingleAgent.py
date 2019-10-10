@@ -488,7 +488,12 @@ class ConversationalSingleAgent(ConversationalAgent):
         if self.nlu:
             self.nlu.initialize({})
 
-        self.dialogue_manager.initialize({})
+        if self.agent_role == 'user' and not self.agent_goal:
+            self.agent_goal = self.goal_generator.generate()
+            self.dialogue_manager.initialize({'goal': self.agent_goal})
+
+        else:
+            self.dialogue_manager.initialize({})
 
         if self.nlg:
             self.nlg.initialize({})
@@ -520,7 +525,12 @@ class ConversationalSingleAgent(ConversationalAgent):
             print('DEBUG > Usr goal:')
             print(self.user_simulator.goal)
 
-        self.dialogue_manager.restart({})
+        if self.agent_role == 'user':
+            self.agent_goal = self.goal_generator.generate()
+            self.dialogue_manager.restart({'goal': self.agent_goal})
+
+        else:
+            self.dialogue_manager.restart({})
 
         if not self.USER_HAS_INITIATIVE:
             # sys_response = self.dialogue_manager.respond()
@@ -811,8 +821,8 @@ class ConversationalSingleAgent(ConversationalAgent):
             self.num_task_success += \
                 int(self.recorder.dialogues[-1][-1]['task_success'])
 
-        print('OBJECTIVE TASK SUCCESS: {0}'.
-              format(self.recorder.dialogues[-1][-1]['task_success']))
+        # print('OBJECTIVE TASK SUCCESS: {0}'.
+        #       format(self.recorder.dialogues[-1][-1]['task_success']))
 
     def terminated(self):
         """

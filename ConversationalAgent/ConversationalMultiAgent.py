@@ -421,14 +421,14 @@ class ConversationalMultiAgent(ConversationalAgent):
             self.agent_goal = self.goal_generator.generate()
             self.dialogue_manager.update_goal(self.agent_goal)
 
-            print('DEBUG > Usr goal:')
-            for c in self.agent_goal.constraints:
-                print(f'\t\tConstr({self.agent_goal.constraints[c].slot}='
-                      f'{self.agent_goal.constraints[c].value})')
-            print('\t\t-------------')
-            for r in self.agent_goal.requests:
-                print(f'\t\tReq({self.agent_goal.requests[r].slot})')
-            print('\n')
+            # print('DEBUG > Usr goal:')
+            # for c in self.agent_goal.constraints:
+            #     print(f'\t\tConstr({self.agent_goal.constraints[c].slot}='
+            #           f'{self.agent_goal.constraints[c].value})')
+            # print('\t\t-------------')
+            # for r in self.agent_goal.requests:
+            #     print(f'\t\tReq({self.agent_goal.requests[r].slot})')
+            # print('\n')
 
         elif goal:
             # No deep copy here so that all agents see the same goal.
@@ -461,24 +461,25 @@ class ConversationalMultiAgent(ConversationalAgent):
                     }
                 )
 
-                print(
-                    '{0} > {1}'.format(
-                        self.agent_role.upper(),
-                        response_utterance
-                    )
-                )
+                # print(
+                #     '{0} > {1}'.format(
+                #         self.agent_role.upper(),
+                #         response_utterance
+                #     )
+                # )
 
                 if self.USE_SPEECH:
                     tts = gTTS(text=response_utterance, lang='en')
                     tts.save('sys_output.mp3')
                     os.system('afplay sys_output.mp3')
             else:
-                print(
-                    '{0} > {1}'.format(
-                        self.agent_role.upper(),
-                        '; '.join([str(sr) for sr in response])
-                    )
-                )
+             pass
+                # print(
+                #     '{0} > {1}'.format(
+                #         self.agent_role.upper(),
+                #         '; '.join([str(sr) for sr in response])
+                #     )
+                # )
 
         # TODO: Generate output depending on initiative - i.e.
         # have users also start the dialogue
@@ -509,9 +510,9 @@ class ConversationalMultiAgent(ConversationalAgent):
 
         other_input_raw = args['other_input_raw']
 
-        other_input_dact = None
-        if 'other_input_dact' in args:
-            other_input_dact = args['other_input_dact']
+        other_input_dacts = None
+        if 'other_input_dacts' in args:
+            other_input_dacts = args['other_input_dacts']
 
         goal = None
         if 'goal' in args:
@@ -531,9 +532,11 @@ class ConversationalMultiAgent(ConversationalAgent):
                 self.dialogue_manager.get_state()
             )
 
-        elif other_input_dact:
+        elif other_input_dacts:
             # If no utterance provided, use the dacts
-            other_input_nlu = other_input_dact
+            other_input_nlu = other_input_dacts
+        else:
+            assert False
 
         # print(
         #     '{0} Recognised Input: {1}'.format(
@@ -581,19 +584,20 @@ class ConversationalMultiAgent(ConversationalAgent):
                 }
             ) + ' '
 
-            print('{0} > {1}'.format(self.agent_role.upper(), sys_utterance))
+            # print('{0} > {1}'.format(self.agent_role.upper(), sys_utterance))
 
             if self.USE_SPEECH:
                 tts = gTTS(text=sys_utterance, lang='en')
                 tts.save('sys_output.mp3')
                 os.system('afplay sys_output.mp3')
         else:
-            print(
-                '{0} > {1} \n'.format(
-                    self.agent_role.upper(),
-                    '; '.join([str(sr) for sr in response])
-                )
-            )
+            pass
+            # print(
+            #     '{0} > {1} \n'.format(
+            #         self.agent_role.upper(),
+            #         '; '.join([str(sr) for sr in response])
+            #     )
+            # )
 
         if self.prev_state:
             self.recorder.record(
@@ -663,13 +667,13 @@ class ConversationalMultiAgent(ConversationalAgent):
                 if (self.dialogue_episode+1) % self.train_interval == 0 and \
                         len(self.recorder.dialogues) >= self.minibatch_length:
                     for epoch in range(self.train_epochs):
-                        print(
-                            '{0}: Training epoch {1} of {2}'.format(
-                                self.agent_role,
-                                (epoch+1),
-                                self.train_epochs
-                            )
-                        )
+                        # print(
+                        #     '{0}: Training epoch {1} of {2}'.format(
+                        #         self.agent_role,
+                        #         (epoch+1),
+                        #         self.train_epochs
+                        #     )
+                        # )
 
                         # Sample minibatch
                         minibatch = random.sample(
@@ -697,22 +701,23 @@ class ConversationalMultiAgent(ConversationalAgent):
 
         # Count successful dialogues
         if self.recorder.dialogues[-1][-1]['success']:
-            print(
-                '{0} SUCCESS! (reward: {1})'.format(
-                    self.agent_role,
-                    sum([t['reward'] for t in self.recorder.dialogues[-1]])
-                )
-            )
+            # print(
+            #     '{0} SUCCESS! (reward: {1})'.format(
+            #         self.agent_role,
+            #         sum([t['reward'] for t in self.recorder.dialogues[-1]])
+            #     )
+            # )
             self.num_successful_dialogues += \
                 int(self.recorder.dialogues[-1][-1]['success'])
 
         else:
-            print(
-                '{0} FAILURE. (reward: {1})'.format(
-                    self.agent_role,
-                    sum([t['reward'] for t in self.recorder.dialogues[-1]])
-                )
-            )
+            pass
+            # print(
+            #     '{0} FAILURE. (reward: {1})'.format(
+            #         self.agent_role,
+            #         sum([t['reward'] for t in self.recorder.dialogues[-1]])
+            #     )
+            # )
 
         if self.recorder.dialogues[-1][-1]['task_success']:
             self.num_task_success += int(
