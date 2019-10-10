@@ -19,6 +19,7 @@ import json
 import yaml
 import os
 import string
+import re
 
 """
 This script creates an Domain .json file and an SQL .db file, given a .csv or
@@ -96,8 +97,8 @@ def create_ontology(sql_conn, tab_name, ontol_name, inf_slots,
             print(f'Warning! CreateSQLiteDB query for distinct {slot} values '
                   f'did not return results.')
 
-    with open(ontol_name, 'w') as ontology_file:
-        json.dump(ontology, ontology_file, separators=(',', ':'), indent=4)
+    with open(ontol_name, 'w', encoding='utf8') as ontology_file:
+        json.dump(ontology, ontology_file, separators=(',', ':'), indent=4, ensure_ascii=False)
 
 
 def check_float(number):
@@ -241,6 +242,9 @@ if __name__ == '__main__':
             punctuation = punctuation.replace('&', '')
             punctuation_remover = str.maketrans('', '', punctuation)
 
+            # regex pattern to remove all non-word characters
+            remove_pattern = re.compile('[^\w^ ^.]')
+
             print('Populating database ')
             entries_count = 1
 
@@ -263,11 +267,14 @@ if __name__ == '__main__':
                              check_float(e) else e for e in entry]
 
                     # Remove non-ascii characters
-                    entry = \
-                        [str(''.join(i for i in e if
-                                     ord(i) < 128)).replace('\"', '')
-                         for e in entry]
-                    entry = [e.replace('\'', '') for e in entry]
+                    #entry = \
+                    #    [str(''.join(i for i in e if
+                    #                 ord(i) < 128)).replace('\"', '')
+                    #     for e in entry]
+                    #entry = [e.replace('\'', '') for e in entry]
+
+                    # Remove non-word characters
+                    entry = [remove_pattern.sub('', e) for e in entry]
 
                     # Remove punctuation
                     entry = [e.rstrip().lower().translate(punctuation_remover)
