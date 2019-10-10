@@ -266,13 +266,6 @@ if __name__ == '__main__':
                     entry = [str(round(float(e), 1)) if
                              check_float(e) else e for e in entry]
 
-                    # Remove non-ascii characters
-                    #entry = \
-                    #    [str(''.join(i for i in e if
-                    #                 ord(i) < 128)).replace('\"', '')
-                    #     for e in entry]
-                    #entry = [e.replace('\'', '') for e in entry]
-
                     # Remove non-word characters
                     entry = [remove_pattern.sub('', e) for e in entry]
 
