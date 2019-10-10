@@ -115,4 +115,5 @@ ENV/
 # ailabs-utils
 ailabs_util
 
-
+# Local speech outpu
+sys_output.mp3
