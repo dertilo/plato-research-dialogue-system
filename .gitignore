@@ -115,5 +115,8 @@ ENV/
 # ailabs-utils
 ailabs_util
 
-# Local speech outpu
+# Local speech output
 sys_output.mp3
+
+# Local settings
+local_requirements.txt
