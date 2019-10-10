@@ -133,7 +133,7 @@ def arg_parse():
             # Choose config parser
             parts = cfg_filename.split('.')
             if len(parts) > 1:
-                if parts[1] == 'yaml':
+                if parts[-1] == 'yaml':
                     with open(cfg_filename, 'r') as file:
                         cfg_parser = yaml.load(file, Loader=yaml.Loader)
                 else:
