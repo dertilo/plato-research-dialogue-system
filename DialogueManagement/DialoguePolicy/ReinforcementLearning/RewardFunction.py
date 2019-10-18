@@ -167,7 +167,8 @@ class SlotFillingReward(Reward):
                         break
 
                 # Fall back to the noisier signal, that is the slots filled.
-                elif state.slots_filled[slot] != \
+                elif slot in state.slots_filled and \
+                        state.slots_filled[slot] != \
                         goal.constraints[slot].value and \
                         goal.constraints[slot].value != 'dontcare':
                     task_success = False
