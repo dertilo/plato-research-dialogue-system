@@ -203,11 +203,23 @@ if __name__ == '__main__':
                 # Skip the primary key (first column by default)
                 informable_slots = column_names[1:]
 
+            for slot in informable_slots:
+                if slot not in column_names:
+                    raise ValueError('Column for informable slot "{}" is missing.'.format(slot))
+
             if not requestable_slots:
                 requestable_slots = column_names[1:]
 
+            for slot in requestable_slots:
+                if slot not in column_names:
+                    raise ValueError('Column for requestable slot "{}" is missing.'.format(slot))
+
             if not system_requestable_slots:
                 system_requestable_slots = column_names[1:]
+
+            for slot in system_requestable_slots:
+                if slot not in column_names:
+                    raise ValueError('Column for system requestable slot "{}" is missing.'.format(slot))
 
             break
 
