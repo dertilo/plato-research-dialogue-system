@@ -71,7 +71,7 @@ class DataBase:
 
 
 class SQLDataBase(DataBase):
-    def __init__(self, filename):
+    def __init__(self, filename, cache_sql_results=False):
         """
         Initialize the internal structures of the SQL Data Base
         :param filename: path to load the database from
@@ -81,6 +81,8 @@ class SQLDataBase(DataBase):
 
         self.SQL_connection = None
         self.db_table_name = None
+        self.cache_sql_results = cache_sql_results
+        self.result_cache = {}
 
         if isinstance(filename, str):
             if os.path.isfile(filename):
@@ -154,16 +156,25 @@ class SQLDataBase(DataBase):
         if args:
             sql_command += " WHERE " + args + ";"
 
-        cursor.execute(sql_command)
-        db_result = cursor.fetchall()
+        print('SQL command: {}'.format(sql_command))
+        if self.cache_sql_results and sql_command in self.result_cache:
+            print('Cache hit')
+            result = self.result_cache[sql_command]
+        else:
+            print('Cache miss')
+            cursor.execute(sql_command)
+            db_result = cursor.fetchall()
 
-        result = []
+            result = []
 
-        if db_result:
-            # Get the slot names
-            slot_names = [i[0] for i in cursor.description]
-            for db_item in db_result:
-                result.append(dict(zip(slot_names, db_item)))
+            if db_result:
+                # Get the slot names
+                slot_names = [i[0] for i in cursor.description]
+                for db_item in db_result:
+                    result.append(dict(zip(slot_names, db_item)))
+            self.result_cache[sql_command] = result
+
+
 
         if MAX_DB_RESULTS:
             return result[:MAX_DB_RESULTS]

@@ -82,6 +82,9 @@ class DialogueManager(ConversationalModule):
             agent_role = args['agent_role']
 
         self.settings = settings
+        self.print_level = 'debug'
+        if 'GENERAL' in settings and 'print_level' in settings['GENERAL']:
+            self.print_level = settings['GENERAL']['print_level']
 
         self.TRAIN_DST = False
         self.TRAIN_POLICY = False
@@ -168,7 +171,8 @@ class DialogueManager(ConversationalModule):
                             epsilon=epsilon,
                             gamma=gamma,
                             alpha_decay=alpha_decay,
-                            epsilon_decay=epsilon_decay)
+                            epsilon_decay=epsilon_decay,
+                            print_level=self.print_level)
 
             elif args['policy']['type'] == 'minimax_q':
                 alpha = 0.25

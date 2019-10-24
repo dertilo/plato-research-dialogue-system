@@ -76,6 +76,7 @@ class ConversationalSingleAgent(ConversationalAgent):
         super(ConversationalSingleAgent, self).__init__()
 
         self.configuration = configuration
+        self.print_level = 'debug'
 
         # There is only one agent in this setting
         self.agent_id = 0
@@ -88,7 +89,7 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.cumulative_rewards = 0
         self.total_dialogue_turns = 0
 
-        self.minibatch_length = 500
+        self.minibatch_length = 200
         self.train_interval = 50
         self.train_epochs = 10
 
@@ -154,6 +155,10 @@ class ConversationalSingleAgent(ConversationalAgent):
                 raise ValueError('Cannot run Plato without at least '
                                  'one agent!')
 
+            # General settings
+            if 'print_level' in self.configuration['GENERAL']:
+                self.print_level = self.configuration['GENERAL']['print_level']
+
             # Dialogue domain self.settings
             if 'DIALOGUE' in self.configuration and \
                     self.configuration['DIALOGUE']:
@@ -186,8 +191,11 @@ class ConversationalSingleAgent(ConversationalAgent):
                         if 'db_type' in self.configuration['DIALOGUE']:
                             if self.configuration['DIALOGUE']['db_type'] == \
                                     'sql':
+                                cache_sql_results = False
+                                if 'cache_sql_results' in self.configuration['DIALOGUE']:
+                                    cache_sql_results = bool(self.configuration['DIALOGUE']['cache_sql_results'])
                                 self.database = DataBase.SQLDataBase(
-                                    self.configuration['DIALOGUE']['db_path']
+                                    self.configuration['DIALOGUE']['db_path'], cache_sql_results
                                 )
                             else:
                                 self.database = DataBase.DataBase(
@@ -522,8 +530,9 @@ class ConversationalSingleAgent(ConversationalAgent):
         if self.USE_USR_SIMULATOR:
             self.user_simulator.initialize(self.user_simulator_args)
 
-            print('DEBUG > Usr goal:')
-            print(self.user_simulator.goal)
+            if self.print_level in ['debug']:
+                print('DEBUG > Usr goal:')
+                print(self.user_simulator.goal)
 
         if self.agent_role == 'user':
             self.agent_goal = self.goal_generator.generate()
@@ -540,7 +549,8 @@ class ConversationalSingleAgent(ConversationalAgent):
                 sys_utterance = self.nlg.generate_output(
                     {'dacts': sys_response}
                 )
-                print('SYSTEM > %s ' % sys_utterance)
+                if self.print_level in ['debug']:
+                    print('SYSTEM > %s ' % sys_utterance)
 
                 if self.USE_SPEECH:
                     try:
@@ -555,10 +565,11 @@ class ConversationalSingleAgent(ConversationalAgent):
                         )
                         os.system('say ' + sys_utterance)
             else:
-                print(
-                    'SYSTEM > %s ' % '; '.
-                    join([str(sr) for sr in sys_response])
-                )
+                if self.print_level in ['debug']:
+                    print(
+                        'SYSTEM > %s ' % '; '.
+                        join([str(sr) for sr in sys_response])
+                    )
 
             if self.USE_USR_SIMULATOR:
                 usim_input = sys_response
@@ -618,14 +629,16 @@ class ConversationalSingleAgent(ConversationalAgent):
             # TODO: THIS FIRST IF WILL BE HANDLED BY ConversationalAgentGeneric
             #  -- SHOULD NOT LIVE HERE
             if isinstance(self.user_simulator, DTLUserSimulator):
-                print('USER (NLG) > %s \n' % usr_input)
+                if self.print_level in ['debug']:
+                    print('USER (NLG) > %s \n' % usr_input)
                 usr_input = self.nlu.process_input(
                     usr_input,
                     self.dialogue_manager.get_state()
                 )
 
             elif self.USER_SIMULATOR_NLG:
-                print('USER > %s \n' % usr_input)
+                if self.print_level in ['debug']:
+                    print('USER > %s \n' % usr_input)
 
                 if self.nlu:
                     usr_input = self.nlu.process_input(usr_input)
@@ -634,7 +647,8 @@ class ConversationalSingleAgent(ConversationalAgent):
                     # simulator's output DActs to proceed.
 
             else:
-                print('USER (DACT) > %s \n' % usr_input[0])
+                if self.print_level in ['debug']:
+                    print('USER (DACT) > %s \n' % usr_input[0])
 
         else:
             if self.USE_SPEECH:
@@ -696,7 +710,8 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         if self.USE_NLG:
             sys_utterance = self.nlg.generate_output({'dacts': sys_response})
-            print('SYSTEM > %s ' % sys_utterance)
+            if self.print_level in ['debug']:
+                print('SYSTEM > %s ' % sys_utterance)
 
             if self.USE_SPEECH:
                 try:
@@ -709,7 +724,8 @@ class ConversationalSingleAgent(ConversationalAgent):
                           'Falling back to Sys TTS.')
                     os.system('say ' + sys_utterance)
         else:
-            print('SYSTEM > %s ' % '; '.join([str(sr) for sr in sys_response]))
+            if self.print_level in ['debug']:
+                print('SYSTEM > %s ' % '; '.join([str(sr) for sr in sys_response]))
 
         if self.USE_USR_SIMULATOR:
             usim_input = sys_response
@@ -799,8 +815,8 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.dialogue_episode += 1
         self.cumulative_rewards += \
             self.recorder.dialogues[-1][-1]['cumulative_reward']
-        print('CUMULATIVE REWARD: {0}'.
-              format(self.recorder.dialogues[-1][-1]['cumulative_reward']))
+        if self.print_level in ['debug']:
+            print('CUMULATIVE REWARD: {0}'.format(self.recorder.dialogues[-1][-1]['cumulative_reward']))
 
         if self.dialogue_turn > 0:
             self.total_dialogue_turns += self.dialogue_turn
@@ -810,12 +826,14 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         # Count successful dialogues
         if self.recorder.dialogues[-1][-1]['success']:
-            print('SUCCESS (Subjective)!')
+            if self.print_level in ['debug']:
+                print('SUCCESS (Subjective)!')
             self.num_successful_dialogues += \
                 int(self.recorder.dialogues[-1][-1]['success'])
 
         else:
-            print('FAILURE (Subjective).')
+            if self.print_level in ['debug']:
+                print('FAILURE (Subjective).')
 
         if self.recorder.dialogues[-1][-1]['task_success']:
             self.num_task_success += \
