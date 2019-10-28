@@ -156,12 +156,9 @@ class SQLDataBase(DataBase):
         if args:
             sql_command += " WHERE " + args + ";"
 
-        print('SQL command: {}'.format(sql_command))
         if self.cache_sql_results and sql_command in self.result_cache:
-            print('Cache hit')
             result = self.result_cache[sql_command]
         else:
-            print('Cache miss')
             cursor.execute(sql_command)
             db_result = cursor.fetchall()
 
