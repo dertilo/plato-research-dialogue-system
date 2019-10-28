@@ -17,6 +17,7 @@ from UserSimulator.AgendaBasedUserSimulator.AgendaBasedUS import AgendaBasedUS
 from Domain.Ontology import Ontology
 from Domain.DataBase import DataBase
 from copy import deepcopy
+from itertools import compress
 
 import pickle
 import random
@@ -31,7 +32,7 @@ Q_Policy implements a simple Q-Learning dialogue policy.
 class QPolicy(DialoguePolicy.DialoguePolicy):
     def __init__(self, ontology, database, agent_id=0, agent_role='system',
                  domain=None, alpha=0.95, epsilon=0.95,
-                 gamma=0.15, alpha_decay=0.995, epsilon_decay=0.995):
+                 gamma=0.15, alpha_decay=0.995, epsilon_decay=0.995, print_level='debug'):
         """
         Initialize parameters and internal structures
 
@@ -45,6 +46,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         :param alpha_decay: the learning rate discount rate
         :param epsilon_decay: the exploration rate discount rate
         """
+
+        self.print_level = print_level
 
         self.alpha = alpha
         self.alpha_decay = alpha_decay
@@ -192,7 +195,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                 # During exploration we may want to follow another policy,
                 # e.g. an expert policy.
 
-                print('---: Selecting warmup action.')
+                if self.print_level in ['debug']:
+                    print('---: Selecting warmup action.')
 
                 if self.agent_role == 'system':
                     return self.warmup_policy.next_action(state)
@@ -203,7 +207,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
 
             else:
                 # Return a random action
-                print('---: Selecting random action')
+                if self.print_level in ['debug']:
+                    print('---: Selecting random action')
                 return self.decode_action(
                     random.choice(
                         range(0, self.NActions)),
@@ -373,6 +378,129 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
               'default action (unable to encode: {1})!'
               .format(self.agent_role, action))
         return -1
+
+    def encode_action_new(self, actions, system=True):
+
+        # TODO: Handle multiple actions
+        # TODO: Action encoding in a principled way
+        if not actions:
+            print('WARNING: Supervised DialoguePolicy action encoding called '
+                  'with empty actions list (returning -1).')
+            return -1
+
+        action = actions[0]
+
+        # collect possible intent names
+        intents = set()
+        intents.update(['inform', 'request'])  # add common acts
+        intents.update(self.dstc2_acts_sys)  # add DSTC2 system acts
+        intents.update(self.dstc2_acts_usr)  # add DSTC2 user acts
+        intents = sorted(intents)
+
+
+        # collect possible slot names
+        slots = set()
+        slots. update(self.requestable_slots)  # add requestable slots
+        slots.update(self.system_requestable_slots)  # add system requestable slots
+        slots.update(self.informable_slots)  # add informable slots
+        slots.add('')  # add empty slot name, to address actions without filled slot
+        slots = sorted(slots)
+
+        encoded_list = [system]
+
+        # encode intent(s)
+        for intent in intents:
+            encoded_list.append(intent == action.intent)
+
+        # encode slot
+        action_slot = None
+        if action.params and action.params[0].slot:
+            action_slot = action.params[0].slot
+
+        for slot in slots:
+            if action_slot is None:
+                encoded_list.append(False)
+            else:
+                encoded_list.append(slot == action_slot)
+
+        # transform Trues and False to int
+        encoded_list = [int(x) for x in encoded_list]
+
+        # list of ones and zeros to a string [1, 0, 1] -> ['1', '0', '1'] -> '101'
+        encoded_str = ''.join([str(x) for x in encoded_list])
+
+        # transform encoded_str ('101') to int using base 2 -> int('101', 2) -> 5
+        encoded_int = int(encoded_str, 2)
+
+        if encoded_int == 0:
+            print('Q-Learning ({0}) policy action encoder warning: Selecting '
+                  'default action (unable to encode: {1})!'
+                  .format(self.agent_role, action))
+            encoded_int = -1
+
+        return encoded_int
+
+
+    def decode_action_new(self, action_enc, system=True):
+        """
+        Decode the action, given the role. Note that does not have to match
+        the agent's role, as the agent may be decoding another agent's action
+        (e.g. a system decoding the previous user act).
+
+        :param action_enc: action encoding to be decoded
+        :param system: whether the role whose action we are decoding is a
+                       'system'
+        :return: the decoded action
+        """
+        # TODO: Handle multiple actions
+        # TODO: Action encoding in a principled way
+
+        # collect possible intent names
+        intents = set()
+        intents.update(['inform', 'request'])  # add common acts
+        intents.update(self.dstc2_acts_sys)  # add DSTC2 system acts
+        intents.update(self.dstc2_acts_usr)  # add DSTC2 user acts
+        intents = sorted(intents)
+
+        # collect possible slot names
+        slots = set()
+        slots.update(self.requestable_slots)  # add requestable slots
+        slots.update(self.system_requestable_slots)  # add system requestable slots
+        slots.update(self.informable_slots)  # add informable slots
+        slots.add('')  # add empty slot name, to address actions without filled slot
+        slots = sorted(slots)
+
+        binary_list = list(bin(action_enc))[2:]  # ignore the first to characters ('0b')
+        if len(binary_list) != 1 + len(intents) + len(slots):
+            raise ValueError('Binary representation of encoded action has wrong length. Expected length: {}, Actual length: {}'.format(1 + len(intents) + len(slots), len(binary_list)))
+
+        bool_list = [bool(int(x)) for x in binary_list]
+
+        # Decoding bool_list
+        # - First up to n entries encode the act/intent the the concrete number of entries is equal to the length
+        #   of the list intents
+        # - the n+1 entry up to the last one encodes the slots (the concrete number of slot entries is equal to the
+        #   length of the list slots
+
+        # 1. decode action
+        # 1.1 decode act/intent
+        intent_name = list(compress(intents, bool_list[1:1+len(intents)]))[0]
+
+        # 1.2 decode slot
+        slot_names = list(compress(slots, bool_list[1+len(intents):]))
+
+        # 2. Construct DialogAct objects from the decoded action information
+        # 2.1 Construct dialog act items (slots)
+        items = list()
+        for sn in slot_names:
+            item = DialogueActItem(sn, Operator.EQ, '')
+            items.append(item)
+
+        # 2.2 Construct dialog act object
+        act = DialogueAct(intent_name, items)
+
+        return act
+
 
     def decode_action(self, action_enc, system=True):
         """
