@@ -67,7 +67,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         super(ConversationalSingleAgent, self).__init__()
 
         configuration = configuration
-        self.print_level = 'shutup'
 
         # There is only one agent in this setting
         self.agent_id = 0
@@ -451,10 +450,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         if self.USE_USR_SIMULATOR:
             self.user_simulator.initialize(self.user_simulator_args)
 
-            if self.print_level in ['debug']:
-                print('DEBUG > Usr goal:')
-                print(self.user_simulator.goal)
-
         self.dialogue_manager.restart({})
 
         if not self.USER_HAS_INITIATIVE:
@@ -465,15 +460,6 @@ class ConversationalSingleAgent(ConversationalAgent):
                 sys_utterance = self.nlg.generate_output(
                     {'dacts': sys_response}
                 )
-                if self.print_level in ['debug']:
-                    print('SYSTEM > %s ' % sys_utterance)
-
-            else:
-                if self.print_level in ['debug']:
-                    print(
-                        'SYSTEM > %s ' % '; '.
-                        join([str(sr) for sr in sys_response])
-                    )
 
             if self.USE_USR_SIMULATOR:
                 usim_input = sys_response
@@ -533,26 +519,15 @@ class ConversationalSingleAgent(ConversationalAgent):
             # TODO: THIS FIRST IF WILL BE HANDLED BY ConversationalAgentGeneric
             #  -- SHOULD NOT LIVE HERE
             if isinstance(self.user_simulator, DTLUserSimulator):
-                if self.print_level in ['debug']:
-                    print('USER (NLG) > %s \n' % usr_input)
                 usr_input = self.nlu.process_input(
                     usr_input,
                     self.dialogue_manager.get_state()
                 )
 
             elif self.USER_SIMULATOR_NLG:
-                if self.print_level in ['debug']:
-                    print('USER > %s \n' % usr_input)
 
                 if self.nlu:
                     usr_input = self.nlu.process_input(usr_input)
-
-                    # Otherwise it will just print the user's NLG but use the
-                    # simulator's output DActs to proceed.
-
-            else:
-                if self.print_level in ['debug']:
-                    print('USER (DACT) > %s \n' % usr_input[0])
 
         else:
             usr_utterance = input('USER > ')
@@ -585,12 +560,7 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         if self.USE_NLG:
             sys_utterance = self.nlg.generate_output({'dacts': sys_response})
-            if self.print_level in ['debug']:
-                print('SYSTEM > %s ' % sys_utterance)
 
-        else:
-            if self.print_level in ['debug']:
-                print('SYSTEM > %s ' % '; '.join([str(sr) for sr in sys_response]))
 
         if self.USE_USR_SIMULATOR:
             usim_input = sys_response
@@ -598,11 +568,6 @@ class ConversationalSingleAgent(ConversationalAgent):
             if self.USER_SIMULATOR_NLU and self.USE_NLG:
                 usim_input = \
                     self.user_simulator.nlu.process_input(sys_utterance)
-                if self.print_level in ['debug']:
-                    print(
-                        'USER NLU '
-                        '> %s ' % '; '.join([str(ui) for ui in usim_input])
-                    )
 
             self.user_simulator.receive_input(usim_input)
             rew, success, task_success = \
@@ -658,11 +623,6 @@ class ConversationalSingleAgent(ConversationalAgent):
             if self.dialogue_episode % self.train_interval == 0 and \
                     len(self.recorder.dialogues) >= self.minibatch_length:
                 for epoch in range(self.train_epochs):
-                    if self.print_level in ['debug']:
-                        print('Training epoch {0} of {1}'.format(
-                            epoch,
-                            self.train_epochs)
-                        )
 
                     # Sample minibatch
                     minibatch = random.sample(
@@ -681,8 +641,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.dialogue_episode += 1
         self.cumulative_rewards += \
             self.recorder.dialogues[-1][-1]['cumulative_reward']
-        if self.print_level in ['debug']:
-            print('CUMULATIVE REWARD: {0}'.format(self.recorder.dialogues[-1][-1]['cumulative_reward']))
 
         if self.dialogue_turn > 0:
             self.total_dialogue_turns += self.dialogue_turn
@@ -692,14 +650,8 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         # Count successful dialogues
         if self.recorder.dialogues[-1][-1]['success']:
-            if self.print_level in ['debug']:
-                print('SUCCESS (Subjective)!')
             self.num_successful_dialogues += \
                 int(self.recorder.dialogues[-1][-1]['success'])
-
-        else:
-            if self.print_level in ['debug']:
-                print('FAILURE (Subjective).')
 
         if self.recorder.dialogues[-1][-1]['task_success']:
             self.num_task_success += \
