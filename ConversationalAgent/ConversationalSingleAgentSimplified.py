@@ -335,9 +335,8 @@ class ConversationalSingleAgent(ConversationalAgent):
         usim_input = sys_response
         self.user_simulator.receive_input(usim_input)
         rew, success, task_success = self.reward_func.calculate(
-            self.dialogue_manager.get_state(),
-            sys_response,
-            self.user_simulator.goal
+            state=self.dialogue_manager.get_state(),
+            goal=self.user_simulator.goal
         )
 
         self.recorder.record(
@@ -387,9 +386,8 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.user_simulator.receive_input(usim_input)
         rew, success, task_success = \
             self.reward_func.calculate(
-                self.dialogue_manager.get_state(),
-                sys_response,
-                self.user_simulator.goal
+                state=self.dialogue_manager.get_state(),
+                goal=self.user_simulator.goal
             )
 
         if self.prev_state:

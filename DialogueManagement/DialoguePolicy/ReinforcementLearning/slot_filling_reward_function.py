@@ -18,25 +18,19 @@ from copy import deepcopy
 
 class SlotFillingReward(object):
     def __init__(self):
-        """
-        Set default values for turn penalty, success, and failure.
-        """
-
         self.goal = None
-
         self.turn_penalty = -0.05
         self.failure_penalty = -1
         self.success_reward = 20
 
 
-    def calculate(self, state, actions, goal=None, force_terminal=False,
+    def calculate(self, state, goal=None, force_terminal=False,
                   agent_role='system'):
         """
         Calculate the reward to be assigned for taking action from state.
 
 
         :param state: the current state
-        :param actions: the action taken from the current state
         :param goal: the agent's goal, used to assess success
         :param force_terminal: force state to be terminal
         :param agent_role: the role of the agent
