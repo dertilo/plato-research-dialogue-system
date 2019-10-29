@@ -108,7 +108,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.nlu = None
         self.nlg = None
 
-        self.agent_role = None
         self.agent_goal = None
         self.goal_generator = None
 
@@ -141,7 +140,7 @@ class ConversationalSingleAgent(ConversationalAgent):
                  self.database,
                  self.domain,
                  self.agent_id,
-                 self.agent_role
+                 'system'
                  ]
             )
         )
@@ -157,7 +156,6 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         self.build_NLU_settings(configuration)
         self.build_NLG_settings(configuration)
-        self.agent_role = configuration['AGENT_0']['role']
 
     def build_NLG_settings(self, configuration):
         if 'NLG' in configuration['AGENT_0'] and \
@@ -420,12 +418,6 @@ class ConversationalSingleAgent(ConversationalAgent):
                     )
 
     def initialize(self):
-        """
-        Initializes the conversational agent based on settings in the
-        configuration file.
-
-        :return: Nothing
-        """
 
         self.dialogue_episode = 0
         self.dialogue_turn = 0
@@ -436,12 +428,7 @@ class ConversationalSingleAgent(ConversationalAgent):
         if self.nlu:
             self.nlu.initialize({})
 
-        if self.agent_role == 'user' and not self.agent_goal:
-            self.agent_goal = self.goal_generator.generate()
-            self.dialogue_manager.initialize({'goal': self.agent_goal})
-
-        else:
-            self.dialogue_manager.initialize({})
+        self.dialogue_manager.initialize({})
 
         if self.nlg:
             self.nlg.initialize({})
@@ -474,12 +461,7 @@ class ConversationalSingleAgent(ConversationalAgent):
                 print('DEBUG > Usr goal:')
                 print(self.user_simulator.goal)
 
-        if self.agent_role == 'user':
-            self.agent_goal = self.goal_generator.generate()
-            self.dialogue_manager.restart({'goal': self.agent_goal})
-
-        else:
-            self.dialogue_manager.restart({})
+        self.dialogue_manager.restart({})
 
         if not self.USER_HAS_INITIATIVE:
             # sys_response = self.dialogue_manager.respond()
@@ -623,11 +605,6 @@ class ConversationalSingleAgent(ConversationalAgent):
                     'text-based interaction!'
                 )
 
-        # DEBUG print
-        # print(
-        #     '\nSYSTEM NLU > %s ' % '; '.join([str(ui) for ui in usr_input])
-        # )
-
         self.dialogue_manager.receive_input(usr_input)
 
         # Keep track of prev_state, for the DialogueEpisodeRecorder
@@ -635,17 +612,11 @@ class ConversationalSingleAgent(ConversationalAgent):
         # will use to make a decision.
         self.curr_state = deepcopy(self.dialogue_manager.get_state())
 
-        # print('\nDEBUG> '+str(self.dialogue_manager.get_state()) + '\n')
 
         if self.dialogue_turn < self.MAX_TURNS:
             sys_response = self.dialogue_manager.generate_output()
 
         else:
-            # Force dialogue stop
-            # print(
-            #     '{0}: terminating dialogue due to too '
-            #     'many turns'.format(self.agent_role)
-            # )
             sys_response = [DialogueAct('bye', [])]
 
         if self.USE_NLG:
