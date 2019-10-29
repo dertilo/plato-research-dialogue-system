@@ -223,25 +223,22 @@ class DialogueManager(ConversationalModule):
         # Safeguards to support policies that make decisions on intents only
         # (i.e. do not output slots or values)
         for sys_act in sys_acts:
-            if sys_act.intent == 'canthelp' and not sys_act.params:
-                self.cant_help(d_state, new_sys_acts, sys_act, sys_acts_copy)
+            if not sys_act.params:
+                if sys_act.intent == 'canthelp':
+                    self.cant_help(d_state, new_sys_acts, sys_act, sys_acts_copy)
 
-            if sys_act.intent == 'offer' and not sys_act.params:
-                self.sys_offer(d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy)
+                elif sys_act.intent == 'offer':
+                    self.sys_offer(d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy)
 
-            elif sys_act.intent == 'inform':
-                if sys_act.params and sys_act.params[0].value:
-                    continue
+                elif sys_act.intent == 'inform' and not sys_act.params[0].value:
 
-                self.sys_inform(d_state, new_sys_acts, sys_act)
+                    self.sys_inform(d_state, new_sys_acts, sys_act)
+                    sys_acts_copy.remove(sys_act)
 
+                elif sys_act.intent == 'request':
+                    self.handle_empty_request_action(d_state, new_sys_acts, sys_act,
+                                                         sys_acts_copy)
 
-                # Remove the empty inform
-                sys_acts_copy.remove(sys_act)
-
-            elif sys_act.intent == 'request':
-                # If the policy did not select a slot
-                self.sys_request(d_state, new_sys_acts, sys_act, sys_acts_copy)
 
         # Append unique new sys acts
         for sa in new_sys_acts:
@@ -252,37 +249,32 @@ class DialogueManager(ConversationalModule):
 
         return sys_acts_copy
 
-    def sys_request(self, d_state, new_sys_acts, sys_act, sys_acts_copy):
-        if not sys_act.params:
-            found = False
-
-            # Select unfilled slot
+    def handle_empty_request_action(self, d_state, new_sys_acts, sys_act,
+                                    sys_acts_copy):
+        def get_unfilled_slot(d_state):
             for slot in d_state.slots_filled:
                 if not d_state.slots_filled[slot]:
-                    found = True
-                    new_sys_acts.append(
-                        DialogueAct(
-                            'request',
-                            [DialogueActItem(
-                                slot,
-                                Operator.EQ,
-                                '')]))
-                    break
+                    request_unfilled_slot = DialogueAct('request',
+                                                        [DialogueActItem(slot,
+                                                                         Operator.EQ,
+                                                                         '')])
+                    return request_unfilled_slot
 
+            return None
 
-            if not found:
-                # All slots are filled
-                new_sys_acts.append(
-                    DialogueAct(
-                        'request',
-                        [DialogueActItem(
-                            random.choice(
-                                list(
-                                    d_state.slots_filled.keys())[:-1]),
-                            Operator.EQ, '')]))
+        def build_act_that_requests_random_slot(
+                d_state):  # TODO: why would one do such a thing?
+            request_random_slot = DialogueAct('request', [DialogueActItem(
+                random.choice(list(d_state.slots_filled.keys())[:-1]), Operator.EQ,
+                '')])
+            return request_random_slot
 
-            # Remove the empty request
-            sys_acts_copy.remove(sys_act)
+        act = get_unfilled_slot(d_state)
+        if act is None:
+            act = build_act_that_requests_random_slot(d_state)
+        new_sys_acts.append(act)
+        # Remove the empty request
+        sys_acts_copy.remove(sys_act)
 
     def sys_inform(self, d_state, new_sys_acts, sys_act):
         if sys_act.params:
@@ -382,12 +374,6 @@ class DialogueManager(ConversationalModule):
                         slot,
                         Operator.EQ,
                         d_state.slots_filled[slot])]))
-
-        else:
-            pass
-            # print('DialogueManager Warning! No slot provided by '
-            #       'policy for canthelp and cannot find a reasonable '
-            #       'one!')
 
     def db_lookup(self):
 
