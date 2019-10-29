@@ -84,8 +84,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.train_epochs = 10
 
         # True values here would imply some default modules
-        self.USER_SIMULATOR_NLU = False
-        self.USER_SIMULATOR_NLG = False
         self.USER_HAS_INITIATIVE = True
         self.SAVE_LOG = True
 
@@ -202,37 +200,6 @@ class ConversationalSingleAgent(ConversationalAgent):
                         self.user_simulator_args[
                             'goal_slot_selection_weights'
                         ] = a0_sim_config['goal_slot_selection_weights']
-
-                    if 'nlu' in a0_sim_config:
-                        self.user_simulator_args['nlu'] = \
-                            a0_sim_config['nlu']
-
-                        if self.user_simulator_args['nlu'] == 'dummy':
-                            self.user_simulator_args['database'] = \
-                                self.database
-
-                        self.USER_SIMULATOR_NLU = True
-
-                    if 'nlg' in a0_sim_config:
-                        self.user_simulator_args['nlg'] = \
-                            a0_sim_config['nlg']
-
-                        if self.user_simulator_args['nlg'] == 'CamRest':
-                            if a0_sim_config:
-                                self.user_simulator_args[
-                                    'nlg_model_path'
-                                ] = a0_sim_config['nlg_model_path']
-
-                                self.USER_SIMULATOR_NLG = True
-
-                            else:
-                                raise ValueError(
-                                    'Usr Simulator NLG: Cannot find '
-                                    'model_path in the config.'
-                                )
-
-                        elif self.user_simulator_args['nlg'] == 'dummy':
-                            self.USER_SIMULATOR_NLG = True
 
                     if 'goals_file' in a0_sim_config:
                         self.user_simulator_args['goals_file'] = \
@@ -415,12 +382,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         )
 
         usim_input = sys_response
-
-        if self.USER_SIMULATOR_NLU and True:
-            usim_input = self.user_simulator.nlu.process_input(
-                sys_utterance
-            )
-
         self.user_simulator.receive_input(usim_input)
         rew, success, task_success = self.reward_func.calculate(
             self.dialogue_manager.get_state(),
@@ -459,20 +420,6 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         usr_input = self.user_simulator.respond()
 
-        # TODO: THIS FIRST IF WILL BE HANDLED BY ConversationalAgentGeneric
-        #  -- SHOULD NOT LIVE HERE
-        if isinstance(self.user_simulator, DTLUserSimulator):
-            usr_input = self.nlu.process_input(
-                usr_input,
-                self.dialogue_manager.get_state()
-            )
-
-        elif self.USER_SIMULATOR_NLG:
-
-            if self.nlu:
-                usr_input = self.nlu.process_input(usr_input)
-
-
         self.dialogue_manager.receive_input(usr_input)
 
         # Keep track of prev_state, for the DialogueEpisodeRecorder
@@ -491,10 +438,6 @@ class ConversationalSingleAgent(ConversationalAgent):
 
 
         usim_input = sys_response
-
-        if self.USER_SIMULATOR_NLU and True:
-            usim_input = \
-                self.user_simulator.nlu.process_input(sys_utterance)
 
         self.user_simulator.receive_input(usim_input)
         rew, success, task_success = \
