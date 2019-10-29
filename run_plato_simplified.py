@@ -71,7 +71,7 @@ def run_single_agent(config, num_dialogues):
 
     return statistics
 
-def arg_parse(args=None):
+def arg_parse(cfg_filename:str='config/train_reinforce.yaml'):
     """
     This function will parse the configuration file that was provided as a
     system argument into a dictionary.
@@ -79,69 +79,30 @@ def arg_parse(args=None):
     :return: a dictionary containing the parsed config file.
     """
 
-    cfg_parser = None
-    
-    arg_vec = args if args else sys.argv
-
-    # Parse arguments
-    if len(arg_vec) < 3:
-        print('WARNING: No configuration file.')
-        config_yaml = 'config/train_reinforce.yaml'
-        arg_vec+=['-config', config_yaml]
-
-    test_mode = arg_vec[1] == '-t'
-
-    if test_mode:
-        return {'test_mode': test_mode}
-
-    # Initialize random seed
     random.seed(time.time())
 
-    cfg_filename = arg_vec[2]
-    if isinstance(cfg_filename, str):
-        if os.path.isfile(cfg_filename):
-            # Choose config parser
-            parts = cfg_filename.split('.')
-            if len(parts) > 1:
-                if parts[-1] == 'yaml':
-                    with open(cfg_filename, 'r') as file:
-                        cfg_parser = yaml.load(file, Loader=yaml.Loader)
-                elif parts[1] == 'cfg':
-                    cfg_parser = configparser.ConfigParser()
-                    cfg_parser.read(cfg_filename)
-                else:
-                    raise ValueError('Unknown configuration file type: %s'
-                                     % parts[1])
-        else:
-            raise FileNotFoundError('Configuration file %s not found'
-                                    % cfg_filename)
-    else:
-        raise ValueError('Unacceptable value for configuration file name: %s '
-                         % cfg_filename)
+    assert os.path.isfile(cfg_filename)
+    assert cfg_filename.endswith('.yaml')
 
-    tests = 1
-    dialogues = 10
+    with open(cfg_filename, 'r') as file:
+        cfg_parser = yaml.load(file, Loader=yaml.Loader)
+
     interaction_mode = 'simulation'
     num_agents = 1
 
-    if cfg_parser:
-        dialogues = int(cfg_parser['DIALOGUE']['num_dialogues'])
+    dialogues = int(cfg_parser['DIALOGUE']['num_dialogues'])
 
-        if 'interaction_mode' in cfg_parser['GENERAL']:
-            interaction_mode = cfg_parser['GENERAL']['interaction_mode']
+    if 'interaction_mode' in cfg_parser['GENERAL']:
+        interaction_mode = cfg_parser['GENERAL']['interaction_mode']
 
-            if 'agents' in cfg_parser['GENERAL']:
-                num_agents = int(cfg_parser['GENERAL']['agents'])
+        if 'agents' in cfg_parser['GENERAL']:
+            num_agents = int(cfg_parser['GENERAL']['agents'])
 
-            elif interaction_mode == 'multi_agent':
-                print('WARNING! Multi-Agent interaction mode selected but '
-                      'number of agents is undefined in config.')
-
-        if 'tests' in cfg_parser['GENERAL']:
-            tests = int(cfg_parser['GENERAL']['tests'])
+        elif interaction_mode == 'multi_agent':
+            print('WARNING! Multi-Agent interaction mode selected but '
+                  'number of agents is undefined in config.')
 
     return {'cfg_parser': cfg_parser,
-            'tests': tests,
             'dialogues': dialogues,
             'interaction_mode': interaction_mode,
             'num_agents': num_agents,
