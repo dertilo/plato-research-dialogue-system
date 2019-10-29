@@ -26,6 +26,7 @@ import sys
 import os.path
 import time
 import random
+import logging
 
 """
 This is the main entry point to Plato Research Dialogue System.
@@ -35,12 +36,27 @@ agent(s) terminate. In the multi-agent case, the Controller will pass the
 appropriate input to each agent.
 """
 
+# prepare logging
+module_logger = logging.getLogger('plato')
+module_logger.setLevel(logging.INFO)
+
+#  create console handler
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+#  create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+#  add the handlers to the logger
+module_logger.addHandler(ch)
+
 
 class Controller(object):
     def __init__(self):
         """
         Initializes some basic structs for the Controller.
         """
+
+        self.logger = logging.getLogger('plato.Controller')
 
         self.sys_output = ''
         self.user_output = ''
@@ -66,8 +82,10 @@ class Controller(object):
         ca.initialize()
 
         for dialogue in range(num_dialogues):
-            print('\n=====================================================\n\n'
-                  'Dialogue %d (out of %d)\n' % (dialogue+1, num_dialogues))
+
+            if (dialogue + 1) % 10 == 0:
+                module_logger.info('=====================================================')
+                module_logger.info('Dialogue %d (out of %d)\n' % (dialogue+1, num_dialogues))
 
             ca.start_dialogue()
 
@@ -88,7 +106,7 @@ class Controller(object):
         statistics['AGENT_0']['objective_task_completion_percentage'] = \
             100 * float(ca.num_task_success / num_dialogues)
 
-        print('\n\nDialogue Success Rate: {0}\nAverage Cumulative Reward: {1}'
+        module_logger.info('\n\nDialogue Success Rate: {0}\nAverage Cumulative Reward: {1}'
               '\nAverage Turns: {2}'.
               format(statistics['AGENT_0']['dialogue_success_percentage'],
                      statistics['AGENT_0']['avg_cumulative_rewards'],
@@ -141,11 +159,11 @@ class Controller(object):
                             ConversationalMultiAgent(config, a))
 
                 else:
-                    print('WARNING: Unknown agent role: {0}!'
-                          .format(config[ag_id_str]['role']))
+                    module_logger.warning('WARNING: Unknown agent role: {0}!'.format(config[ag_id_str]['role']))
             else:
-                raise ValueError('Role for agent {0} not defined in config.'
-                                 .format(a))
+                msg = 'Role for agent {0} not defined in config.'.format(a)
+                module_logger.error(msg)
+                raise ValueError(msg)
 
         # TODO: WARNING: FOR NOW ASSUMING WE HAVE ONE SYSTEM AND ONE USER AGENT
         conv_user_agents[0].initialize()
@@ -247,7 +265,7 @@ class Controller(object):
         statistics['AGENT_1']['objective_task_completion_percentage'] = \
             100 * float(objective_success / num_dialogues)
 
-        print('\n\nSYSTEM Dialogue Success Rate: {0}\n'
+        module_logger.info('\n\nSYSTEM Dialogue Success Rate: {0}\n'
               'Average Cumulative Reward: {1}\n'
               'Average Turns: {2}'.
               format(100 *
@@ -258,7 +276,7 @@ class Controller(object):
                      float(conv_sys_agents[0].total_dialogue_turns
                            / num_dialogues)))
 
-        print('\n\nUSER Dialogue Success Rate: {0}\n'
+        module_logger.info('\n\nUSER Dialogue Success Rate: {0}\n'
               'Average Cumulative Reward: {1}\n'
               'Average Turns: {2}'.
               format(100 *
@@ -272,9 +290,9 @@ class Controller(object):
         avg_rew = 0.5 * (
                 float(conv_sys_agents[0].cumulative_rewards / num_dialogues) +
                 float(conv_user_agents[0].cumulative_rewards / num_dialogues))
-        print(f'\n\nAVERAGE rewards: {avg_rew}')
+        module_logger.info(f'\n\nAVERAGE rewards: {avg_rew}')
 
-        print('\n\nObjective Task Success Rate: {0}'.format(
+        module_logger.info('\n\nObjective Task Success Rate: {0}'.format(
             100 * float(objective_success / num_dialogues)))
 
         return statistics
@@ -294,7 +312,7 @@ def arg_parse(args=None):
 
     # Parse arguments
     if len(arg_vec) < 3:
-        print('WARNING: No configuration file.')
+        module_logger.warning('WARNING: No configuration file provided.')
         arg_vec+=['-config','Examples/config/CamRest_MA_train_acts.yaml']
 
     test_mode = arg_vec[1] == '-t'
@@ -318,14 +336,17 @@ def arg_parse(args=None):
                     cfg_parser = configparser.ConfigParser()
                     cfg_parser.read(cfg_filename)
                 else:
-                    raise ValueError('Unknown configuration file type: %s'
-                                     % parts[1])
+                    msg = 'Unknown configuration file type: %s' % parts[1]
+                    module_logger.error(msg)
+                    raise ValueError(msg)
         else:
-            raise FileNotFoundError('Configuration file %s not found'
-                                    % cfg_filename)
+            msg = 'Configuration file %s not found' % cfg_filename
+            module_logger.error(msg)
+            raise FileNotFoundError(msg)
     else:
-        raise ValueError('Unacceptable value for configuration file name: %s '
-                         % cfg_filename)
+        msg = 'Unacceptable value for configuration file name: %s ' % cfg_filename
+        module_logger.error(msg)
+        raise ValueError(msg)
 
     tests = 1
     dialogues = 10
@@ -342,7 +363,7 @@ def arg_parse(args=None):
                 num_agents = int(cfg_parser['GENERAL']['agents'])
 
             elif interaction_mode == 'multi_agent':
-                print('WARNING! Multi-Agent interaction mode selected but '
+                module_logger.warning('WARNING! Multi-Agent interaction mode selected but '
                       'number of agents is undefined in config.')
 
         if 'tests' in cfg_parser['GENERAL']:
@@ -377,11 +398,11 @@ def run_controller(args):
 
     for test in range(tests):
         # Run simulation
-        print('\n\n=======================================')
-        print('# Running {0} dialogues (test {1} of {2}) #'.format(dialogues,
+        module_logger.info('=======================================')
+        module_logger.info('# Running {0} dialogues (test {1} of {2}) #'.format(dialogues,
                                                                    (test + 1),
                                                                    tests))
-        print('=======================================\n')
+        module_logger.info('=======================================\n')
 
         statistics = {}
 
@@ -397,13 +418,13 @@ def run_controller(args):
                     cfg_parser, dialogues, num_agents)
 
             else:
-                ValueError('Unknown interaction mode: {0}'.format(
-                    interaction_mode))
+                msg = 'Unknown interaction mode: {0}'.format(interaction_mode)
+                ValueError(msg)
                 return -1
 
         except (ValueError, FileNotFoundError, TypeError, AttributeError) \
                 as err:
-            print('\nPlato error! {0}\n'.format(err))
+            module_logger.error('\nPlato error! {0}\n'.format(err))
             return -1
 
     pprint(f'Results:\n{statistics}')
@@ -437,22 +458,22 @@ if __name__ == '__main__':
                 continue
                 
             for config_file in filenames:
-                print(f'\n\nRunning test with configuration {config_file}\n')
+                module_logger.info(f'\n\nRunning test with configuration {config_file}\n')
 
                 args = arg_parse(['_', '-c', dirpath + config_file])
 
                 if run_controller(args) < 0:
-                    print(f'FAIL! With {config_file}')
+                    module_logger.error(f'FAIL! With {config_file}')
                     failed.append(config_file)
 
                 else:
-                    print('PASS!')
+                    module_logger.info('PASS!')
                     passed.append(config_file)
 
-        print('\nTEST RESULTS:')
-        print(f'Passed {len(passed)} out of {(len(passed) + len(failed))}')
+        module_logger.info('\nTEST RESULTS:')
+        module_logger.info(f'Passed {len(passed)} out of {(len(passed) + len(failed))}')
 
-        print(f'Failed on: {failed}')
+        module_logger.warning(f'Failed on: {failed}')
 
     else:
         # Normal Plato execution

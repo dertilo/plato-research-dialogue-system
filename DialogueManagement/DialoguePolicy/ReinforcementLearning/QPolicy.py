@@ -23,10 +23,14 @@ import pickle
 import random
 import pprint
 import os.path
+import logging
 
 """
 Q_Policy implements a simple Q-Learning dialogue policy.
 """
+
+# create logger
+module_logger = logging.getLogger('plato.QPolicy')
 
 
 class QPolicy(DialoguePolicy.DialoguePolicy):
@@ -46,6 +50,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         :param alpha_decay: the learning rate discount rate
         :param epsilon_decay: the exploration rate discount rate
         """
+
+        self.logger = logging.getLogger('plato.QPolicy.QPolicy')
 
         self.print_level = print_level
 
@@ -75,8 +81,9 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                              'type %s ' % database)
 
         self.Q = {}
+        self.Q_info = {}  # tracks information about training of Q
 
-        self.pp = pprint.PrettyPrinter(width=160)     # For debug!
+        self.pp = pprint.PrettyPrinter(width=160)  # For debug!
 
         # System and user expert policies (optional)
         self.warmup_policy = None
@@ -448,6 +455,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         :return:
         """
 
+        self.logger.info('Train Q with {} dialogues'.format(len(dialogues)))
         for dialogue in dialogues:
             if len(dialogue) > 1:
                 dialogue[-2]['reward'] = dialogue[-1]['reward']
@@ -470,10 +478,21 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                 if new_state_enc in self.Q:
                     max_q = max(self.Q[new_state_enc].values())
 
-                self.Q[state_enc][action_enc] += \
-                    self.alpha * (turn['reward'] +
-                                  self.gamma * max_q -
-                                  self.Q[state_enc][action_enc])
+                new_q = self.alpha * (turn['reward'] +
+                                      self.gamma * max_q -
+                                      self.Q[state_enc][action_enc])
+
+                # self.logger.debug('Old q: {}, New q: {}, Diff: {}'.format(self.Q[state_enc][action_enc], new_q,
+                #                                                          new_q - self.Q[state_enc][action_enc]))
+
+                self.Q[state_enc][action_enc] += new_q
+
+                # count update of Q
+                if state_enc not in self.Q_info:
+                    self.Q_info[state_enc] = {}
+                if action_enc not in self.Q_info[state_enc]:
+                    self.Q_info[state_enc][action_enc] = 0
+                self.Q_info[state_enc][action_enc] += 1
 
         # Decay learning rate
         if self.alpha > 0.001:
@@ -483,8 +502,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         if self.epsilon > 0.05:
             self.epsilon *= self.epsilon_decay
 
-        print('Q-Learning: [alpha: {0}, epsilon: {1}]'
-              .format(self.alpha, self.epsilon))
+        self.logger.debug('Q-Learning factors: [alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
 
     def save(self, path=None):
         """
@@ -500,13 +518,13 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
 
         if not path:
             path = 'Models/Policies/q_policy.pkl'
-            print('No policy file name provided. Using default: {0}'
-                  .format(path))
+            self.logger.warning('No policy file name provided. Using default: {0}'.format(path))
 
         obj = {'Q': self.Q,
                'a': self.alpha,
                'e': self.epsilon,
-               'g': self.gamma}
+               'g': self.gamma,
+               'i': self.Q_info}
 
         with open(path, 'wb') as file:
             pickle.dump(obj, file, pickle.HIGHEST_PROTOCOL)
@@ -519,8 +537,10 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         :return: nothing
         """
 
+        self.logger.info('Load policy model.'.format(path))
+
         if not path:
-            print('No policy loaded.')
+            self.logger.warning('No policy loaded.')
             return
 
         if isinstance(path, str):
@@ -530,17 +550,26 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
 
                     if 'Q' in obj:
                         self.Q = obj['Q']
+                        self.logger.debug('Number of states in Q: {}'.format(len(self.Q)))
+                        actions = set()
+                        for k, v in self.Q.items():
+                            actions.update(list(v.keys()))
+                        self.logger.debug('Q contains {} distinct actions: {}'.format(len(actions), actions))
                     if 'a' in obj:
                         self.alpha = obj['a']
+                        self.logger.debug('Alpha from loaded policy: {}'.format(obj['a']))
                     if 'e' in obj:
                         self.epsilon = obj['e']
+                        self.logger.debug('Epsilon from loaded policy: {}'.format(obj['e']))
                     if 'g' in obj:
                         self.gamma = obj['g']
+                        self.logger.debug('Gamma from loaded policy: {}'.format(obj['g']))
+                    if 'i' in obj:
+                        self.Q_info = obj['i']
 
-                    print('Q DialoguePolicy loaded from {0}.'.format(path))
+                    self.logger.info('Q DialoguePolicy loaded from {0}.'.format(path))
 
             else:
-                print('Warning! Q DialoguePolicy file %s not found' % path)
+                self.logger.warning('Warning! Q DialoguePolicy file {} not found'.format(path))
         else:
-            print('Warning! Unacceptable value for Q policy file name: %s '
-                  % path)
+            self.logger.warning('Unacceptable value for Q policy file name: {} '.format(path))
