@@ -1,15 +1,3 @@
-"""
-Copyright (c) 2019 Uber Technologies, Inc.
-
-Licensed under the Uber Non-Commercial License (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at the root directory of this project. 
-
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
-__author__ = "Alexandros Papangelis"
 
 from ConversationalAgent.ConversationalAgent import ConversationalAgent
 
@@ -36,18 +24,21 @@ import os
 import random
 import speech_recognition as speech_rec
 
-"""
-The ConversationalSingleAgent implements the standard architecture of a 
-dialogue system, with some flexibility in the input and output (either 
-can be Dialogue Acts, Text, or Speech). Each component's parameters must 
-be in the config, otherwise this agent will either raise an error or use 
-default values.
-"""
 
-# Audio recording parameters
-RATE = 16000
-CHUNK = int(RATE / 10)  # 100ms
+def validate_configuration(configuration):
+    if not configuration['GENERAL']:
+        raise ValueError('Cannot run Plato without GENERAL settings!')
 
+    elif not configuration['GENERAL']['interaction_mode']:
+        raise ValueError('Cannot run Plato without an '
+                         'interaction mode!')
+
+    elif not configuration['DIALOGUE']:
+        raise ValueError('Cannot run Plato without DIALOGUE settings!')
+
+    elif not configuration['AGENT_0']:
+        raise ValueError('Cannot run Plato without at least '
+                         'one agent!')
 
 class ConversationalSingleAgent(ConversationalAgent):
     """
@@ -75,7 +66,7 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         super(ConversationalSingleAgent, self).__init__()
 
-        self.configuration = configuration
+        configuration = configuration
         self.print_level = 'shutup'
 
         # There is only one agent in this setting
@@ -139,312 +130,13 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.reward_func = SlotFillingReward()
         # self.reward_func = SlotFillingGoalAdvancementReward()
 
-        if self.configuration:
-            # Error checks for options the config must have
-            if not self.configuration['GENERAL']:
-                raise ValueError('Cannot run Plato without GENERAL settings!')
-
-            elif not self.configuration['GENERAL']['interaction_mode']:
-                raise ValueError('Cannot run Plato without an '
-                                 'interaction mode!')
-
-            elif not self.configuration['DIALOGUE']:
-                raise ValueError('Cannot run Plato without DIALOGUE settings!')
-
-            elif not self.configuration['AGENT_0']:
-                raise ValueError('Cannot run Plato without at least '
-                                 'one agent!')
-
-            # General settings
-            if 'print_level' in self.configuration['GENERAL']:
-                self.print_level = self.configuration['GENERAL']['print_level']
-
-            # Dialogue domain self.settings
-            if 'DIALOGUE' in self.configuration and \
-                    self.configuration['DIALOGUE']:
-                if 'initiative' in self.configuration['DIALOGUE']:
-                    self.USER_HAS_INITIATIVE = bool(
-                        self.configuration['DIALOGUE']['initiative'] == 'user'
-                    )
-                    self.user_simulator_args['us_has_initiative'] = \
-                        self.USER_HAS_INITIATIVE
-
-                if self.configuration['DIALOGUE']['domain']:
-                    self.domain = self.configuration['DIALOGUE']['domain']
-
-                if self.configuration['DIALOGUE']['ontology_path']:
-                    if os.path.isfile(
-                            self.configuration['DIALOGUE']['ontology_path']
-                    ):
-                        self.ontology = Ontology.Ontology(
-                            self.configuration['DIALOGUE']['ontology_path']
-                        )
-                    else:
-                        raise FileNotFoundError(
-                            'Domain file %s not found' %
-                            self.configuration['DIALOGUE']['ontology_path'])
-
-                if self.configuration['DIALOGUE']['db_path']:
-                    if os.path.isfile(
-                            self.configuration['DIALOGUE']['db_path']
-                    ):
-                        if 'db_type' in self.configuration['DIALOGUE']:
-                            if self.configuration['DIALOGUE']['db_type'] == \
-                                    'sql':
-                                cache_sql_results = False
-                                if 'cache_sql_results' in self.configuration['DIALOGUE']:
-                                    cache_sql_results = bool(self.configuration['DIALOGUE']['cache_sql_results'])
-                                self.database = DataBase.SQLDataBase(
-                                    self.configuration['DIALOGUE']['db_path'], cache_sql_results
-                                )
-                            else:
-                                self.database = DataBase.DataBase(
-                                    self.configuration['DIALOGUE']['db_path']
-                                )
-                        else:
-                            # Default to SQL
-                            self.database = DataBase.SQLDataBase(
-                                self.configuration['DIALOGUE']['db_path']
-                            )
-                    else:
-                        raise FileNotFoundError(
-                            'Database file %s not found' %
-                            self.configuration['DIALOGUE']['db_path']
-                        )
-
-                if 'goals_path' in self.configuration['DIALOGUE']:
-                    if os.path.isfile(
-                            self.configuration['DIALOGUE']['goals_path']
-                    ):
-                        self.goals_path = \
-                            self.configuration['DIALOGUE']['goals_path']
-                    else:
-                        raise FileNotFoundError(
-                            'Goals file %s not found' %
-                            self.configuration['DIALOGUE']['goals_path']
-                        )
-
-            # General settings
-            if 'GENERAL' in self.configuration and \
-                    self.configuration['GENERAL']:
-                if 'experience_logs' in self.configuration['GENERAL']:
-                    dialogues_path = None
-                    if 'path' in \
-                            self.configuration['GENERAL']['experience_logs']:
-                        dialogues_path = \
-                            self.configuration['GENERAL'][
-                                'experience_logs']['path']
-
-                    if 'load' in \
-                            self.configuration['GENERAL']['experience_logs'] \
-                        and bool(
-                            self.configuration['GENERAL'][
-                                'experience_logs']['load']
-                    ):
-                        if dialogues_path and os.path.isfile(dialogues_path):
-                            self.recorder.load(dialogues_path)
-                        else:
-                            raise FileNotFoundError(
-                                'Dialogue Log file %s not found (did you '
-                                'provide one?)' % dialogues_path)
-
-                    if 'save' in \
-                            self.configuration['GENERAL']['experience_logs']:
-                        self.recorder.set_path(dialogues_path)
-                        self.SAVE_LOG = bool(
-                            self.configuration['GENERAL'][
-                                'experience_logs']['save']
-                        )
-
-                if self.configuration['GENERAL']['interaction_mode'] == \
-                        'simulation':
-                    self.USE_USR_SIMULATOR = True
-
-                elif self.configuration['GENERAL']['interaction_mode'] == \
-                        'speech':
-                    self.USE_SPEECH = True
-                    self.asr = speech_rec.Recognizer()
-
-            # Agent Settings
-            
-            # Usr Simulator
-            # Check for specific simulator self.settings, otherwise
-            # default to agenda
-            if 'USER_SIMULATOR' in self.configuration['AGENT_0']:
-                # Agent 0 simulator configuration
-                a0_sim_config = self.configuration['AGENT_0']['USER_SIMULATOR']
-                if a0_sim_config and a0_sim_config['simulator']:
-                    # Default settings
-                    self.user_simulator_args['ontology'] = self.ontology
-                    self.user_simulator_args['database'] = self.database
-                    self.user_simulator_args['um'] = self.user_model
-                    self.user_simulator_args['patience'] = 5
-
-                    if a0_sim_config['simulator'] == 'agenda':
-                        if 'patience' in a0_sim_config:
-                            self.user_simulator_args['patience'] = \
-                                int(a0_sim_config['patience'])
-
-                        if 'pop_distribution' in a0_sim_config:
-                            if isinstance(
-                                    a0_sim_config['pop_distribution'], list
-                            ):
-                                self.user_simulator_args['pop_distribution'] =\
-                                    a0_sim_config['pop_distribution']
-                            else:
-                                self.user_simulator_args['pop_distribution'] =\
-                                    eval(a0_sim_config['pop_distribution'])
-
-                        if 'slot_confuse_prob' in a0_sim_config:
-                            self.user_simulator_args['slot_confuse_prob'] = \
-                                float(a0_sim_config['slot_confuse_prob'])
-                        if 'op_confuse_prob' in a0_sim_config:
-                            self.user_simulator_args['op_confuse_prob'] = \
-                                float(a0_sim_config['op_confuse_prob'])
-                        if 'value_confuse_prob' in a0_sim_config:
-                            self.user_simulator_args['value_confuse_prob'] = \
-                                float(a0_sim_config['value_confuse_prob'])
-
-                        if 'goal_slot_selection_weights' in a0_sim_config:
-                            self.user_simulator_args[
-                                'goal_slot_selection_weights'
-                            ] = a0_sim_config['goal_slot_selection_weights']
-
-                        if 'nlu' in a0_sim_config:
-                            self.user_simulator_args['nlu'] = \
-                                a0_sim_config['nlu']
-
-                            if self.user_simulator_args['nlu'] == 'dummy':
-                                self.user_simulator_args['database'] = \
-                                    self.database
-
-                            self.USER_SIMULATOR_NLU = True
-
-                        if 'nlg' in a0_sim_config:
-                            self.user_simulator_args['nlg'] = \
-                                a0_sim_config['nlg']
-
-                            if self.user_simulator_args['nlg'] == 'CamRest':
-                                if a0_sim_config:
-                                    self.user_simulator_args[
-                                        'nlg_model_path'
-                                    ] = a0_sim_config['nlg_model_path']
-
-                                    self.USER_SIMULATOR_NLG = True
-
-                                else:
-                                    raise ValueError(
-                                        'Usr Simulator NLG: Cannot find '
-                                        'model_path in the config.'
-                                    )
-
-                            elif self.user_simulator_args['nlg'] == 'dummy':
-                                self.USER_SIMULATOR_NLG = True
-
-                        if 'goals_file' in a0_sim_config:
-                            self.user_simulator_args['goals_file'] = \
-                                a0_sim_config['goals_file']
-
-                        if 'policy_file' in a0_sim_config:
-                            self.user_simulator_args['policy_file'] = \
-                                a0_sim_config['policy_file']
-
-                        self.user_simulator = AgendaBasedUS(
-                            self.user_simulator_args
-                        )
-
-                    elif a0_sim_config['simulator'] == 'dtl':
-                        if 'policy_file' in a0_sim_config:
-                            self.user_simulator_args['policy_file'] = \
-                                a0_sim_config['policy_file']
-                            self.user_simulator = DTLUserSimulator(
-                                self.user_simulator_args
-                            )
-                        else:
-                            raise ValueError(
-                                'Error! Cannot start DAct-to-Language '
-                                'simulator without a policy file!'
-                            )
-
-                else:
-                    # Fallback to agenda based simulator with default settings
-                    self.user_simulator = AgendaBasedUS(
-                        self.user_simulator_args
-                    )
-
-            # NLU Settings
-            if 'NLU' in self.configuration['AGENT_0'] and \
-                    self.configuration['AGENT_0']['NLU'] and \
-                    self.configuration['AGENT_0']['NLU']['nlu']:
-                nlu_args = dict(
-                    zip(['ontology', 'database'],
-                        [self.ontology, self.database]
-                        )
-                )
-
-                if self.configuration['AGENT_0']['NLU']['nlu'] == 'dummy':
-                    self.nlu = DummyNLU(nlu_args)
-
-                elif self.configuration['AGENT_0']['NLU']['nlu'] == 'CamRest':
-                    if self.configuration['AGENT_0']['NLU']['model_path']:
-                        nlu_args['model_path'] = \
-                            self.configuration['AGENT_0']['NLU']['model_path']
-                        self.nlu = CamRestNLU(nlu_args)
-                    else:
-                        raise ValueError(
-                            'Cannot find model_path in the config.'
-                        )
-
-            # NLG Settings
-            if 'NLG' in self.configuration['AGENT_0'] and \
-                    self.configuration['AGENT_0']['NLG'] and \
-                    self.configuration['AGENT_0']['NLG']['nlg']:
-                if self.configuration['AGENT_0']['NLG']['nlg'] == 'dummy':
-                    self.nlg = DummyNLG()
-
-                elif self.configuration['AGENT_0']['NLG']['nlg'] == 'CamRest':
-                    if self.configuration['AGENT_0']['NLG']['model_path']:
-                        self.nlg = CamRestNLG(
-                            {'model_path':
-                                self.configuration[
-                                    'AGENT_0'
-                                  ]['NLG']['model_path']
-                             }
-                        )
-                    else:
-                        raise ValueError(
-                            'Cannot find model_path in the config.'
-                        )
-
-                if self.nlg:
-                    self.USE_NLG = True
-
-            # Retrieve agent role
-            if 'role' in self.configuration['AGENT_0']:
-                self.agent_role = self.configuration['AGENT_0']['role']
-            else:
-                raise ValueError(
-                    'ConversationalAgent: No role assigned for agent {0} in '
-                    'config!'.format(self.agent_id)
-                )
-
-            if self.agent_role == 'user':
-                if self.ontology and self.database:
-                    self.goal_generator = GoalGenerator(
-                        ontology=self.ontology,
-                        database=self.database
-                    )
-                else:
-                    raise ValueError(
-                        'Conversational Multi Agent (user): Cannot generate '
-                        'goal without ontology and database.'
-                    )
+        self.digest_configuration(configuration)
 
         dm_args = dict(
             zip(
                 ['settings', 'ontology', 'database', 'domain', 'agent_id',
                  'agent_role'],
-                [self.configuration,
+                [configuration,
                  self.ontology,
                  self.database,
                  self.domain,
@@ -453,31 +145,279 @@ class ConversationalSingleAgent(ConversationalAgent):
                  ]
             )
         )
-        dm_args.update(self.configuration['AGENT_0']['DM'])
+        dm_args.update(configuration['AGENT_0']['DM'])
         self.dialogue_manager = DialogueManager.DialogueManager(dm_args)
 
-    def __del__(self):
-        """
-        Do some house-keeping and save the models.
+    def digest_configuration(self, configuration):
+        validate_configuration(configuration)
 
-        :return: nothing
-        """
+        self.build_domain_settings(configuration)
+        self.build_general_settings(configuration)
+        self.build_user_simulator_settings(configuration)
 
-        if self.recorder and self.SAVE_LOG:
-            self.recorder.save()
+        self.build_NLU_settings(configuration)
+        self.build_NLG_settings(configuration)
+        self.agent_role = configuration['AGENT_0']['role']
 
-        if self.dialogue_manager:
-            self.dialogue_manager.save()
+    def build_NLG_settings(self, configuration):
+        if 'NLG' in configuration['AGENT_0'] and \
+                configuration['AGENT_0']['NLG'] and \
+                configuration['AGENT_0']['NLG']['nlg']:
+            if configuration['AGENT_0']['NLG']['nlg'] == 'dummy':
+                self.nlg = DummyNLG()
 
-        self.curr_state = None
-        self.prev_state = None
-        self.curr_state = None
-        self.prev_usr_utterance = None
-        self.prev_sys_utterance = None
-        self.prev_action = None
-        self.prev_reward = None
-        self.prev_success = None
-        self.prev_task_success = None
+            elif configuration['AGENT_0']['NLG']['nlg'] == 'CamRest':
+                if configuration['AGENT_0']['NLG']['model_path']:
+                    self.nlg = CamRestNLG(
+                        {'model_path':
+                             configuration[
+                                 'AGENT_0'
+                             ]['NLG']['model_path']
+                         }
+                    )
+                else:
+                    raise ValueError(
+                        'Cannot find model_path in the config.'
+                    )
+
+            if self.nlg:
+                self.USE_NLG = True
+
+    def build_NLU_settings(self, configuration):
+        if 'NLU' in configuration['AGENT_0'] and \
+                configuration['AGENT_0']['NLU'] and \
+                configuration['AGENT_0']['NLU']['nlu']:
+            nlu_args = dict(
+                zip(['ontology', 'database'],
+                    [self.ontology, self.database]
+                    )
+            )
+
+            if configuration['AGENT_0']['NLU']['nlu'] == 'dummy':
+                self.nlu = DummyNLU(nlu_args)
+
+            elif configuration['AGENT_0']['NLU']['nlu'] == 'CamRest':
+                if configuration['AGENT_0']['NLU']['model_path']:
+                    nlu_args['model_path'] = \
+                        configuration['AGENT_0']['NLU']['model_path']
+                    self.nlu = CamRestNLU(nlu_args)
+                else:
+                    raise ValueError(
+                        'Cannot find model_path in the config.'
+                    )
+
+    def build_user_simulator_settings(self, configuration):
+        if 'USER_SIMULATOR' in configuration['AGENT_0']:
+            # Agent 0 simulator configuration
+            a0_sim_config = configuration['AGENT_0']['USER_SIMULATOR']
+            if a0_sim_config and a0_sim_config['simulator']:
+                # Default settings
+                self.user_simulator_args['ontology'] = self.ontology
+                self.user_simulator_args['database'] = self.database
+                self.user_simulator_args['um'] = self.user_model
+                self.user_simulator_args['patience'] = 5
+
+                if a0_sim_config['simulator'] == 'agenda':
+                    if 'patience' in a0_sim_config:
+                        self.user_simulator_args['patience'] = \
+                            int(a0_sim_config['patience'])
+
+                    if 'pop_distribution' in a0_sim_config:
+                        if isinstance(
+                                a0_sim_config['pop_distribution'], list
+                        ):
+                            self.user_simulator_args['pop_distribution'] = \
+                                a0_sim_config['pop_distribution']
+                        else:
+                            self.user_simulator_args['pop_distribution'] = \
+                                eval(a0_sim_config['pop_distribution'])
+
+                    if 'slot_confuse_prob' in a0_sim_config:
+                        self.user_simulator_args['slot_confuse_prob'] = \
+                            float(a0_sim_config['slot_confuse_prob'])
+                    if 'op_confuse_prob' in a0_sim_config:
+                        self.user_simulator_args['op_confuse_prob'] = \
+                            float(a0_sim_config['op_confuse_prob'])
+                    if 'value_confuse_prob' in a0_sim_config:
+                        self.user_simulator_args['value_confuse_prob'] = \
+                            float(a0_sim_config['value_confuse_prob'])
+
+                    if 'goal_slot_selection_weights' in a0_sim_config:
+                        self.user_simulator_args[
+                            'goal_slot_selection_weights'
+                        ] = a0_sim_config['goal_slot_selection_weights']
+
+                    if 'nlu' in a0_sim_config:
+                        self.user_simulator_args['nlu'] = \
+                            a0_sim_config['nlu']
+
+                        if self.user_simulator_args['nlu'] == 'dummy':
+                            self.user_simulator_args['database'] = \
+                                self.database
+
+                        self.USER_SIMULATOR_NLU = True
+
+                    if 'nlg' in a0_sim_config:
+                        self.user_simulator_args['nlg'] = \
+                            a0_sim_config['nlg']
+
+                        if self.user_simulator_args['nlg'] == 'CamRest':
+                            if a0_sim_config:
+                                self.user_simulator_args[
+                                    'nlg_model_path'
+                                ] = a0_sim_config['nlg_model_path']
+
+                                self.USER_SIMULATOR_NLG = True
+
+                            else:
+                                raise ValueError(
+                                    'Usr Simulator NLG: Cannot find '
+                                    'model_path in the config.'
+                                )
+
+                        elif self.user_simulator_args['nlg'] == 'dummy':
+                            self.USER_SIMULATOR_NLG = True
+
+                    if 'goals_file' in a0_sim_config:
+                        self.user_simulator_args['goals_file'] = \
+                            a0_sim_config['goals_file']
+
+                    if 'policy_file' in a0_sim_config:
+                        self.user_simulator_args['policy_file'] = \
+                            a0_sim_config['policy_file']
+
+                    self.user_simulator = AgendaBasedUS(
+                        self.user_simulator_args
+                    )
+
+                elif a0_sim_config['simulator'] == 'dtl':
+                    if 'policy_file' in a0_sim_config:
+                        self.user_simulator_args['policy_file'] = \
+                            a0_sim_config['policy_file']
+                        self.user_simulator = DTLUserSimulator(
+                            self.user_simulator_args
+                        )
+                    else:
+                        raise ValueError(
+                            'Error! Cannot start DAct-to-Language '
+                            'simulator without a policy file!'
+                        )
+
+            else:
+                # Fallback to agenda based simulator with default settings
+                self.user_simulator = AgendaBasedUS(
+                    self.user_simulator_args
+                )
+
+    def build_general_settings(self, configuration):
+        if 'GENERAL' in configuration and \
+                configuration['GENERAL']:
+            if 'experience_logs' in configuration['GENERAL']:
+                dialogues_path = None
+                if 'path' in \
+                        configuration['GENERAL']['experience_logs']:
+                    dialogues_path = \
+                        configuration['GENERAL'][
+                            'experience_logs']['path']
+
+                if 'load' in \
+                        configuration['GENERAL']['experience_logs'] \
+                        and bool(
+                    configuration['GENERAL'][
+                        'experience_logs']['load']
+                ):
+                    if dialogues_path and os.path.isfile(dialogues_path):
+                        self.recorder.load(dialogues_path)
+                    else:
+                        raise FileNotFoundError(
+                            'Dialogue Log file %s not found (did you '
+                            'provide one?)' % dialogues_path)
+
+                if 'save' in \
+                        configuration['GENERAL']['experience_logs']:
+                    self.recorder.set_path(dialogues_path)
+                    self.SAVE_LOG = bool(
+                        configuration['GENERAL'][
+                            'experience_logs']['save']
+                    )
+
+            if configuration['GENERAL']['interaction_mode'] == \
+                    'simulation':
+                self.USE_USR_SIMULATOR = True
+
+            elif configuration['GENERAL']['interaction_mode'] == \
+                    'speech':
+                self.USE_SPEECH = True
+                self.asr = speech_rec.Recognizer()
+
+    def build_domain_settings(self,configuration):
+        if 'DIALOGUE' in configuration and \
+                configuration['DIALOGUE']:
+            if 'initiative' in configuration['DIALOGUE']:
+                self.USER_HAS_INITIATIVE = bool(
+                    configuration['DIALOGUE']['initiative'] == 'user'
+                )
+                self.user_simulator_args['us_has_initiative'] = \
+                    self.USER_HAS_INITIATIVE
+
+            if configuration['DIALOGUE']['domain']:
+                self.domain = configuration['DIALOGUE']['domain']
+
+            if configuration['DIALOGUE']['ontology_path']:
+                if os.path.isfile(
+                        configuration['DIALOGUE']['ontology_path']
+                ):
+                    self.ontology = Ontology.Ontology(
+                        configuration['DIALOGUE']['ontology_path']
+                    )
+                else:
+                    raise FileNotFoundError(
+                        'Domain file %s not found' %
+                        configuration['DIALOGUE']['ontology_path'])
+
+            if configuration['DIALOGUE']['db_path']:
+                if os.path.isfile(
+                        configuration['DIALOGUE']['db_path']
+                ):
+                    if 'db_type' in configuration['DIALOGUE']:
+                        if configuration['DIALOGUE']['db_type'] == \
+                                'sql':
+                            cache_sql_results = False
+                            if 'cache_sql_results' in configuration[
+                                'DIALOGUE']:
+                                cache_sql_results = bool(
+                                    configuration['DIALOGUE'][
+                                        'cache_sql_results'])
+                            self.database = DataBase.SQLDataBase(
+                                configuration['DIALOGUE']['db_path'],
+                                cache_sql_results
+                            )
+                        else:
+                            self.database = DataBase.DataBase(
+                                configuration['DIALOGUE']['db_path']
+                            )
+                    else:
+                        # Default to SQL
+                        self.database = DataBase.SQLDataBase(
+                            configuration['DIALOGUE']['db_path']
+                        )
+                else:
+                    raise FileNotFoundError(
+                        'Database file %s not found' %
+                        configuration['DIALOGUE']['db_path']
+                    )
+
+            if 'goals_path' in configuration['DIALOGUE']:
+                if os.path.isfile(
+                        configuration['DIALOGUE']['goals_path']
+                ):
+                    self.goals_path = \
+                        configuration['DIALOGUE']['goals_path']
+                else:
+                    raise FileNotFoundError(
+                        'Goals file %s not found' %
+                        configuration['DIALOGUE']['goals_path']
+                    )
 
     def initialize(self):
         """
