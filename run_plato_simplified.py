@@ -1,7 +1,7 @@
 from pprint import pprint
 from tqdm import tqdm
 
-from ConversationalAgent.ConversationalSingleAgent import ConversationalSingleAgent
+from ConversationalAgent.ConversationalSingleAgentSimplified import ConversationalSingleAgent
 
 import yaml
 import os.path
