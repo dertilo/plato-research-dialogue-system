@@ -5,24 +5,17 @@ from UserSimulator.AgendaBasedUserSimulator.AgendaBasedUS import AgendaBasedUS
 from UserSimulator.DActToLanguageUserSimulator.DTLUserSimulator \
     import DTLUserSimulator
 from UserSimulator.UserModel import UserModel
-from UserSimulator.AgendaBasedUserSimulator.Goal import GoalGenerator
 from DialogueManagement import DialogueManager
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.RewardFunction \
     import SlotFillingReward
 from Utilities.DialogueEpisodeRecorder import DialogueEpisodeRecorder
 from Domain import Ontology, DataBase
-from NLU.DummyNLU import DummyNLU
-from NLU.CamRestNLU import CamRestNLU
-from NLG.DummyNLG import DummyNLG
-from NLG.CamRestNLG import CamRestNLG
 from Dialogue.Action import DialogueAct
 
-from gtts import gTTS
 from copy import deepcopy
 
 import os
 import random
-import speech_recognition as speech_rec
 
 
 def validate_configuration(configuration):
@@ -57,12 +50,6 @@ class ConversationalSingleAgent(ConversationalAgent):
     """
 
     def __init__(self, configuration):
-        """
-        Initialize the internal structures of this agent.
-
-        :param configuration: a dictionary representing the configuration file
-        :param agent_id: an integer, this agent's id
-        """
 
         super(ConversationalSingleAgent, self).__init__()
 
@@ -99,8 +86,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.user_model = None
         self.user_simulator = None
         self.user_simulator_args = {}
-        self.nlu = None
-        self.nlg = None
 
         self.agent_goal = None
         self.goal_generator = None
@@ -108,8 +93,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.curr_state = None
         self.prev_state = None
         self.curr_state = None
-        self.prev_usr_utterance = None
-        self.prev_sys_utterance = None
         self.prev_action = None
         self.prev_reward = None
         self.prev_success = None
@@ -148,17 +131,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.build_general_settings(configuration)
         self.build_user_simulator_settings(configuration)
 
-        self.build_NLU_settings()
-        self.nlg = DummyNLG()
-
-
-    def build_NLU_settings(self):
-            nlu_args = dict(
-                zip(['ontology', 'database'],
-                    [self.ontology, self.database]
-                    )
-            )
-            self.nlu = DummyNLU(nlu_args)
 
     def build_user_simulator_settings(self, configuration):
         if 'USER_SIMULATOR' in configuration['AGENT_0']:
@@ -341,45 +313,25 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.num_task_success = 0
         self.cumulative_rewards = 0
 
-        if self.nlu:
-            self.nlu.initialize({})
-
         self.dialogue_manager.initialize({})
-
-        if self.nlg:
-            self.nlg.initialize({})
 
         self.curr_state = None
         self.prev_state = None
         self.curr_state = None
-        self.prev_usr_utterance = None
-        self.prev_sys_utterance = None
         self.prev_action = None
         self.prev_reward = None
         self.prev_success = None
         self.prev_task_success = None
 
     def start_dialogue(self, args=None):
-        """
-        Perform initial dialogue turn.
-
-        :param args: optional args
-        :return:
-        """
 
         self.dialogue_turn = 0
-        sys_utterance = ''
-
         self.user_simulator.initialize(self.user_simulator_args)
 
         self.dialogue_manager.restart({})
         assert not self.USER_HAS_INITIATIVE
         # sys_response = self.dialogue_manager.respond()
         sys_response = [DialogueAct('welcomemsg', [])]
-
-        sys_utterance = self.nlg.generate_output(
-            {'dacts': sys_response}
-        )
 
         usim_input = sys_response
         self.user_simulator.receive_input(usim_input)
@@ -396,7 +348,6 @@ class ConversationalSingleAgent(ConversationalAgent):
             rew,
             success,
             task_success,
-            output_utterance=sys_utterance
         )
 
         self.dialogue_turn += 1
@@ -405,8 +356,6 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         # Re-initialize these for good measure
         self.curr_state = None
-        self.prev_usr_utterance = None
-        self.prev_sys_utterance = None
         self.prev_action = None
         self.prev_reward = None
         self.prev_success = None
@@ -415,8 +364,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.continue_dialogue()
 
     def continue_dialogue(self):
-        usr_utterance = ''
-        sys_utterance = ''
 
         usr_input = self.user_simulator.respond()
 
@@ -434,7 +381,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         else:
             sys_response = [DialogueAct('bye', [])]
 
-        sys_utterance = self.nlg.generate_output({'dacts': sys_response})
 
 
         usim_input = sys_response
@@ -454,16 +400,12 @@ class ConversationalSingleAgent(ConversationalAgent):
                 self.prev_action,
                 self.prev_reward,
                 self.prev_success,
-                input_utterance=usr_utterance,
-                output_utterance=sys_utterance
             )
 
         self.dialogue_turn += 1
 
         self.prev_state = deepcopy(self.curr_state)
         self.prev_action = deepcopy(sys_response)
-        self.prev_usr_utterance = deepcopy(usr_utterance)
-        self.prev_sys_utterance = deepcopy(sys_utterance)
         self.prev_reward = rew
         self.prev_success = success
         self.prev_task_success = task_success
@@ -482,8 +424,6 @@ class ConversationalSingleAgent(ConversationalAgent):
             self.prev_action,
             self.prev_reward,
             self.prev_success,
-            input_utterance=self.prev_usr_utterance,
-            output_utterance=self.prev_sys_utterance,
             task_success=self.prev_task_success
         )
 
@@ -498,13 +438,7 @@ class ConversationalSingleAgent(ConversationalAgent):
                         self.minibatch_length
                     )
 
-                    if self.nlu:
-                        self.nlu.train(minibatch)
-
                     self.dialogue_manager.train(minibatch)
-
-                    if self.nlg:
-                        self.nlg.train(minibatch)
 
         self.dialogue_episode += 1
         self.cumulative_rewards += \
