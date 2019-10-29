@@ -86,7 +86,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         # True values here would imply some default modules
         self.USER_SIMULATOR_NLU = False
         self.USER_SIMULATOR_NLG = False
-        self.USE_NLG = False
         self.USER_HAS_INITIATIVE = True
         self.SAVE_LOG = True
 
@@ -151,55 +150,17 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.build_general_settings(configuration)
         self.build_user_simulator_settings(configuration)
 
-        self.build_NLU_settings(configuration)
-        self.build_NLG_settings(configuration)
+        self.build_NLU_settings()
+        self.nlg = DummyNLG()
 
-    def build_NLG_settings(self, configuration):
-        if 'NLG' in configuration['AGENT_0'] and \
-                configuration['AGENT_0']['NLG'] and \
-                configuration['AGENT_0']['NLG']['nlg']:
-            if configuration['AGENT_0']['NLG']['nlg'] == 'dummy':
-                self.nlg = DummyNLG()
 
-            elif configuration['AGENT_0']['NLG']['nlg'] == 'CamRest':
-                if configuration['AGENT_0']['NLG']['model_path']:
-                    self.nlg = CamRestNLG(
-                        {'model_path':
-                             configuration[
-                                 'AGENT_0'
-                             ]['NLG']['model_path']
-                         }
-                    )
-                else:
-                    raise ValueError(
-                        'Cannot find model_path in the config.'
-                    )
-
-            if self.nlg:
-                self.USE_NLG = True
-
-    def build_NLU_settings(self, configuration):
-        if 'NLU' in configuration['AGENT_0'] and \
-                configuration['AGENT_0']['NLU'] and \
-                configuration['AGENT_0']['NLU']['nlu']:
+    def build_NLU_settings(self):
             nlu_args = dict(
                 zip(['ontology', 'database'],
                     [self.ontology, self.database]
                     )
             )
-
-            if configuration['AGENT_0']['NLU']['nlu'] == 'dummy':
-                self.nlu = DummyNLU(nlu_args)
-
-            elif configuration['AGENT_0']['NLU']['nlu'] == 'CamRest':
-                if configuration['AGENT_0']['NLU']['model_path']:
-                    nlu_args['model_path'] = \
-                        configuration['AGENT_0']['NLU']['model_path']
-                    self.nlu = CamRestNLU(nlu_args)
-                else:
-                    raise ValueError(
-                        'Cannot find model_path in the config.'
-                    )
+            self.nlu = DummyNLU(nlu_args)
 
     def build_user_simulator_settings(self, configuration):
         if 'USER_SIMULATOR' in configuration['AGENT_0']:
@@ -445,41 +406,39 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.user_simulator.initialize(self.user_simulator_args)
 
         self.dialogue_manager.restart({})
+        assert not self.USER_HAS_INITIATIVE
+        # sys_response = self.dialogue_manager.respond()
+        sys_response = [DialogueAct('welcomemsg', [])]
 
-        if not self.USER_HAS_INITIATIVE:
-            # sys_response = self.dialogue_manager.respond()
-            sys_response = [DialogueAct('welcomemsg', [])]
+        sys_utterance = self.nlg.generate_output(
+            {'dacts': sys_response}
+        )
 
-            if self.USE_NLG:
-                sys_utterance = self.nlg.generate_output(
-                    {'dacts': sys_response}
-                )
+        usim_input = sys_response
 
-            usim_input = sys_response
-
-            if self.USER_SIMULATOR_NLU and self.USE_NLG:
-                usim_input = self.user_simulator.nlu.process_input(
-                    sys_utterance
-                )
-
-            self.user_simulator.receive_input(usim_input)
-            rew, success, task_success = self.reward_func.calculate(
-                self.dialogue_manager.get_state(),
-                sys_response,
-                self.user_simulator.goal
+        if self.USER_SIMULATOR_NLU and True:
+            usim_input = self.user_simulator.nlu.process_input(
+                sys_utterance
             )
 
-            self.recorder.record(
-                deepcopy(self.dialogue_manager.get_state()),
-                self.dialogue_manager.get_state(),
-                sys_response,
-                rew,
-                success,
-                task_success,
-                output_utterance=sys_utterance
-            )
+        self.user_simulator.receive_input(usim_input)
+        rew, success, task_success = self.reward_func.calculate(
+            self.dialogue_manager.get_state(),
+            sys_response,
+            self.user_simulator.goal
+        )
 
-            self.dialogue_turn += 1
+        self.recorder.record(
+            deepcopy(self.dialogue_manager.get_state()),
+            self.dialogue_manager.get_state(),
+            sys_response,
+            rew,
+            success,
+            task_success,
+            output_utterance=sys_utterance
+        )
+
+        self.dialogue_turn += 1
 
         self.prev_state = None
 
@@ -528,13 +487,12 @@ class ConversationalSingleAgent(ConversationalAgent):
         else:
             sys_response = [DialogueAct('bye', [])]
 
-        if self.USE_NLG:
-            sys_utterance = self.nlg.generate_output({'dacts': sys_response})
+        sys_utterance = self.nlg.generate_output({'dacts': sys_response})
 
 
         usim_input = sys_response
 
-        if self.USER_SIMULATOR_NLU and self.USE_NLG:
+        if self.USER_SIMULATOR_NLU and True:
             usim_input = \
                 self.user_simulator.nlu.process_input(sys_utterance)
 
