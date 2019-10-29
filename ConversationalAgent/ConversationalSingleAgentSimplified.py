@@ -84,7 +84,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.train_epochs = 10
 
         # True values here would imply some default modules
-        self.USE_USR_SIMULATOR = False
         self.USER_SIMULATOR_NLU = False
         self.USER_SIMULATOR_NLG = False
         self.USE_NLG = False
@@ -337,10 +336,6 @@ class ConversationalSingleAgent(ConversationalAgent):
                             'experience_logs']['save']
                     )
 
-            if configuration['GENERAL']['interaction_mode'] == \
-                    'simulation':
-                self.USE_USR_SIMULATOR = True
-
     def build_domain_settings(self,configuration):
         if 'DIALOGUE' in configuration and \
                 configuration['DIALOGUE']:
@@ -447,8 +442,7 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.dialogue_turn = 0
         sys_utterance = ''
 
-        if self.USE_USR_SIMULATOR:
-            self.user_simulator.initialize(self.user_simulator_args)
+        self.user_simulator.initialize(self.user_simulator_args)
 
         self.dialogue_manager.restart({})
 
@@ -461,22 +455,19 @@ class ConversationalSingleAgent(ConversationalAgent):
                     {'dacts': sys_response}
                 )
 
-            if self.USE_USR_SIMULATOR:
-                usim_input = sys_response
+            usim_input = sys_response
 
-                if self.USER_SIMULATOR_NLU and self.USE_NLG:
-                    usim_input = self.user_simulator.nlu.process_input(
-                        sys_utterance
-                    )
-
-                self.user_simulator.receive_input(usim_input)
-                rew, success, task_success = self.reward_func.calculate(
-                    self.dialogue_manager.get_state(),
-                    sys_response,
-                    self.user_simulator.goal
+            if self.USER_SIMULATOR_NLU and self.USE_NLG:
+                usim_input = self.user_simulator.nlu.process_input(
+                    sys_utterance
                 )
-            else:
-                rew, success, task_success = 0, None, None
+
+            self.user_simulator.receive_input(usim_input)
+            rew, success, task_success = self.reward_func.calculate(
+                self.dialogue_manager.get_state(),
+                sys_response,
+                self.user_simulator.goal
+            )
 
             self.recorder.record(
                 deepcopy(self.dialogue_manager.get_state()),
@@ -504,45 +495,24 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.continue_dialogue()
 
     def continue_dialogue(self):
-        """
-        Perform next dialogue turn.
-
-        :return: nothing
-        """
-
         usr_utterance = ''
         sys_utterance = ''
 
-        if self.USE_USR_SIMULATOR:
-            usr_input = self.user_simulator.respond()
+        usr_input = self.user_simulator.respond()
 
-            # TODO: THIS FIRST IF WILL BE HANDLED BY ConversationalAgentGeneric
-            #  -- SHOULD NOT LIVE HERE
-            if isinstance(self.user_simulator, DTLUserSimulator):
-                usr_input = self.nlu.process_input(
-                    usr_input,
-                    self.dialogue_manager.get_state()
-                )
+        # TODO: THIS FIRST IF WILL BE HANDLED BY ConversationalAgentGeneric
+        #  -- SHOULD NOT LIVE HERE
+        if isinstance(self.user_simulator, DTLUserSimulator):
+            usr_input = self.nlu.process_input(
+                usr_input,
+                self.dialogue_manager.get_state()
+            )
 
-            elif self.USER_SIMULATOR_NLG:
+        elif self.USER_SIMULATOR_NLG:
 
-                if self.nlu:
-                    usr_input = self.nlu.process_input(usr_input)
-
-        else:
-            usr_utterance = input('USER > ')
-
-            # Process the user's utterance
             if self.nlu:
-                usr_input = self.nlu.process_input(
-                    usr_utterance,
-                    self.dialogue_manager.get_state()
-                )
-            else:
-                raise EnvironmentError(
-                    'ConversationalAgent: No NLU defined for '
-                    'text-based interaction!'
-                )
+                usr_input = self.nlu.process_input(usr_input)
+
 
         self.dialogue_manager.receive_input(usr_input)
 
@@ -562,22 +532,19 @@ class ConversationalSingleAgent(ConversationalAgent):
             sys_utterance = self.nlg.generate_output({'dacts': sys_response})
 
 
-        if self.USE_USR_SIMULATOR:
-            usim_input = sys_response
+        usim_input = sys_response
 
-            if self.USER_SIMULATOR_NLU and self.USE_NLG:
-                usim_input = \
-                    self.user_simulator.nlu.process_input(sys_utterance)
+        if self.USER_SIMULATOR_NLU and self.USE_NLG:
+            usim_input = \
+                self.user_simulator.nlu.process_input(sys_utterance)
 
-            self.user_simulator.receive_input(usim_input)
-            rew, success, task_success = \
-                self.reward_func.calculate(
-                    self.dialogue_manager.get_state(),
-                    sys_response,
-                    self.user_simulator.goal
-                )
-        else:
-            rew, success, task_success = 0, None, None
+        self.user_simulator.receive_input(usim_input)
+        rew, success, task_success = \
+            self.reward_func.calculate(
+                self.dialogue_manager.get_state(),
+                sys_response,
+                self.user_simulator.goal
+            )
 
         if self.prev_state:
             self.recorder.record(
