@@ -1,5 +1,5 @@
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
-from DialogueStateTracker.DialogueStateTracker import DummyStateTracker
+from DialogueStateTracker.dummy_dialog_state_tracker import DummyStateTracker
 from DialogueStateTracker.CamRestLudwigDST import CamRestLudwigDST
 
 from DialogueManagement.DialoguePolicy.HandcraftedPolicy import \
@@ -125,26 +125,7 @@ class DialogueManager(ConversationalModule):
 
 
             assert args['policy']['type'] == 'reinforce'
-            alpha = None
-            if 'learning_rate' in args['policy']:
-                alpha = float(args['policy']['learning_rate'])
-
-            gamma = None
-            if 'discount_factor' in args['policy']:
-                gamma = float(args['policy']['discount_factor'])
-
-            epsilon = None
-            if 'exploration_rate' in args['policy']:
-                epsilon = float(args['policy']['exploration_rate'])
-
-            alpha_decay = None
-            if 'learning_decay_rate' in args['policy']:
-                alpha_decay = float(args['policy']['learning_decay_rate'])
-
-            epsilon_decay = None
-            if 'exploration_decay_rate' in args['policy']:
-                epsilon_decay = \
-                    float(args['policy']['exploration_decay_rate'])
+            alpha, alpha_decay, epsilon, epsilon_decay, gamma = self.get_RL_params(args)
 
             self.policy = \
                 ReinforcePolicy(
@@ -188,6 +169,25 @@ class DialogueManager(ConversationalModule):
             self.DSTracker = DummyStateTracker(dst_args)
 
         self.load('')
+
+    def get_RL_params(self, args):
+        alpha = None
+        if 'learning_rate' in args['policy']:
+            alpha = float(args['policy']['learning_rate'])
+        gamma = None
+        if 'discount_factor' in args['policy']:
+            gamma = float(args['policy']['discount_factor'])
+        epsilon = None
+        if 'exploration_rate' in args['policy']:
+            epsilon = float(args['policy']['exploration_rate'])
+        alpha_decay = None
+        if 'learning_decay_rate' in args['policy']:
+            alpha_decay = float(args['policy']['learning_decay_rate'])
+        epsilon_decay = None
+        if 'exploration_decay_rate' in args['policy']:
+            epsilon_decay = \
+                float(args['policy']['exploration_decay_rate'])
+        return alpha, alpha_decay, epsilon, epsilon_decay, gamma
 
     def initialize(self, args):
         self.DSTracker.initialize()
