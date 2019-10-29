@@ -1,20 +1,20 @@
-"""
-Copyright (c) 2019 Uber Technologies, Inc.
-
-Licensed under the Uber Non-Commercial License (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at the root directory of this project. 
-
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
-__author__ = "Alexandros Papangelis"
-
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
+from Dialogue.State import SlotFillingDialogueState
+from UserSimulator.AgendaBasedUserSimulator.Goal import Goal
 
+
+def filled_wrongly(gold_slot, state, goal):
+    gold_slot_was_filled = gold_slot in state.slots_filled
+    with_wrong_value = state.slots_filled[gold_slot] != goal.constraints[gold_slot].value
+    gold_value_not_dontcare = goal.constraints[gold_slot].value != 'dontcare'
+    return gold_slot_was_filled and \
+           with_wrong_value and \
+           gold_value_not_dontcare
+
+def request_was_not_done(goal,req):
+    return not goal.requests[req].value
 
 class SlotFillingReward(object):
     def __init__(self):
@@ -56,50 +56,24 @@ class SlotFillingReward(object):
 
         return reward, dialogue_success, task_success
 
-    def evaluate_task_success(self, goal, state):
+    def evaluate_task_success(self, goal:Goal, state:SlotFillingDialogueState):
         # Liu & Lane ASRU 2017 Definition of task success
-        task_success = True
         # We don't care for slots that are not in the goal constraints
-        for slot in goal.constraints:
-            # If the system proactively informs about a slot the user has
-            # not yet put a constraint upon,
-            # the user's DState is updated accordingly and the user would
-            # not need to put that constraint.
-            if goal.ground_truth:
-                if goal.ground_truth[slot] != \
-                        goal.constraints[slot].value and \
-                        goal.constraints[slot].value != 'dontcare':
-                    task_success = False
-                    break
-
-            # Fall back to the noisier signal, that is the slots filled.
-            elif slot in state.slots_filled and \
-                    state.slots_filled[slot] != \
-                    goal.constraints[slot].value and \
-                    goal.constraints[slot].value != 'dontcare':
-                task_success = False
-                break
-        for req in goal.requests:
-            if not goal.requests[req].value:
-                task_success = False
-                break
+        assert goal.ground_truth is None
+        if any(filled_wrongly(slot,state,goal) for slot in goal.constraints) \
+                or any(request_was_not_done(goal,req) for req in goal.requests):
+            task_success = False
+        else:
+            task_success = True
         return task_success
 
     def evaluate_dialog_success(self, agent_role, goal, reward, state):
         dialogue_success = True
         # Check that the item offered meets the user's constraints
         for constr in goal.constraints:
-            if goal.ground_truth:
-                # Multi-agent case
-                if goal.ground_truth[constr] != \
-                        goal.constraints[constr].value and \
-                        goal.constraints[constr].value != \
-                        'dontcare':
-                    reward += self.failure_penalty
-                    dialogue_success = False
-                    break
+            assert goal.ground_truth is None
 
-            elif state.item_in_focus:
+            if state.item_in_focus:
                 # Single-agent case
                 if state.item_in_focus[constr] != \
                         goal.constraints[constr].value and \
