@@ -76,7 +76,7 @@ class ConversationalSingleAgent(ConversationalAgent):
         super(ConversationalSingleAgent, self).__init__()
 
         self.configuration = configuration
-        self.print_level = 'debug'
+        self.print_level = 'shutup'
 
         # There is only one agent in this setting
         self.agent_id = 0
@@ -733,11 +733,11 @@ class ConversationalSingleAgent(ConversationalAgent):
             if self.USER_SIMULATOR_NLU and self.USE_NLG:
                 usim_input = \
                     self.user_simulator.nlu.process_input(sys_utterance)
-
-                print(
-                    'USER NLU '
-                    '> %s ' % '; '.join([str(ui) for ui in usim_input])
-                )
+                if self.print_level in ['debug']:
+                    print(
+                        'USER NLU '
+                        '> %s ' % '; '.join([str(ui) for ui in usim_input])
+                    )
 
             self.user_simulator.receive_input(usim_input)
             rew, success, task_success = \
@@ -793,10 +793,11 @@ class ConversationalSingleAgent(ConversationalAgent):
             if self.dialogue_episode % self.train_interval == 0 and \
                     len(self.recorder.dialogues) >= self.minibatch_length:
                 for epoch in range(self.train_epochs):
-                    print('Training epoch {0} of {1}'.format(
-                        epoch,
-                        self.train_epochs)
-                    )
+                    if self.print_level in ['debug']:
+                        print('Training epoch {0} of {1}'.format(
+                            epoch,
+                            self.train_epochs)
+                        )
 
                     # Sample minibatch
                     minibatch = random.sample(

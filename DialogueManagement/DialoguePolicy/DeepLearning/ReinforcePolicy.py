@@ -271,8 +271,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         if self.is_training and random.random() < self.epsilon:
             if random.random() < 0.75:
-                print('--- {0}: Selecting warmup action.'
-                      .format(self.agent_role))
+                # print('--- {0}: Selecting warmup action.'
+                #       .format(self.agent_role))
 
                 if self.agent_role == 'system':
                     return self.warmup_policy.next_action(state)
@@ -283,8 +283,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                     return self.warmup_simulator.respond()
 
             else:
-                print('--- {0}: Selecting random action.'
-                      .format(self.agent_role))
+                # print('--- {0}: Selecting random action.'
+                #       .format(self.agent_role))
                 return self.decode_action(
                     random.choice(
                         range(0, self.NActions)),
@@ -426,7 +426,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         if self.epsilon > 0.5:
             self.epsilon *= self.exploration_decay_rate
 
-        print(f'REINFORCE train, alpha: {self.alpha}, epsilon: {self.epsilon}')
+        # print(f'REINFORCE train, alpha: {self.alpha}, epsilon: {self.epsilon}')
 
     def encode_state(self, state):
         """
@@ -501,8 +501,9 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         # TODO: Handle multiple actions
         # TODO: Action encoding in a principled way
         if not actions:
-            print('WARNING: Reinforce DialoguePolicy action encoding called '
-                  'with empty actions list (returning 0).')
+            # TODO: what does len(actions)==0 mean ??
+            # print('WARNING: Reinforce DialoguePolicy action encoding called '
+            #       'with empty actions list (returning 0).')
             return -1
 
         action = actions[0]
