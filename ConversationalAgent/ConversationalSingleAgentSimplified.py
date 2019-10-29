@@ -6,7 +6,7 @@ from UserSimulator.DActToLanguageUserSimulator.DTLUserSimulator \
     import DTLUserSimulator
 from UserSimulator.UserModel import UserModel
 from DialogueManagement import DialogueManager
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.RewardFunction \
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.slot_filling_reward_function \
     import SlotFillingReward
 from Utilities.DialogueEpisodeRecorder import DialogueEpisodeRecorder
 from Domain import Ontology, DataBase
@@ -104,7 +104,6 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         # TODO: Handle this properly - get reward function type from config
         self.reward_func = SlotFillingReward()
-        # self.reward_func = SlotFillingGoalAdvancementReward()
 
         self.digest_configuration(configuration)
 
