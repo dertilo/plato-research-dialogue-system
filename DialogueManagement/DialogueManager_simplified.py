@@ -1,19 +1,6 @@
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 from DialogueStateTracker.dummy_dialog_state_tracker import DummyStateTracker
 from DialogueStateTracker.CamRestLudwigDST import CamRestLudwigDST
-
-from DialogueManagement.DialoguePolicy.HandcraftedPolicy import \
-    HandcraftedPolicy
-from DialogueManagement.DialoguePolicy.CalculatedPolicy import \
-    CalculatedPolicy
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.QPolicy import \
-    QPolicy
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.MinimaxQPolicy \
-    import MinimaxQPolicy
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.WoLFPHCPolicy \
-    import WoLFPHCPolicy
-from DialogueManagement.DialoguePolicy.DeepLearning.SupervisedPolicy import \
-    SupervisedPolicy
 from DialogueManagement.DialoguePolicy.DeepLearning.ReinforcePolicy import \
     ReinforcePolicy
 
@@ -35,6 +22,13 @@ updated properly and will output a list of DialogueActs in response, after
 querying its DialoguePolicy.
 """
 
+
+def get_num_db_items(database:SQLDataBase):
+    cursor = database.SQL_connection.cursor()
+    cursor.execute("SELECT * FROM " + database.get_table_name())
+    tmp = cursor.fetchall()
+    num_db_items = len(tmp)
+    return num_db_items
 
 class DialogueManager(ConversationalModule):
     def __init__(self, args):
@@ -58,7 +52,6 @@ class DialogueManager(ConversationalModule):
         settings = args['settings']
         ontology = args['ontology']
         database = args['database']
-        domain = args['domain']
 
         agent_id = 0
         if 'agent_id' in args:
@@ -98,20 +91,8 @@ class DialogueManager(ConversationalModule):
         else:
             raise ValueError('Unacceptable ontology type %s ' % ontology)
 
-        if isinstance(database, DataBase):
-            self.database = database
+        assert isinstance(database,SQLDataBase)
 
-        elif isinstance(database, str):
-            if database[-3:] == '.db':
-                self.database = SQLDataBase(database)
-            elif database[-5:] == '.json':
-                self.database = JSONDataBase(database)
-            else:
-                raise ValueError('Unacceptable database type %s ' % database)
-
-        else:
-            raise ValueError('Unacceptable database type %s ' % database)
-                
         if args and args['policy']:
             if 'domain' in self.settings['DIALOGUE']:
                 self.domain = self.settings['DIALOGUE']['domain']
@@ -160,14 +141,7 @@ class DialogueManager(ConversationalModule):
                             'Cannot find model_path or metadata_path in the '
                             'config for dialogue state tracker.')
 
-        # Default to dummy DST
-        if not self.DSTracker:
-            dst_args = dict(
-                zip(
-                    ['ontology', 'database', 'domain'],
-                    [self.ontology, self.database, domain]))
-            self.DSTracker = DummyStateTracker(dst_args)
-
+        self.DSTracker = DummyStateTracker(self.ontology,self.domain)
         self.load('')
 
     def get_RL_params(self, args):
@@ -190,7 +164,8 @@ class DialogueManager(ConversationalModule):
         return alpha, alpha_decay, epsilon, epsilon_decay, gamma
 
     def initialize(self, args):
-        self.DSTracker.initialize()
+        num_db_items = get_num_db_items(self.database)
+        self.DSTracker.initialize(num_db_items)
         policy_init_kwargs = {'is_training': self.TRAIN_POLICY,
                               'policy_path': self.policy_path,
                               'ontology': self.ontology}
@@ -432,14 +407,8 @@ class DialogueManager(ConversationalModule):
         return entropies
 
     def restart(self, args):
-        """
-        Restart the relevant structures or variables, e.g. at the beginning of
-        a new dialogue.
-
-        :return: Nothing
-        """
-
-        self.DSTracker.initialize(args)
+        num_db_items = get_num_db_items(self.database)
+        self.DSTracker.initialize(num_db_items,args)
         self.policy.restart(args)
         self.dialogue_counter += 1
 

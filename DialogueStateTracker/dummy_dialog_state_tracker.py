@@ -2,29 +2,16 @@
 from Dialogue.State import SlotFillingDialogueState
 from abc import ABC, abstractmethod
 
-from DialogueStateTracker.DialogueStateTracker import DialogueStateTracker
 from Domain.Ontology import Ontology
-from Domain.DataBase import DataBase, SQLDataBase, JSONDataBase
 from copy import deepcopy
 
 
 
-class DummyStateTracker(DialogueStateTracker):
+class DummyStateTracker(object):
 
-    def __init__(self, args):
+    def __init__(self, ontology,domain):
 
         super(DummyStateTracker, self).__init__()
-
-        if 'ontology' not in args:
-            raise AttributeError('DummyStateTracker: Please provide ontology!')
-        if 'database' not in args:
-            raise AttributeError('DummyStateTracker: Please provide database!')
-        if 'domain' not in args:
-            raise AttributeError('DummyStateTracker: Please provide domain!')
-
-        ontology = args['ontology']
-        database = args['database']
-        domain = args['domain']
 
         self.ontology = None
         if isinstance(ontology, Ontology):
@@ -33,26 +20,6 @@ class DummyStateTracker(DialogueStateTracker):
             self.ontology = Ontology(ontology)
         else:
             raise ValueError('Unacceptable ontology type %s ' % ontology)
-
-        self.database = None
-        if isinstance(database, DataBase):
-            self.database = database
-
-        elif isinstance(database, str):
-            if database[:-3] == '.db':
-                self.database = SQLDataBase(database)
-            elif database[:-5] == '.json':
-                self.database = JSONDataBase(database)
-            else:
-                raise ValueError('Unacceptable database type %s ' % database)
-
-        else:
-            raise ValueError('Unacceptable datbase type %s ' % database)
-
-        # Get Table name
-        self.db_table_name = self.database.get_table_name()
-
-        self.DB_ITEMS = 0   # This will raise an error!
 
         self.domain = domain
         if domain in ['CamRest', 'SlotFilling']:
@@ -66,18 +33,9 @@ class DummyStateTracker(DialogueStateTracker):
                 SlotFillingDialogueState(
                     {'slots': self.ontology.ontology['system_requestable']})
 
-    def initialize(self, args=None):
-        """
-        Initializes the database results and dialogue state.
+    def initialize(self,num_db_items, args=None):
 
-        :param args:
-        :return:
-        """
-
-        cursor = self.database.SQL_connection.cursor()
-        cursor.execute("SELECT * FROM " + self.db_table_name)
-        tmp = cursor.fetchall()
-        self.DB_ITEMS = len(tmp)
+        self.DB_ITEMS = num_db_items
 
         if self.DB_ITEMS <= 0:
             print('Warning! DST could not get number of DB items.')
