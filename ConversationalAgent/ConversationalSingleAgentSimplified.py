@@ -89,7 +89,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.USER_SIMULATOR_NLU = False
         self.USER_SIMULATOR_NLG = False
         self.USE_NLG = False
-        self.USE_SPEECH = False
         self.USER_HAS_INITIATIVE = True
         self.SAVE_LOG = True
 
@@ -343,11 +342,6 @@ class ConversationalSingleAgent(ConversationalAgent):
                     'simulation':
                 self.USE_USR_SIMULATOR = True
 
-            elif configuration['GENERAL']['interaction_mode'] == \
-                    'speech':
-                self.USE_SPEECH = True
-                self.asr = speech_rec.Recognizer()
-
     def build_domain_settings(self,configuration):
         if 'DIALOGUE' in configuration and \
                 configuration['DIALOGUE']:
@@ -474,18 +468,6 @@ class ConversationalSingleAgent(ConversationalAgent):
                 if self.print_level in ['debug']:
                     print('SYSTEM > %s ' % sys_utterance)
 
-                if self.USE_SPEECH:
-                    try:
-                        tts = gTTS(sys_utterance)
-                        tts.save('sys_output.mp3')
-                        os.system('afplay sys_output.mp3')
-
-                    except Exception as e:
-                        print(
-                            'WARNING: gTTS encountered an error: {0}. '
-                            'Falling back to Sys TTS.'.format(e)
-                        )
-                        os.system('say ' + sys_utterance)
             else:
                 if self.print_level in ['debug']:
                     print(
@@ -573,25 +555,7 @@ class ConversationalSingleAgent(ConversationalAgent):
                     print('USER (DACT) > %s \n' % usr_input[0])
 
         else:
-            if self.USE_SPEECH:
-                # Listen for input from the microphone
-                with speech_rec.Microphone() as source:
-                    print('(listening...)')
-                    audio = self.asr.listen(source, phrase_time_limit=3)
-
-                try:
-                    # This uses the default key
-                    usr_utterance = self.asr.recognize_google(audio)
-                    print("Google ASR: " + usr_utterance)
-
-                except speech_rec.UnknownValueError:
-                    print("Google ASR did not understand you")
-
-                except speech_rec.RequestError as e:
-                    print("Google ASR request error: {0}".format(e))
-
-            else:
-                usr_utterance = input('USER > ')
+            usr_utterance = input('USER > ')
 
             # Process the user's utterance
             if self.nlu:
@@ -624,16 +588,6 @@ class ConversationalSingleAgent(ConversationalAgent):
             if self.print_level in ['debug']:
                 print('SYSTEM > %s ' % sys_utterance)
 
-            if self.USE_SPEECH:
-                try:
-                    tts = gTTS(text=sys_utterance, lang='en')
-                    tts.save('sys_output.mp3')
-                    os.system('afplay sys_output.mp3')
-
-                except:
-                    print('WARNING: gTTS encountered an error. '
-                          'Falling back to Sys TTS.')
-                    os.system('say ' + sys_utterance)
         else:
             if self.print_level in ['debug']:
                 print('SYSTEM > %s ' % '; '.join([str(sr) for sr in sys_response]))
