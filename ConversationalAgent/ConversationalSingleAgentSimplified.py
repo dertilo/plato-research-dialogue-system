@@ -3,7 +3,7 @@ from ConversationalAgent.ConversationalAgent import ConversationalAgent
 from UserSimulator.AgendaBasedUserSimulator.AgendaBasedUS import AgendaBasedUS
 from UserSimulator.DActToLanguageUserSimulator.DTLUserSimulator import DTLUserSimulator
 from UserSimulator.UserModel import UserModel
-from DialogueManagement import DialogueManager
+from DialogueManagement import DialogueManager_simplified as DialogueManager
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.slot_filling_reward_function import (
     SlotFillingReward,
 )
@@ -105,28 +105,14 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         self.digest_configuration(configuration)
 
-        dm_args = dict(
-            zip(
-                [
-                    "settings",
-                    "ontology",
-                    "database",
-                    "domain",
-                    "agent_id",
-                    "agent_role",
-                ],
-                [
-                    configuration,
-                    self.ontology,
-                    self.database,
-                    self.domain,
-                    self.agent_id,
-                    "system",
-                ],
-            )
+        self.dialogue_manager = DialogueManager.DialogueManager(
+            configuration,
+            self.ontology,
+            self.database,
+            self.agent_id,
+            "system",
+            configuration["AGENT_0"]["DM"]['policy']
         )
-        dm_args.update(configuration["AGENT_0"]["DM"])
-        self.dialogue_manager = DialogueManager.DialogueManager(dm_args)
 
     def digest_configuration(self, configuration):
         validate_configuration(configuration)

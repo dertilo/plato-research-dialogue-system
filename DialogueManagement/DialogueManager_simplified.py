@@ -31,35 +31,20 @@ def get_num_db_items(database:SQLDataBase):
     return num_db_items
 
 class DialogueManager(ConversationalModule):
-    def __init__(self, args):
+    def __init__(self,
+                 settings:dict,
+                 ontology:Ontology,
+                 database:SQLDataBase,
+                 agent_id:int,
+                 agent_role:str,
+                 policy_args:dict
+                 ):
         """
         Parses the arguments in the dictionary and initializes the appropriate
         models for Dialogue State Tracking and Dialogue Policy.
 
         :param args: the configuration file parsed into a dictionary
         """
-
-        if 'settings' not in args:
-            raise AttributeError(
-                'DialogueManager: Please provide settings (config)!')
-        if 'ontology' not in args:
-            raise AttributeError('DialogueManager: Please provide ontology!')
-        if 'database' not in args:
-            raise AttributeError('DialogueManager: Please provide database!')
-        if 'domain' not in args:
-            raise AttributeError('DialogueManager: Please provide domain!')
-
-        settings = args['settings']
-        ontology = args['ontology']
-        database = args['database']
-
-        agent_id = 0
-        if 'agent_id' in args:
-            agent_id = int(args['agent_id'])
-
-        agent_role = 'system'
-        if 'agent_role' in args:
-            agent_role = args['agent_role']
 
         self.settings = settings
         self.print_level = 'debug'
@@ -77,90 +62,58 @@ class DialogueManager(ConversationalModule):
         self.ontology = None
         assert isinstance(database,SQLDataBase)
         self.database = database
-        self.domain = None
+        self.domain = self.settings['DIALOGUE']['domain']
 
         self.agent_id = agent_id
         self.agent_role = agent_role
 
         self.dialogue_counter = 0
         self.CALCULATE_SLOT_ENTROPIES = True
-
-        if isinstance(ontology, Ontology):
-            self.ontology = ontology
-        elif isinstance(ontology, str):
-            self.ontology = Ontology(ontology)
-        else:
-            raise ValueError('Unacceptable ontology type %s ' % ontology)
+        self.ontology = ontology
 
 
-        if args and args['policy']:
-            if 'domain' in self.settings['DIALOGUE']:
-                self.domain = self.settings['DIALOGUE']['domain']
-            else:
-                raise ValueError(
-                    'Domain is not specified in DIALOGUE at config.')
+        assert policy_args['type'] == 'reinforce'
+        alpha, alpha_decay, epsilon, epsilon_decay, gamma = self.get_RL_params(policy_args)
 
-            if 'calculate_slot_entropies' in args:
-                self.CALCULATE_SLOT_ENTROPIES = \
-                    bool(args['calculate_slot_entropies'])
+        self.policy = \
+            ReinforcePolicy(
+                self.ontology,
+                self.database,
+                self.agent_id,
+                self.agent_role,
+                self.domain,
+                alpha=alpha,
+                epsilon=epsilon,
+                gamma=gamma,
+                alpha_decay=alpha_decay,
+                epsilon_decay=epsilon_decay)
 
+        if 'train' in policy_args:
+            self.TRAIN_POLICY = bool(policy_args['train'])
 
-            assert args['policy']['type'] == 'reinforce'
-            alpha, alpha_decay, epsilon, epsilon_decay, gamma = self.get_RL_params(args)
-
-            self.policy = \
-                ReinforcePolicy(
-                    self.ontology,
-                    self.database,
-                    self.agent_id,
-                    self.agent_role,
-                    self.domain,
-                    alpha=alpha,
-                    epsilon=epsilon,
-                    gamma=gamma,
-                    alpha_decay=alpha_decay,
-                    epsilon_decay=epsilon_decay)
-
-            if 'train' in args['policy']:
-                self.TRAIN_POLICY = bool(args['policy']['train'])
-
-            if 'policy_path' in args['policy']:
-                self.policy_path = args['policy']['policy_path']
-
-        # DST Settings
-        if 'DST' in args and args['DST']['dst']:
-                if args['DST']['dst'] == 'CamRest':
-                    if args['DST']['policy']['model_path'] and \
-                            args['DST']['policy']['metadata_path']:
-                        self.DSTracker = \
-                            CamRestLudwigDST(
-                                {'model_path': args[
-                                    'DST']['policy']['model_path']})
-                    else:
-                        raise ValueError(
-                            'Cannot find model_path or metadata_path in the '
-                            'config for dialogue state tracker.')
+        if 'policy_path' in policy_args:
+            self.policy_path = policy_args['policy_path']
 
         self.DSTracker = DummyStateTracker(self.ontology,self.domain)
         self.load('')
 
-    def get_RL_params(self, args):
+    def get_RL_params(self, policy_args):
         alpha = None
-        if 'learning_rate' in args['policy']:
-            alpha = float(args['policy']['learning_rate'])
+        if 'learning_rate' in policy_args:
+            alpha = float(policy_args['learning_rate'])
         gamma = None
-        if 'discount_factor' in args['policy']:
-            gamma = float(args['policy']['discount_factor'])
+        if 'discount_factor' in policy_args:
+            gamma = float(policy_args['discount_factor'])
         epsilon = None
-        if 'exploration_rate' in args['policy']:
-            epsilon = float(args['policy']['exploration_rate'])
+        if 'exploration_rate' in policy_args:
+            epsilon = float(policy_args['exploration_rate'])
         alpha_decay = None
-        if 'learning_decay_rate' in args['policy']:
-            alpha_decay = float(args['policy']['learning_decay_rate'])
+        if 'learning_decay_rate' in policy_args:
+            alpha_decay = float(policy_args['learning_decay_rate'])
         epsilon_decay = None
-        if 'exploration_decay_rate' in args['policy']:
+        if 'exploration_decay_rate' in policy_args:
             epsilon_decay = \
-                float(args['policy']['exploration_decay_rate'])
+                float(policy_args['exploration_decay_rate'])
         return alpha, alpha_decay, epsilon, epsilon_decay, gamma
 
     def initialize(self, args):
