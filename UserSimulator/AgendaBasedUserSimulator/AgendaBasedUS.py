@@ -117,107 +117,111 @@ class AgendaBasedUS(object):
                 self.agenda.push(DialogueAct("bye", []))
 
             elif system_act.intent in ["inform", "offer"]:
-                # Check that the venue provided meets the constraints
-                meets_constraints = True
-                for item in system_act.params:
-                    if (
-                        item.slot in self.goal.constraints
-                        and self.goal.constraints[item.slot].value != "dontcare"
-                    ):
-                        # Remove the inform from the agenda, assuming the
-                        # value provided is correct. If it is not, the
-                        # act will be pushed again and will be on top of the
-                        # agenda (this way we avoid adding / removing
-                        # twice.
-                        dact = DialogueAct(
+                self.handle_inform_and_offer(system_act)
+
+            # Push appropriate acts into the agenda
+            elif system_act.intent == "request":
+                self.handle_request(system_act)
+
+            # TODO Relax goals if system returns no info for name
+
+    def handle_inform_and_offer(self, system_act):
+        # Check that the venue provided meets the constraints
+        meets_constraints = True
+        for item in system_act.params:
+            if (
+                    item.slot in self.goal.constraints
+                    and self.goal.constraints[item.slot].value != "dontcare"
+            ):
+                # Remove the inform from the agenda, assuming the
+                # value provided is correct. If it is not, the
+                # act will be pushed again and will be on top of the
+                # agenda (this way we avoid adding / removing
+                # twice.
+                dact = DialogueAct(
+                    "inform",
+                    [
+                        DialogueActItem(
+                            deepcopy(item.slot),
+                            deepcopy(self.goal.constraints[item.slot].op),
+                            deepcopy(self.goal.constraints[item.slot].value),
+                        )
+                    ],
+                )
+
+                # Remove and push to make sure the act is on top -
+                # if it already exists
+                self.agenda.remove(dact)
+
+                if item.value != self.goal.constraints[item.slot].value:
+                    meets_constraints = False
+
+                    # For each violated constraint add an inform
+                    # TODO: Make this a deny-inform or change
+                    # operator to NE
+
+                    self.agenda.push(dact)
+        # If it meets the constraints, update the requests
+        if meets_constraints:
+            for item in system_act.params:
+                if item.slot in self.goal.requests_made:
+                    self.goal.requests_made[item.slot].value = item.value
+
+                    # Mark the value only if the slot has been
+                    # requested and is in the requests
+                    if item.slot in self.goal.requests:
+                        self.goal.requests[item.slot].value = item.value
+
+                    # Remove any requests from the agenda that ask
+                    # for that slot
+                    # TODO: Revise this for all operators
+                    self.agenda.remove(
+                        DialogueAct(
+                            "request",
+                            [DialogueActItem(item.slot, Operator.EQ, "")],
+                        )
+                    )
+        # When the system makes a new offer, replace all requests in
+        # the agenda
+        if system_act.intent == "offer":
+            for r in self.goal.requests:
+                req = deepcopy(self.goal.requests[r])
+                req_dact = DialogueAct("request", [req])
+
+                # The agenda will replace the old act first
+                self.agenda.push(req_dact)
+
+    def handle_request(self, system_act):
+        if system_act.params:
+            for item in system_act.params:
+                if item.slot in self.goal.constraints:
+                    self.agenda.push(
+                        DialogueAct(
                             "inform",
                             [
                                 DialogueActItem(
                                     deepcopy(item.slot),
-                                    deepcopy(self.goal.constraints[item.slot].op),
-                                    deepcopy(self.goal.constraints[item.slot].value),
+                                    deepcopy(
+                                        self.goal.constraints[item.slot].op
+                                    ),
+                                    deepcopy(
+                                        self.goal.constraints[item.slot].value
+                                    ),
                                 )
                             ],
                         )
-
-                        # Remove and push to make sure the act is on top -
-                        # if it already exists
-                        self.agenda.remove(dact)
-
-                        if item.value != self.goal.constraints[item.slot].value:
-                            meets_constraints = False
-
-                            # For each violated constraint add an inform
-                            # TODO: Make this a deny-inform or change
-                            # operator to NE
-
-                            self.agenda.push(dact)
-
-                # If it meets the constraints, update the requests
-                if meets_constraints:
-                    for item in system_act.params:
-                        if item.slot in self.goal.requests_made:
-                            self.goal.requests_made[item.slot].value = item.value
-
-                            # Mark the value only if the slot has been
-                            # requested and is in the requests
-                            if item.slot in self.goal.requests:
-                                self.goal.requests[item.slot].value = item.value
-
-                            # Remove any requests from the agenda that ask
-                            # for that slot
-                            # TODO: Revise this for all operators
-                            self.agenda.remove(
-                                DialogueAct(
-                                    "request",
-                                    [DialogueActItem(item.slot, Operator.EQ, "")],
+                    )
+                else:
+                    self.agenda.push(
+                        DialogueAct(
+                            "inform",
+                            [
+                                DialogueActItem(
+                                    deepcopy(item.slot), Operator.EQ, "dontcare"
                                 )
-                            )
-
-                # When the system makes a new offer, replace all requests in
-                # the agenda
-                if system_act.intent == "offer":
-                    for r in self.goal.requests:
-                        req = deepcopy(self.goal.requests[r])
-                        req_dact = DialogueAct("request", [req])
-
-                        # The agenda will replace the old act first
-                        self.agenda.push(req_dact)
-
-            # Push appropriate acts into the agenda
-            elif system_act.intent == "request":
-                if system_act.params:
-                    for item in system_act.params:
-                        if item.slot in self.goal.constraints:
-                            self.agenda.push(
-                                DialogueAct(
-                                    "inform",
-                                    [
-                                        DialogueActItem(
-                                            deepcopy(item.slot),
-                                            deepcopy(
-                                                self.goal.constraints[item.slot].op
-                                            ),
-                                            deepcopy(
-                                                self.goal.constraints[item.slot].value
-                                            ),
-                                        )
-                                    ],
-                                )
-                            )
-                        else:
-                            self.agenda.push(
-                                DialogueAct(
-                                    "inform",
-                                    [
-                                        DialogueActItem(
-                                            deepcopy(item.slot), Operator.EQ, "dontcare"
-                                        )
-                                    ],
-                                )
-                            )
-
-            # TODO Relax goals if system returns no info for name
+                            ],
+                        )
+                    )
 
     def respond(self):
 
