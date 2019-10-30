@@ -51,7 +51,7 @@ class SlotFillingReward(object):
             # Check that an offer has actually been made
             if state.system_made_offer:
                 dialogue_success, reward = self.evaluate_dialog_success(
-                    goal.constraints, goal.requests_made, state
+                    goal.constraints, list(goal.requests_made.values()), state
                 )
 
             else:
@@ -76,11 +76,16 @@ class SlotFillingReward(object):
             task_success = False
         return task_success
 
-    def evaluate_dialog_success(self, goal_constraints, goal_actual_requests, state):
+    def evaluate_dialog_success(
+        self,
+        goal_constraints,
+        requests_made_by_user: List[DialogueActItem],
+        state: SlotFillingDialogueState,
+    ):
 
         if offered_item_meets_all_user_constraints(
             goal_constraints, state.item_in_focus
-        ) and all_requests_met(goal_actual_requests.values()):
+        ) and all_requests_met(requests_made_by_user):
             reward = self.success_reward
             dialogue_success = True
         else:
