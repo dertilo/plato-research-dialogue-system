@@ -1,21 +1,38 @@
-from abc import ABC, abstractmethod
-from copy import deepcopy
+from typing import List
 
+from Dialogue.Action import DialogueActItem
 from Dialogue.State import SlotFillingDialogueState
 from UserSimulator.AgendaBasedUserSimulator.Goal import Goal
 
 
-def filled_wrongly(gold_slot, state, goal):
-    gold_slot_was_filled = gold_slot in state.slots_filled
-    with_wrong_value = (
-        state.slots_filled[gold_slot] != goal.constraints[gold_slot].value
+def filled_wrongly(
+    gold_slot: str, state: SlotFillingDialogueState, act_item: DialogueActItem
+):
+    return (
+        user_does_care(act_item)
+        and gold_slot_was_filled(gold_slot, state)
+        and with_wrong_value(act_item, gold_slot, state)
     )
-    gold_value_not_dontcare = goal.constraints[gold_slot].value != "dontcare"
-    return gold_slot_was_filled and with_wrong_value and gold_value_not_dontcare
 
 
-def request_was_not_done(goal, req):
-    return not goal.requests[req].value
+def user_does_care(act_item):
+    return act_item.value != "dontcare"
+
+
+def with_wrong_value(act_item, gold_slot, state):
+    return state.slots_filled[gold_slot] != act_item.value
+
+
+def gold_slot_was_filled(gold_slot, state):
+    return gold_slot in state.slots_filled
+
+
+def request_was_not_done(act_item):
+    return isinstance(act_item.value, list) and len(act_item.value) == 0
+
+
+def all_requests_met(act_items: List[DialogueActItem]):
+    return not any(request_was_not_done(act_item) for act_item in act_items)
 
 
 class SlotFillingReward(object):
@@ -50,27 +67,20 @@ class SlotFillingReward(object):
     def evaluate_task_success(self, goal: Goal, state: SlotFillingDialogueState):
         # Liu & Lane ASRU 2017 Definition of task success
         # We don't care for slots that are not in the goal constraints
-        assert goal.ground_truth is None
-        if any(filled_wrongly(slot, state, goal) for slot in goal.constraints) or any(
-            request_was_not_done(goal, req) for req in goal.requests
-        ):
-            task_success = False
-        else:
+        if not any(
+            filled_wrongly(slot, state, act_item)
+            for slot, act_item in goal.constraints.items()
+        ) and all_requests_met(goal.requests.values()):
             task_success = True
+        else:
+            task_success = False
         return task_success
 
     def evaluate_dialog_success(self, goal_constraints, goal_actual_requests, state):
-        offered_right_one = self.check_that_offered_item_meets_users_constraints(
+
+        if offered_item_meets_all_user_constraints(
             goal_constraints, state.item_in_focus
-        )
-
-        def all_requests_met(actual_requests):
-            return not any(
-                isinstance(act_item.value, list) and len(act_item.value) == 0
-                for act_item in actual_requests.values()
-            )
-
-        if offered_right_one and all_requests_met(goal_actual_requests):
+        ) and all_requests_met(goal_actual_requests.values()):
             reward = self.success_reward
             dialogue_success = True
         else:
@@ -79,17 +89,13 @@ class SlotFillingReward(object):
 
         return dialogue_success, reward
 
-    def check_that_offered_item_meets_users_constraints(
-        self, goal_constraints, item_in_focus
-    ):
-        offered_right_one = True
-        for constr in goal_constraints:
 
-            if item_in_focus:
-                if (
-                    item_in_focus[constr] != goal_constraints[constr].value
-                    and goal_constraints[constr].value != "dontcare"
-                ):
-                    offered_right_one = False
-                    break
-        return offered_right_one
+def offered_item_meets_all_user_constraints(goal_constraints, item_in_focus):
+    def wrong_value(constr: str):
+        act_item = goal_constraints[constr]
+        item_value = act_item.value
+        # TODO: here a "meet-constraint"-method is needed to check for other Operation but "equality" -> lowerthan, greaterthan
+        return item_in_focus[constr] != item_value and user_does_care(act_item)
+
+    offered_right_one = not any(wrong_value(constr) for constr in goal_constraints)
+    return offered_right_one
