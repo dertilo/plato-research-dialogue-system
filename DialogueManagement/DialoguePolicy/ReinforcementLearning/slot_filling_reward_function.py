@@ -27,7 +27,6 @@ class SlotFillingReward(object):
 
     def calculate(self, state: SlotFillingDialogueState, goal: Goal):
 
-        reward = self.turn_penalty
         assert goal is not None
         dialogue_success = False
 
@@ -35,12 +34,14 @@ class SlotFillingReward(object):
             # Check that an offer has actually been made
             if state.system_made_offer:
                 dialogue_success, reward = self.evaluate_dialog_success(
-                    goal, reward, state
+                    goal.constraints, goal.actual_requests, state
                 )
 
             else:
-                reward += self.failure_penalty
+                reward = self.failure_penalty
                 dialogue_success = False
+        else:
+            reward = self.turn_penalty
 
         task_success = self.evaluate_task_success(goal, state)
 
@@ -58,30 +59,30 @@ class SlotFillingReward(object):
             task_success = True
         return task_success
 
-    def evaluate_dialog_success(self, goal: Goal, reward, state):
-        dialogue_success, penalty = self.check_that_offered_item_meets_users_constraints(
-            goal.constraints, state.item_in_focus
+    def evaluate_dialog_success(self, goal_constraints, goal_actual_requests, state):
+        offered_right_one = self.check_that_offered_item_meets_users_constraints(
+            goal_constraints, state.item_in_focus
         )
-        reward += penalty
-        if dialogue_success:
-            any_request_not_met = any(
+
+        def all_requests_met(actual_requests):
+            return not any(
                 isinstance(act_item.value, list) and len(act_item.value) == 0
-                for act_item in goal.actual_requests.values()
+                for act_item in actual_requests.values()
             )
 
-            if any_request_not_met:
-                reward += self.failure_penalty
-                dialogue_success = False
-            else:
-                reward = self.success_reward
+        if offered_right_one and all_requests_met(goal_actual_requests):
+            reward = self.success_reward
+            dialogue_success = True
+        else:
+            reward = self.failure_penalty
+            dialogue_success = False
 
         return dialogue_success, reward
 
     def check_that_offered_item_meets_users_constraints(
         self, goal_constraints, item_in_focus
     ):
-        dialogue_success = True
-        penalty = 0
+        offered_right_one = True
         for constr in goal_constraints:
 
             if item_in_focus:
@@ -89,7 +90,6 @@ class SlotFillingReward(object):
                     item_in_focus[constr] != goal_constraints[constr].value
                     and goal_constraints[constr].value != "dontcare"
                 ):
-                    penalty = self.failure_penalty
-                    dialogue_success = False
+                    offered_right_one = False
                     break
-        return dialogue_success, penalty
+        return offered_right_one
