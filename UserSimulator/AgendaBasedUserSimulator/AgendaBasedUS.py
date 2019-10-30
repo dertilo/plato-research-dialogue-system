@@ -1,26 +1,9 @@
-"""
-Copyright (c) 2019 Uber Technologies, Inc.
-
-Licensed under the Uber Non-Commercial License (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at the root directory of this project. 
-
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
-__author__ = "Alexandros Papangelis"
-
 import os
 import pickle
 import random
 from copy import deepcopy
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
-from NLG.CamRestNLG import CamRestNLG
-from NLG.DummyNLG import DummyNLG
-from NLU.CamRestNLU import CamRestNLU
-from NLU.DummyNLU import DummyNLU
 from Domain.DataBase import DataBase, SQLDataBase, JSONDataBase
 from Domain.Ontology import Ontology
 from UserSimulator.AgendaBasedUserSimulator import Agenda, Goal, ErrorModel
@@ -37,123 +20,39 @@ Proc SIGDial, Antwerp 273282.9 (2007).
 
 
 class AgendaBasedUS(UserSimulator.UserSimulator):
-    """
-    Implementation of the Agenda Based Usr Simulator.
-    """
 
-    def __init__(self, args):
-        """
-        Initializes the internal structures of the Agenda-Based Usr Simulator
-
-        :param args: a dictionary containing an ontology, a database, and
-                     other necessary arguments
-        """
+    def __init__(self,
+                 ontology:Ontology, database:SQLDataBase,
+                 user_model,
+                 patience=3,
+                 pop_distribution=[1.0],
+                 slot_confuse_prob=0.0,
+                 op_confuse_prob=0.0,
+                 value_confuse_prob=0.0,
+                 goal_slot_selection_weights = None
+                 ):
 
         super(AgendaBasedUS, self).__init__()
 
-        if 'ontology' not in args:
-            raise AttributeError('AgendaBasedUS: Please provide ontology!')
-        if 'database' not in args:
-            raise AttributeError('AgendaBasedUS: Please provide database!')
 
-        ontology = args['ontology']
-        database = args['database']
-
-        um = None
-        if 'um' in args:
-            um = args['um']
-
-        self.nlu = None
-        self.nlg = None
         self.dialogue_turn = 0
-        self.us_has_initiative = False
         self.policy = None
         self.goals_path = None
 
-        if um is not None:
-            self.user_model = um
+        self.user_model = user_model
 
-        self.ontology = None
-        if isinstance(ontology, Ontology):
-            self.ontology = ontology
-        elif isinstance(ontology, str):
-            self.ontology = Ontology(ontology)
-        else:
-            raise ValueError('Unacceptable ontology type %s ' % ontology)
+        self.ontology = ontology
+        self.database = database
 
-        self.database = None
-        if isinstance(database, DataBase):
-            self.database = database
+        self.patience = patience
+        self.pop_distribution = pop_distribution
+        self.slot_confuse_prob = slot_confuse_prob
+        self.op_confuse_prob = op_confuse_prob
+        self.value_confuse_prob = value_confuse_prob
 
-        elif isinstance(database, str):
-            if database[-3:] == '.db':
-                self.database = SQLDataBase(database)
-            elif database[-5:] == '.json':
-                self.database = JSONDataBase(database)
-            else:
-                raise ValueError('Unacceptable database type %s ' % database)
-        else:
-            raise ValueError('Unacceptable database type %s ' % database)
-
-        self.patience = 3
-
-        # Initialize probabilities
-        if 'patience' in args:
-            self.patience = args['patience']
-        if 'pop_distribution' in args:
-            self.pop_distribution = args['pop_distribution']
-        if 'slot_confuse_prob' in args:
-            self.slot_confuse_prob = args['slot_confuse_prob']
-        if 'op_confuse_prob' in args:
-            self.op_confuse_prob = args['op_confuse_prob']
-        if 'value_confuse_prob' in args:
-            self.value_confuse_prob = args['value_confuse_prob']
-
-        self.goal_slot_selection_weights = None
-        if 'goal_slot_selection_weights' in args:
-            self.goal_slot_selection_weights = \
-                args['goal_slot_selection_weights']
-
-        if 'nlu' in args:
-            nlu_args = \
-                dict(zip(['ontology', 'database'],
-                         [self.ontology, self.database]))
-
-            if args['nlu'] == 'CamRest':
-                self.nlu = CamRestNLU(nlu_args)
-
-            elif args['nlu'] == 'dummy':
-                self.nlu = DummyNLU(nlu_args)
-
-        if 'nlg' in args:
-            if args['nlg'] == 'CamRest':
-                if args['nlg_model_path'] and args['nlg_metadata_path']:
-                    self.nlg = \
-                        CamRestNLG({'model_path': args['nlg_model_path']})
-                else:
-                    raise ValueError('ABUS: Cannot initialize CamRest NLG '
-                                     'without a model path AND a metadata '
-                                     'path.')
-
-            elif args['nlg'] == 'dummy':
-                self.nlg = DummyNLG()
-
-        if 'goals_path' in args:
-            self.goals_path = args['goals_path']
-
-        if 'policy_file' in args:
-            self.load(args['policy_file'])
-
-        if 'us_has_initiative' in args:
-            self.us_has_initiative = args['us_has_initiative']
+        self.goal_slot_selection_weights = goal_slot_selection_weights
 
         self.curr_patience = self.patience
-
-        # Default values for probabilities
-        self.pop_distribution = [1.0]
-        self.slot_confuse_prob = 0.0
-        self.op_confuse_prob = 0.0
-        self.value_confuse_prob = 0.0
 
         self.agenda = Agenda.Agenda()
         self.error_model = ErrorModel.ErrorModel(self.ontology,
@@ -195,11 +94,6 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         # Initialize agenda and user state
         self.agenda.initialize(deepcopy(self.goal))
 
-        if self.nlu:
-            self.nlu.initialize({})
-
-        if self.nlg:
-            self.nlg.initialize({})
 
         self.prev_system_acts = None
         self.curr_patience = self.patience
@@ -218,10 +112,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         :return: Nothing
         """
 
-        if self.nlu and isinstance(inpt, str):
-            system_acts = self.nlu.process_input(inpt)
-        else:
-            system_acts = inpt
+        system_acts = inpt
 
         if goal:
             self.goal = goal
@@ -452,11 +343,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         """
 
         if self.curr_patience == 0:
-            if self.nlg:
-                return self.nlg.generate_output(
-                    {'dacts': [DialogueAct('bye', [])], 'system': False})
-            else:
-                return [DialogueAct('bye', [])]
+            return [DialogueAct('bye', [])]
 
         # Sample the number of acts to pop.
         acts = []
@@ -475,9 +362,6 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                 self.goal.requests_made[act.params[0].slot] = act.params[0]
 
             acts.append(act)
-
-        if self.nlg:
-            acts = self.nlg.generate_output({'dacts': acts, 'system': False})
 
         return acts
 

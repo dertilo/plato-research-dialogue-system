@@ -111,7 +111,7 @@ class ConversationalSingleAgent(ConversationalAgent):
             self.database,
             self.agent_id,
             "system",
-            configuration["AGENT_0"]["DM"]['policy']
+            configuration["AGENT_0"]["DM"]["policy"],
         )
 
     def digest_configuration(self, configuration):
@@ -122,77 +122,10 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.build_user_simulator_settings(configuration)
 
     def build_user_simulator_settings(self, configuration):
-        if "USER_SIMULATOR" in configuration["AGENT_0"]:
-            # Agent 0 simulator configuration
-            a0_sim_config = configuration["AGENT_0"]["USER_SIMULATOR"]
-            if a0_sim_config and a0_sim_config["simulator"]:
-                # Default settings
-                self.user_simulator_args["ontology"] = self.ontology
-                self.user_simulator_args["database"] = self.database
-                self.user_simulator_args["um"] = self.user_model
-                self.user_simulator_args["patience"] = 5
 
-                if a0_sim_config["simulator"] == "agenda":
-                    if "patience" in a0_sim_config:
-                        self.user_simulator_args["patience"] = int(
-                            a0_sim_config["patience"]
-                        )
-
-                    if "pop_distribution" in a0_sim_config:
-                        if isinstance(a0_sim_config["pop_distribution"], list):
-                            self.user_simulator_args[
-                                "pop_distribution"
-                            ] = a0_sim_config["pop_distribution"]
-                        else:
-                            self.user_simulator_args["pop_distribution"] = eval(
-                                a0_sim_config["pop_distribution"]
-                            )
-
-                    if "slot_confuse_prob" in a0_sim_config:
-                        self.user_simulator_args["slot_confuse_prob"] = float(
-                            a0_sim_config["slot_confuse_prob"]
-                        )
-                    if "op_confuse_prob" in a0_sim_config:
-                        self.user_simulator_args["op_confuse_prob"] = float(
-                            a0_sim_config["op_confuse_prob"]
-                        )
-                    if "value_confuse_prob" in a0_sim_config:
-                        self.user_simulator_args["value_confuse_prob"] = float(
-                            a0_sim_config["value_confuse_prob"]
-                        )
-
-                    if "goal_slot_selection_weights" in a0_sim_config:
-                        self.user_simulator_args[
-                            "goal_slot_selection_weights"
-                        ] = a0_sim_config["goal_slot_selection_weights"]
-
-                    if "goals_file" in a0_sim_config:
-                        self.user_simulator_args["goals_file"] = a0_sim_config[
-                            "goals_file"
-                        ]
-
-                    if "policy_file" in a0_sim_config:
-                        self.user_simulator_args["policy_file"] = a0_sim_config[
-                            "policy_file"
-                        ]
-
-                    self.user_simulator = AgendaBasedUS(self.user_simulator_args)
-
-                elif a0_sim_config["simulator"] == "dtl":
-                    if "policy_file" in a0_sim_config:
-                        self.user_simulator_args["policy_file"] = a0_sim_config[
-                            "policy_file"
-                        ]
-                        self.user_simulator = DTLUserSimulator(self.user_simulator_args)
-                    else:
-                        raise ValueError(
-                            "Error! Cannot start DAct-to-Language "
-                            "simulator without a policy file!"
-                        )
-
-            else:
-                # Fallback to agenda based simulator with default settings
-                self.user_simulator = AgendaBasedUS(self.user_simulator_args)
+        self.user_simulator = AgendaBasedUS(ontology=self.ontology,
+                                            database=self.database,
+                                            user_model=self.user_model)
 
     def build_general_settings(self, configuration):
         if "GENERAL" in configuration and configuration["GENERAL"]:
