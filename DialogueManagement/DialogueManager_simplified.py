@@ -75,7 +75,8 @@ class DialogueManager(ConversationalModule):
         self.policy = None
         self.policy_path = None
         self.ontology = None
-        self.database = None
+        assert isinstance(database,SQLDataBase)
+        self.database = database
         self.domain = None
 
         self.agent_id = agent_id
@@ -91,7 +92,6 @@ class DialogueManager(ConversationalModule):
         else:
             raise ValueError('Unacceptable ontology type %s ' % ontology)
 
-        assert isinstance(database,SQLDataBase)
 
         if args and args['policy']:
             if 'domain' in self.settings['DIALOGUE']:
