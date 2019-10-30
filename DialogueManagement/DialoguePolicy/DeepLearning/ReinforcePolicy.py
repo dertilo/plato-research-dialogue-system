@@ -1,23 +1,9 @@
-"""
-Copyright (c) 2019 Uber Technologies, Inc.
-
-Licensed under the Uber Non-Commercial License (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at the root directory of this project. 
-
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
-__author__ = "Alexandros Papangelis"
-
+from typing import List
 from .. import DialoguePolicy
 from DialogueManagement.DialoguePolicy.HandcraftedPolicy import \
     HandcraftedPolicy
-from Domain import Ontology, DataBase
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 from Dialogue.State import SlotFillingDialogueState
-from UserSimulator.AgendaBasedUserSimulator.AgendaBasedUS import AgendaBasedUS
 from copy import deepcopy
 
 import numpy as np
@@ -57,18 +43,10 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         self.IS_GREEDY = False
 
-        self.ontology = None
-        if isinstance(ontology, Ontology.Ontology):
-            self.ontology = ontology
-        else:
-            raise ValueError('Unacceptable ontology type %s ' % ontology)
+        self.ontology = ontology
 
         self.database = None
-        if isinstance(database, DataBase.DataBase):
-            self.database = database
-        else:
-            raise ValueError('Reinforce DialoguePolicy: Unacceptable '
-                             'database type %s ' % database)
+        self.database = database
 
         self.policy_path = None
 
@@ -85,17 +63,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         self.warmup_policy = None
         self.warmup_simulator = None
 
-        if self.agent_role == 'system':
-            # Put your system expert policy here
-            self.warmup_policy = HandcraftedPolicy(self.ontology)
-
-        elif self.agent_role == 'user':
-            usim_args = \
-                dict(
-                    zip(['ontology', 'database'],
-                        [self.ontology, self.database]))
-            # Put your user expert policy here
-            self.warmup_simulator = AgendaBasedUS(usim_args)
+        self.warmup_policy = HandcraftedPolicy(self.ontology)
 
         self.tf_scope = "policy_" + self.agent_role + '_' + str(self.agent_id)
 
@@ -162,49 +130,34 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
             print('Reinforce DialoguePolicy {0} automatically determined '
                   'number of state features: {1}'
                   .format(self.agent_role, self.NStateFeatures))
-
-        if domain == 'CamRest' and self.dstc2_acts_sys:
-            if self.agent_role == 'system':
-                self.NActions = \
-                    len(self.dstc2_acts_sys) + \
-                    len(self.requestable_slots) + \
-                    len(self.system_requestable_slots)
-
-                self.NOtherActions = \
-                    len(self.dstc2_acts_usr) + \
-                    2 * len(self.requestable_slots)
-
-            elif self.agent_role == 'user':
-                self.NActions = \
-                    len(self.dstc2_acts_usr) + \
-                    2 * len(self.requestable_slots)
-
-                self.NOtherActions = \
-                    len(self.dstc2_acts_sys) + \
-                    len(self.requestable_slots) + \
-                    len(self.system_requestable_slots)
-
+        if domain == 'CamRest':
+            na, noa = self.number_camrest_actions()
         else:
-            if self.agent_role == 'system':
-                self.NActions = \
-                    3 + len(self.system_requestable_slots) + \
-                    len(self.requestable_slots)
+            na, noa = self.number_actions()
 
-                self.NOtherActions = \
-                    2 + len(self.requestable_slots) +\
-                    len(self.requestable_slots)
-
-            elif self.agent_role == 'user':
-                self.NActions = \
-                    2 + len(self.requestable_slots) + \
-                    len(self.requestable_slots)
-
-                self.NOtherActions = \
-                    3 + len(self.system_requestable_slots) + \
-                    len(self.requestable_slots)
-
+        self.NActions, self.NOtherActions = na,noa
         print('Reinforce {0} DialoguePolicy Number of Actions: {1}'
               .format(self.agent_role, self.NActions))
+
+    def number_actions(self):
+        NActions = \
+            3 + len(self.system_requestable_slots) + \
+            len(self.requestable_slots)
+        NOtherActions = \
+            2 + len(self.requestable_slots) + \
+            len(self.requestable_slots)
+        return NActions,NOtherActions
+
+    def number_camrest_actions(self):
+        NActions = \
+            len(self.dstc2_acts_sys) + \
+            len(self.requestable_slots) + \
+            len(self.system_requestable_slots)
+        NOtherActions = \
+            len(self.dstc2_acts_usr) + \
+            2 * len(self.requestable_slots)
+
+        return NActions,NOtherActions
 
     def initialize(self, **kwargs):
         """
@@ -385,8 +338,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                 (rewards - np.mean(rewards)) / (np.std(rewards) + 0.000001)
 
             for (t, turn) in enumerate(dialogue):
-                act_enc = self.encode_action(turn['action'],
-                                             self.agent_role == 'system')
+                act_enc = self.encode_action(turn['action'])
                 if act_enc < 0:
                     continue
 
@@ -486,53 +438,28 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         return temp
 
-    def encode_action(self, actions, system=True):
-        """
-        Encode the action, given the role. Note that does not have to match
-        the agent's role, as the agent may be encoding another agent's action
-        (e.g. a system encoding the previous user act).
+    def encode_action(self, actions:List[DialogueAct]):
 
-        :param actions: actions to be encoded
-        :param system: whether the role whose action we are encoding is a
-                       'system'
-        :return: the encoded action
-        """
-
-        # TODO: Handle multiple actions
-        # TODO: Action encoding in a principled way
         if not actions:
-            # TODO: what does len(actions)==0 mean ??
+            # TODO(tilo): what does len(actions)==0 mean ??
             # print('WARNING: Reinforce DialoguePolicy action encoding called '
             #       'with empty actions list (returning 0).')
             return -1
 
         action = actions[0]
 
-        if system:
-            if self.dstc2_acts_sys and action.intent in self.dstc2_acts_sys:
-                return self.dstc2_acts_sys.index(action.intent)
+        if self.dstc2_acts_sys and action.intent in self.dstc2_acts_sys:
+            return self.dstc2_acts_sys.index(action.intent)
 
-            if action.intent == 'request':
-                return len(self.dstc2_acts_sys) + \
-                       self.system_requestable_slots.index(
-                           action.params[0].slot)
+        if action.intent == 'request':
+            return len(self.dstc2_acts_sys) + \
+                   self.system_requestable_slots.index(
+                       action.params[0].slot)
 
-            if action.intent == 'inform':
-                return len(self.dstc2_acts_sys) + \
-                       len(self.system_requestable_slots) + \
-                       self.requestable_slots.index(action.params[0].slot)
-        else:
-            if self.dstc2_acts_usr and action.intent in self.dstc2_acts_usr:
-                return self.dstc2_acts_usr.index(action.intent)
-
-            if action.intent == 'request':
-                return len(self.dstc2_acts_usr) + \
-                       self.requestable_slots.index(action.params[0].slot)
-
-            if action.intent == 'inform':
-                return len(self.dstc2_acts_usr) + \
-                       len(self.requestable_slots) + \
-                       self.requestable_slots.index(action.params[0].slot)
+        if action.intent == 'inform':
+            return len(self.dstc2_acts_sys) + \
+                   len(self.system_requestable_slots) + \
+                   self.requestable_slots.index(action.params[0].slot)
 
         # Default fall-back action
         print('Reinforce ({0}) policy action encoder warning: Selecting '
@@ -552,53 +479,28 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         :return: the decoded action
         """
 
-        if system:
-            if action_enc < len(self.dstc2_acts_sys):
-                return [DialogueAct(self.dstc2_acts_sys[action_enc], [])]
+        if action_enc < len(self.dstc2_acts_sys):
+            return [DialogueAct(self.dstc2_acts_sys[action_enc], [])]
 
-            if action_enc < len(self.dstc2_acts_sys) + \
-                    len(self.system_requestable_slots):
-                return [DialogueAct(
-                    'request',
-                    [DialogueActItem(
-                        self.system_requestable_slots[
-                            action_enc - len(self.dstc2_acts_sys)],
-                        Operator.EQ, '')])]
+        if action_enc < len(self.dstc2_acts_sys) + \
+                len(self.system_requestable_slots):
+            return [DialogueAct(
+                'request',
+                [DialogueActItem(
+                    self.system_requestable_slots[
+                        action_enc - len(self.dstc2_acts_sys)],
+                    Operator.EQ, '')])]
 
-            if action_enc < len(self.dstc2_acts_sys) + \
-                    len(self.system_requestable_slots) + \
-                    len(self.requestable_slots):
-                index = action_enc - len(self.dstc2_acts_sys) - \
-                        len(self.system_requestable_slots)
-                return [DialogueAct(
-                    'inform',
-                    [DialogueActItem(
-                        self.requestable_slots[index], Operator.EQ, '')])]
+        if action_enc < len(self.dstc2_acts_sys) + \
+                len(self.system_requestable_slots) + \
+                len(self.requestable_slots):
+            index = action_enc - len(self.dstc2_acts_sys) - \
+                    len(self.system_requestable_slots)
+            return [DialogueAct(
+                'inform',
+                [DialogueActItem(
+                    self.requestable_slots[index], Operator.EQ, '')])]
 
-        else:
-            if action_enc < len(self.dstc2_acts_usr):
-                return [DialogueAct(self.dstc2_acts_usr[action_enc], [])]
-
-            if action_enc < len(self.dstc2_acts_usr) + \
-                    len(self.requestable_slots):
-                return [DialogueAct(
-                    'request',
-                    [DialogueActItem(
-                        self.requestable_slots[
-                            action_enc - len(self.dstc2_acts_usr)],
-                        Operator.EQ,
-                        '')])]
-
-            if action_enc < len(self.dstc2_acts_usr) + \
-                    2 * len(self.requestable_slots):
-                return [DialogueAct(
-                    'inform',
-                    [DialogueActItem(
-                        self.requestable_slots[
-                            action_enc - len(self.dstc2_acts_usr) -
-                            len(self.requestable_slots)],
-                        Operator.EQ,
-                        '')])]
 
         # Default fall-back action
         print('Reinforce DialoguePolicy ({0}) policy action decoder warning: '
