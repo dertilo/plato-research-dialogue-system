@@ -25,27 +25,17 @@ class SlotFillingReward(object):
         self.failure_penalty = -1
         self.success_reward = 20
 
-    def calculate(self, state, goal=None, force_terminal=False, agent_role="system"):
-        """
-        Calculate the reward to be assigned for taking action from state.
-
-
-        :param state: the current state
-        :param goal: the agent's goal, used to assess success
-        :param force_terminal: force state to be terminal
-        :param agent_role: the role of the agent
-        :return: a number, representing the calculated reward
-        """
+    def calculate(self, state: SlotFillingDialogueState, goal: Goal):
 
         reward = self.turn_penalty
         assert goal is not None
         dialogue_success = False
 
-        if state.is_terminal() or force_terminal:
+        if state.is_terminal():
             # Check that an offer has actually been made
             if state.system_made_offer:
                 dialogue_success, reward = self.evaluate_dialog_success(
-                    agent_role, goal, reward, state
+                    goal, reward, state
                 )
 
             else:
@@ -68,53 +58,38 @@ class SlotFillingReward(object):
             task_success = True
         return task_success
 
-    def evaluate_dialog_success(self, agent_role, goal, reward, state):
-        dialogue_success, reward = self.check_that_offered_item_meets_users_constraints(
-            goal, reward, state
+    def evaluate_dialog_success(self, goal: Goal, reward, state):
+        dialogue_success, penalty = self.check_that_offered_item_meets_users_constraints(
+            goal.constraints, state.item_in_focus
         )
+        reward += penalty
         if dialogue_success:
-            dialogue_success, reward = self.check_that_all_requests_have_been_addressed(
-                agent_role, dialogue_success, goal, reward
+            any_request_not_met = any(
+                isinstance(act_item.value, list) and len(act_item.value) == 0
+                for act_item in goal.actual_requests.values()
             )
+
+            if any_request_not_met:
+                reward += self.failure_penalty
+                dialogue_success = False
+            else:
+                reward = self.success_reward
+
         return dialogue_success, reward
 
-    def check_that_all_requests_have_been_addressed(
-        self, agent_role, dialogue_success, goal, reward
+    def check_that_offered_item_meets_users_constraints(
+        self, goal_constraints, item_in_focus
     ):
-        not_met = 0
-        if agent_role == "system":
-            # Check that the system has responded to all
-            # requests (actually) made by the user
-            for req in goal.actual_requests:
-                if not goal.actual_requests[req].value:
-                    not_met += 1
-
-        elif agent_role == "user":
-            # Check that the user has provided all the
-            # requests in the goal
-            for req in goal.requests:
-                if not goal.requests[req].value:
-                    not_met += 1
-        if not_met > 0:
-            reward += self.failure_penalty
-            dialogue_success = False
-        else:
-            reward = self.success_reward
-        return dialogue_success, reward
-
-    def check_that_offered_item_meets_users_constraints(self, goal, reward, state):
         dialogue_success = True
+        penalty = 0
+        for constr in goal_constraints:
 
-        for constr in goal.constraints:
-            assert goal.ground_truth is None
-
-            if state.item_in_focus:
-                # Single-agent case
+            if item_in_focus:
                 if (
-                    state.item_in_focus[constr] != goal.constraints[constr].value
-                    and goal.constraints[constr].value != "dontcare"
+                    item_in_focus[constr] != goal_constraints[constr].value
+                    and goal_constraints[constr].value != "dontcare"
                 ):
-                    reward += self.failure_penalty
+                    penalty = self.failure_penalty
                     dialogue_success = False
                     break
-        return dialogue_success, reward
+        return dialogue_success, penalty
