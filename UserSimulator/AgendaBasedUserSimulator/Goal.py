@@ -35,8 +35,7 @@ class Goal:
         """
         self.constraints = {}       # Dict of <slot, Dialogue Act Item>
         self.requests = {}          # Dict of <slot, Dialogue Act Item>
-        self.actual_constraints = {}  # Dict of <slot, Dialogue Act Item>
-        self.actual_requests = {}   # Dict of <slot, Dialogue Act Item>
+        self.requests_made = {}   # Dict of <slot, Dialogue Act Item>
 
         # To be used in the multi-agent setting primarily (where the user does
         # not have access to the ground truth - item in focus - in the

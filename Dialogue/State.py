@@ -115,9 +115,6 @@ class SlotFillingDialogueState(DialogueState):
         self.turn = 0
         self.num_dontcare = 0
 
-        # NOTE: This is ONLY used if an agent plays the role of the user
-        self.user_goal = None
-
     def __str__(self):
         """
         Print the Slot Filling Dialogue State

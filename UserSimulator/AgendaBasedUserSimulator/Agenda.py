@@ -8,6 +8,7 @@ You may obtain a copy of the License at the root directory of this project.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from UserSimulator.AgendaBasedUserSimulator.Goal import Goal
 
 __author__ = "Alexandros Papangelis"
 
@@ -27,7 +28,7 @@ class Agenda:
         """
 
         self.agenda = []
-        self.goal = None
+        self.goal:Goal = None
 
     def initialize(self, goal, us_has_initiative=False):
         """
@@ -153,8 +154,8 @@ class Agenda:
 
         # Remove all requests for slots that are filled in the goal
         if self.goal:
-            for slot in self.goal.actual_requests:
-                if self.goal.actual_requests[slot].value:
+            for slot in self.goal.requests_made:
+                if self.goal.requests_made[slot].value:
                     self.remove(
                         DialogueAct(
                             'request',

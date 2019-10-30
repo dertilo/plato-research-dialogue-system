@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 
 from Dialogue.Action import DialogueActItem
 from Dialogue.State import SlotFillingDialogueState
@@ -51,7 +51,7 @@ class SlotFillingReward(object):
             # Check that an offer has actually been made
             if state.system_made_offer:
                 dialogue_success, reward = self.evaluate_dialog_success(
-                    goal.constraints, goal.actual_requests, state
+                    goal.constraints, goal.requests_made, state
                 )
 
             else:
@@ -90,12 +90,15 @@ class SlotFillingReward(object):
         return dialogue_success, reward
 
 
-def offered_item_meets_all_user_constraints(goal_constraints, item_in_focus):
-    def wrong_value(constr: str):
-        act_item = goal_constraints[constr]
-        item_value = act_item.value
+def offered_item_meets_all_user_constraints(
+    goal_constraints: Dict[str, DialogueActItem], item_in_focus
+):
+    def wrong_value(value, constr_act_item: DialogueActItem):
         # TODO: here a "meet-constraint"-method is needed to check for other Operation but "equality" -> lowerthan, greaterthan
-        return item_in_focus[constr] != item_value and user_does_care(act_item)
+        return user_does_care(constr_act_item) and value != constr_act_item.value
 
-    offered_right_one = not any(wrong_value(constr) for constr in goal_constraints)
+    offered_right_one = not any(
+        wrong_value(item_in_focus[slot_name], dialog_act)
+        for slot_name, dialog_act in goal_constraints.items()
+    )
     return offered_right_one

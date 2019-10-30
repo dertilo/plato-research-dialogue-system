@@ -165,7 +165,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         self.goal_generator = Goal.GoalGenerator(self.ontology,
                                                  self.database,
                                                  self.goals_path)
-        self.goal = None
+        self.goal:Goal = None
         self.offer_made = False
         self.prev_offer_name = None
 
@@ -246,7 +246,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
                     self.prev_offer_name = system_act.params[0].value
 
-                    self.goal.actual_requests = {}
+                    self.goal.requests_made = {}
 
                     for item in self.goal.requests:
                         item.value = ''
@@ -390,8 +390,8 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                 # If it meets the constraints, update the requests
                 if meets_constraints:
                     for item in system_act.params:
-                        if item.slot in self.goal.actual_requests:
-                            self.goal.actual_requests[item.slot].value = \
+                        if item.slot in self.goal.requests_made:
+                            self.goal.requests_made[item.slot].value = \
                                 item.value
 
                             # Mark the value only if the slot has been
@@ -472,7 +472,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
             # Keep track of actual requests made. These are used in reward and
             # success calculation
             if act.intent == 'request' and act.params:
-                self.goal.actual_requests[act.params[0].slot] = act.params[0]
+                self.goal.requests_made[act.params[0].slot] = act.params[0]
 
             acts.append(act)
 

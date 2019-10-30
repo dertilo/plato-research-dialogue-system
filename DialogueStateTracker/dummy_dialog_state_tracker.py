@@ -78,17 +78,6 @@ class DummyStateTracker(object):
                         self.DState.slots_filled[dact_item.slot] = \
                             dact_item.value
 
-                    elif self.DState.user_goal:
-                        if dact_item.slot in \
-                                self.DState.user_goal.actual_requests:
-                            self.DState.user_goal.actual_requests[
-                                dact_item.slot].value = dact_item.value
-
-                        # Only update requests that have been asked for
-                        if dact_item.slot in self.DState.user_goal.requests:
-                            self.DState.user_goal.requests[
-                                dact_item.slot].value = dact_item.value
-
             elif dact.intent == 'request':
                 for dact_item in dact.params:
                     # TODO: THIS WILL ONLY SAVE THE LAST DACT ITEM! --
@@ -149,28 +138,29 @@ class DummyStateTracker(object):
 
         # This should be called if the agent is a user
         elif sys_acts:
-            # Create dictionary if it doesn't exist or reset it if a new offer
-            # has been made
-            if not self.DState.item_in_focus or \
-                    'offer' in [a.intent for a in sys_acts]:
-                self.DState.item_in_focus = \
-                    dict.fromkeys(self.ontology.ontology['requestable'])
-
-            for sys_act in sys_acts:
-                if sys_act.intent in ['inform', 'offer']:
-                    for item in sys_act.params:
-                        self.DState.item_in_focus[item.slot] = item.value
-
-                        if self.DState.user_goal:
-                            if item.slot in \
-                                    self.DState.user_goal.actual_requests:
-                                self.DState.user_goal.actual_requests[
-                                    item.slot].value = item.value
-
-                            # Only update requests that have been asked for
-                            if item.slot in self.DState.user_goal.requests:
-                                self.DState.user_goal.requests[
-                                    item.slot].value = item.value
+            assert False
+            # # Create dictionary if it doesn't exist or reset it if a new offer
+            # # has been made
+            # if not self.DState.item_in_focus or \
+            #         'offer' in [a.intent for a in sys_acts]:
+            #     self.DState.item_in_focus = \
+            #         dict.fromkeys(self.ontology.ontology['requestable'])
+            #
+            # for sys_act in sys_acts:
+            #     if sys_act.intent in ['inform', 'offer']:
+            #         for item in sys_act.params:
+            #             self.DState.item_in_focus[item.slot] = item.value
+            #
+            #             if self.DState.user_goal:
+            #                 if item.slot in \
+            #                         self.DState.user_goal.requests_made:
+            #                     self.DState.user_goal.requests_made[
+            #                         item.slot].value = item.value
+            #
+            #                 # Only update requests that have been asked for
+            #                 if item.slot in self.DState.user_goal.requests:
+            #                     self.DState.user_goal.requests[
+            #                         item.slot].value = item.value
 
         return self.DState
 
@@ -190,30 +180,6 @@ class DummyStateTracker(object):
             for sys_act in sys_acts:
                 if sys_act.intent == 'offer':
                     self.DState.system_made_offer = True
-
-                # Keep track of actual requests made. These are used in reward
-                # and success calculation for systems. The
-                # reasoning is that it does not make sense to penalise a system
-                # for an unanswered request that was
-                # never actually made by the user.
-                # If the current agent is a system then these will be
-                # disregarded.
-                if sys_act.intent == 'request' and sys_act.params and \
-                        self.DState.user_goal:
-                    self.DState.user_goal.actual_requests[
-                        sys_act.params[0].slot] = sys_act.params[0]
-
-                # Similarly, keep track of actual constraints made.
-                if sys_act.intent == 'inform' and sys_act.params and \
-                        self.DState.user_goal:
-                    self.DState.user_goal.actual_constraints[
-                        sys_act.params[0].slot] = sys_act.params[0]
-
-                # Reset the request if the system asks for more information,
-                # assuming that any previously offered item
-                # is now invalid.
-                # elif sys_act.intent == 'request':
-                #     self.DState.system_made_offer = False
 
     def update_goal(self, goal):
         """
