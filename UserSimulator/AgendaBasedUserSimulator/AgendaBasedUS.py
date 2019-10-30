@@ -22,14 +22,11 @@ Proc SIGDial, Antwerp 273282.9 (2007).
 class AgendaBasedUS(UserSimulator.UserSimulator):
     def __init__(
         self,
-        ontology: Ontology,
-        database: SQLDataBase,
+        goal_generator:Goal.GoalGenerator,
+        error_model:ErrorModel,
         user_model,
         patience=3,
         pop_distribution=[1.0],
-        slot_confuse_prob=0.0,
-        op_confuse_prob=0.0,
-        value_confuse_prob=0.0,
         goal_slot_selection_weights=None,
     ):
 
@@ -37,35 +34,21 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
         self.dialogue_turn = 0
         self.policy = None
-        self.goals_path = None
 
         self.user_model = user_model
 
-        self.ontology = ontology
-        self.database = database
 
         self.patience = patience
         self.pop_distribution = pop_distribution
-        self.slot_confuse_prob = slot_confuse_prob
-        self.op_confuse_prob = op_confuse_prob
-        self.value_confuse_prob = value_confuse_prob
 
         self.goal_slot_selection_weights = goal_slot_selection_weights
 
         self.curr_patience = self.patience
 
         self.agenda = Agenda.Agenda()
-        self.error_model = ErrorModel.ErrorModel(
-            self.ontology,
-            self.database,
-            self.slot_confuse_prob,
-            self.op_confuse_prob,
-            self.value_confuse_prob,
-        )
+        self.error_model = error_model
 
-        self.goal_generator = Goal.GoalGenerator(
-            self.ontology, self.database, self.goals_path
-        )
+        self.goal_generator = goal_generator
         self.goal: Goal = None
         self.offer_made = False
         self.prev_offer_name = None
@@ -73,24 +56,11 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         # Store previous system actions to keep track of patience
         self.prev_system_acts = None
 
-    def initialize(self, args):
-        """
-        Initializes the user simulator, e.g. before each dialogue episode.
+    def initialize(self):
 
-        :return: Nothing
-        """
-
-        if "goal" not in args:
-            # Sample Goal
-            goal_slot_selection_weights = None
-            if "goal_slot_selection_weights" in args:
-                goal_slot_selection_weights = args["goal_slot_selection_weights"]
-
-            self.goal = self.goal_generator.generate(
-                goal_slot_selection_weights=goal_slot_selection_weights
-            )
-        else:
-            self.goal = deepcopy(args["goal"])
+        self.goal = self.goal_generator.generate(
+            goal_slot_selection_weights=self.goal_slot_selection_weights
+        )
 
         # Initialize agenda and user state
         self.agenda.initialize(deepcopy(self.goal))

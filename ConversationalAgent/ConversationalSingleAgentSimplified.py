@@ -1,6 +1,8 @@
 from ConversationalAgent.ConversationalAgent import ConversationalAgent
+from UserSimulator.AgendaBasedUserSimulator import Goal
 
 from UserSimulator.AgendaBasedUserSimulator.AgendaBasedUS import AgendaBasedUS
+from UserSimulator.AgendaBasedUserSimulator.ErrorModel import ErrorModel
 from UserSimulator.DActToLanguageUserSimulator.DTLUserSimulator import DTLUserSimulator
 from UserSimulator.UserModel import UserModel
 from DialogueManagement import DialogueManager_simplified as DialogueManager
@@ -68,8 +70,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.train_interval = 50
         self.train_epochs = 10
 
-        # True values here would imply some default modules
-        self.USER_HAS_INITIATIVE = True
         self.SAVE_LOG = True
 
         # The dialogue will terminate after MAX_TURNS (this agent will issue
@@ -83,7 +83,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.dialogue_manager = None
         self.user_model = None
         self.user_simulator = None
-        self.user_simulator_args = {}
 
         self.agent_goal = None
         self.goal_generator = None
@@ -122,10 +121,18 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.build_user_simulator_settings(configuration)
 
     def build_user_simulator_settings(self, configuration):
-
-        self.user_simulator = AgendaBasedUS(ontology=self.ontology,
-                                            database=self.database,
-                                            user_model=self.user_model)
+        self.user_simulator = AgendaBasedUS(
+            goal_generator=Goal.GoalGenerator(
+                self.ontology, self.database, None
+            ),
+            error_model=ErrorModel(
+            self.ontology,
+            slot_confuse_prob=0.0,
+            op_confuse_prob=0.0,
+            value_confuse_prob=0.0,
+        ),
+            user_model=self.user_model,
+        )
 
     def build_general_settings(self, configuration):
         if "GENERAL" in configuration and configuration["GENERAL"]:
@@ -153,11 +160,6 @@ class ConversationalSingleAgent(ConversationalAgent):
 
     def build_domain_settings(self, configuration):
         if "DIALOGUE" in configuration and configuration["DIALOGUE"]:
-            if "initiative" in configuration["DIALOGUE"]:
-                self.USER_HAS_INITIATIVE = bool(
-                    configuration["DIALOGUE"]["initiative"] == "user"
-                )
-                self.user_simulator_args["us_has_initiative"] = self.USER_HAS_INITIATIVE
 
             if configuration["DIALOGUE"]["domain"]:
                 self.domain = configuration["DIALOGUE"]["domain"]
@@ -230,11 +232,9 @@ class ConversationalSingleAgent(ConversationalAgent):
     def start_dialogue(self, args=None):
 
         self.dialogue_turn = 0
-        self.user_simulator.initialize(self.user_simulator_args)
+        self.user_simulator.initialize()
 
         self.dialogue_manager.restart({})
-        assert not self.USER_HAS_INITIATIVE
-        # sys_response = self.dialogue_manager.respond()
         sys_response = [DialogueAct("welcomemsg", [])]
 
         usim_input = sys_response

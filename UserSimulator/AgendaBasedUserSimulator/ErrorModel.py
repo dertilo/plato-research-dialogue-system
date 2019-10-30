@@ -24,13 +24,12 @@ actions.
 
 # Class modeling semantic and other errors
 class ErrorModel:
-    def __init__(self, ontology, database, slot_confuse_prob, op_confuse_prob,
+    def __init__(self, ontology, slot_confuse_prob, op_confuse_prob,
                  value_confuse_prob):
         """
         Initialize the internal structures of the Error Model
 
         :param ontology: the domain Domain
-        :param database: the domain Database
         :param slot_confuse_prob: a list of probabilities by which slots will
                                   be confused
         :param op_confuse_prob: a list of probabilities by which operators will
@@ -48,11 +47,6 @@ class ErrorModel:
         else:
             raise ValueError('Unacceptable ontology type %s ' % ontology)
 
-        self.database = None
-        if isinstance(database, DataBase):
-            self.database = database
-        else:
-            raise ValueError('Unacceptable database type %s ' % database)
 
     def semantic_noise(self, act):
         """
