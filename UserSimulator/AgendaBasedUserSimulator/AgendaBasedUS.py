@@ -20,20 +20,20 @@ Proc SIGDial, Antwerp 273282.9 (2007).
 
 
 class AgendaBasedUS(UserSimulator.UserSimulator):
-
-    def __init__(self,
-                 ontology:Ontology, database:SQLDataBase,
-                 user_model,
-                 patience=3,
-                 pop_distribution=[1.0],
-                 slot_confuse_prob=0.0,
-                 op_confuse_prob=0.0,
-                 value_confuse_prob=0.0,
-                 goal_slot_selection_weights = None
-                 ):
+    def __init__(
+        self,
+        ontology: Ontology,
+        database: SQLDataBase,
+        user_model,
+        patience=3,
+        pop_distribution=[1.0],
+        slot_confuse_prob=0.0,
+        op_confuse_prob=0.0,
+        value_confuse_prob=0.0,
+        goal_slot_selection_weights=None,
+    ):
 
         super(AgendaBasedUS, self).__init__()
-
 
         self.dialogue_turn = 0
         self.policy = None
@@ -55,16 +55,18 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         self.curr_patience = self.patience
 
         self.agenda = Agenda.Agenda()
-        self.error_model = ErrorModel.ErrorModel(self.ontology,
-                                                 self.database,
-                                                 self.slot_confuse_prob,
-                                                 self.op_confuse_prob,
-                                                 self.value_confuse_prob)
+        self.error_model = ErrorModel.ErrorModel(
+            self.ontology,
+            self.database,
+            self.slot_confuse_prob,
+            self.op_confuse_prob,
+            self.value_confuse_prob,
+        )
 
-        self.goal_generator = Goal.GoalGenerator(self.ontology,
-                                                 self.database,
-                                                 self.goals_path)
-        self.goal:Goal = None
+        self.goal_generator = Goal.GoalGenerator(
+            self.ontology, self.database, self.goals_path
+        )
+        self.goal: Goal = None
         self.offer_made = False
         self.prev_offer_name = None
 
@@ -78,22 +80,20 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         :return: Nothing
         """
 
-        if 'goal' not in args:
+        if "goal" not in args:
             # Sample Goal
             goal_slot_selection_weights = None
-            if 'goal_slot_selection_weights' in args:
-                goal_slot_selection_weights = \
-                    args['goal_slot_selection_weights']
+            if "goal_slot_selection_weights" in args:
+                goal_slot_selection_weights = args["goal_slot_selection_weights"]
 
-            self.goal = \
-                self.goal_generator.generate(
-                    goal_slot_selection_weights=goal_slot_selection_weights)
+            self.goal = self.goal_generator.generate(
+                goal_slot_selection_weights=goal_slot_selection_weights
+            )
         else:
-            self.goal = deepcopy(args['goal'])
+            self.goal = deepcopy(args["goal"])
 
         # Initialize agenda and user state
         self.agenda.initialize(deepcopy(self.goal))
-
 
         self.prev_system_acts = None
         self.curr_patience = self.patience
@@ -124,23 +124,25 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         # Update user goal (in ABUS the state is factored into the goal and
         # the agenda)
         for system_act in system_acts:
-            if system_act.intent == 'offer':
+            if system_act.intent == "offer":
                 self.offer_made = True
 
                 # Reset past requests
-                if self.prev_offer_name and \
-                        system_act.params and \
-                        system_act.params[0].slot and \
-                        system_act.params[0].slot == 'name' and \
-                        system_act.params[0].value and \
-                        self.prev_offer_name != system_act.params[0].value:
+                if (
+                    self.prev_offer_name
+                    and system_act.params
+                    and system_act.params[0].slot
+                    and system_act.params[0].slot == "name"
+                    and system_act.params[0].value
+                    and self.prev_offer_name != system_act.params[0].value
+                ):
 
                     self.prev_offer_name = system_act.params[0].value
 
                     self.goal.requests_made = {}
 
                     for item in self.goal.requests:
-                        item.value = ''
+                        item.value = ""
 
         if self.policy:
             self.receive_input_policy(system_acts)
@@ -166,53 +168,59 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
         for system_act in system_acts:
             # 'bye' doesn't seem to appear in the CamRest data
-            if system_act.intent == 'bye' or self.curr_patience == 0 or \
-                    self.dialogue_turn > 15:
-                self.agenda.push(DialogueAct('bye', []))
+            if (
+                system_act.intent == "bye"
+                or self.curr_patience == 0
+                or self.dialogue_turn > 15
+            ):
+                self.agenda.push(DialogueAct("bye", []))
                 return
 
-            sys_act_slot = 'inform' if system_act.intent == 'offer' else \
-                system_act.intent
+            sys_act_slot = (
+                "inform" if system_act.intent == "offer" else system_act.intent
+            )
 
             if system_act.params and system_act.params[0].slot:
-                sys_act_slot += '_' + system_act.params[0].slot
+                sys_act_slot += "_" + system_act.params[0].slot
 
             # Attempt to recover
             if sys_act_slot not in self.policy:
-                if sys_act_slot == 'inform_name':
-                    sys_act_slot = 'offer_name'
+                if sys_act_slot == "inform_name":
+                    sys_act_slot = "offer_name"
 
             if sys_act_slot not in self.policy:
-                if system_act.intent == 'inform' and system_act.params and \
-                        system_act.params[0].slot in self.goal.constraints:
-                    user_act_slots = ['inform_' + system_act.params[0].slot]
+                if (
+                    system_act.intent == "inform"
+                    and system_act.params
+                    and system_act.params[0].slot in self.goal.constraints
+                ):
+                    user_act_slots = ["inform_" + system_act.params[0].slot]
                 else:
-                    print('Warning! ABUS policy does not know what to do for'
-                          ' %s' % sys_act_slot)
+                    print(
+                        "Warning! ABUS policy does not know what to do for"
+                        " %s" % sys_act_slot
+                    )
                     return
             else:
-                dacts = list(self.policy[sys_act_slot]['dacts'].keys())
-                probs = [self.policy[sys_act_slot]['dacts'][i] for i in dacts]
+                dacts = list(self.policy[sys_act_slot]["dacts"].keys())
+                probs = [self.policy[sys_act_slot]["dacts"][i] for i in dacts]
 
                 user_act_slots = random.choices(dacts, weights=probs)
 
             for user_act_slot in user_act_slots:
-                intent, slot = user_act_slot.split('_')
+                intent, slot = user_act_slot.split("_")
 
-                if slot == 'this' and system_act.params and \
-                        system_act.params[0].slot:
+                if slot == "this" and system_act.params and system_act.params[0].slot:
                     slot = system_act.params[0].slot
 
-                value = ''
-                if intent == 'inform':
+                value = ""
+                if intent == "inform":
                     if slot in self.goal.constraints:
                         value = self.goal.constraints[slot].value
                     else:
-                        value = 'dontcare'
+                        value = "dontcare"
 
-                dact = \
-                    DialogueAct(intent,
-                                [DialogueActItem(slot, Operator.EQ, value)])
+                dact = DialogueAct(intent, [DialogueActItem(slot, Operator.EQ, value)])
 
                 self.agenda.remove(dact)
                 self.agenda.push(dact)
@@ -237,39 +245,39 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         for system_act in system_acts:
             # Update user goal (in ABUS the state is factored into the goal
             # and the agenda)
-            if system_act.intent == 'bye' or self.dialogue_turn > 15:
+            if system_act.intent == "bye" or self.dialogue_turn > 15:
                 self.agenda.clear()
-                self.agenda.push(DialogueAct('bye', []))
+                self.agenda.push(DialogueAct("bye", []))
 
-            elif system_act.intent in ['inform', 'offer']:
+            elif system_act.intent in ["inform", "offer"]:
                 # Check that the venue provided meets the constraints
                 meets_constraints = True
                 for item in system_act.params:
-                    if item.slot in self.goal.constraints and \
-                            self.goal.constraints[item.slot].value != \
-                            'dontcare':
+                    if (
+                        item.slot in self.goal.constraints
+                        and self.goal.constraints[item.slot].value != "dontcare"
+                    ):
                         # Remove the inform from the agenda, assuming the
                         # value provided is correct. If it is not, the
                         # act will be pushed again and will be on top of the
                         # agenda (this way we avoid adding / removing
                         # twice.
-                        dact = \
-                            DialogueAct(
-                                'inform',
-                                [DialogueActItem(
+                        dact = DialogueAct(
+                            "inform",
+                            [
+                                DialogueActItem(
                                     deepcopy(item.slot),
-                                    deepcopy(
-                                        self.goal.constraints[item.slot].op),
-                                    deepcopy(
-                                        self.goal.constraints[
-                                            item.slot].value))])
+                                    deepcopy(self.goal.constraints[item.slot].op),
+                                    deepcopy(self.goal.constraints[item.slot].value),
+                                )
+                            ],
+                        )
 
                         # Remove and push to make sure the act is on top -
                         # if it already exists
                         self.agenda.remove(dact)
 
-                        if item.value != \
-                                self.goal.constraints[item.slot].value:
+                        if item.value != self.goal.constraints[item.slot].value:
                             meets_constraints = False
 
                             # For each violated constraint add an inform
@@ -282,56 +290,65 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                 if meets_constraints:
                     for item in system_act.params:
                         if item.slot in self.goal.requests_made:
-                            self.goal.requests_made[item.slot].value = \
-                                item.value
+                            self.goal.requests_made[item.slot].value = item.value
 
                             # Mark the value only if the slot has been
                             # requested and is in the requests
                             if item.slot in self.goal.requests:
-                                self.goal.requests[item.slot].value = \
-                                    item.value
+                                self.goal.requests[item.slot].value = item.value
 
                             # Remove any requests from the agenda that ask
                             # for that slot
                             # TODO: Revise this for all operators
                             self.agenda.remove(
-                                DialogueAct('request',
-                                            [DialogueActItem(
-                                                item.slot, Operator.EQ, '')]))
+                                DialogueAct(
+                                    "request",
+                                    [DialogueActItem(item.slot, Operator.EQ, "")],
+                                )
+                            )
 
                 # When the system makes a new offer, replace all requests in
                 # the agenda
-                if system_act.intent == 'offer':
+                if system_act.intent == "offer":
                     for r in self.goal.requests:
                         req = deepcopy(self.goal.requests[r])
-                        req_dact = DialogueAct('request', [req])
+                        req_dact = DialogueAct("request", [req])
 
                         # The agenda will replace the old act first
                         self.agenda.push(req_dact)
 
             # Push appropriate acts into the agenda
-            elif system_act.intent == 'request':
+            elif system_act.intent == "request":
                 if system_act.params:
                     for item in system_act.params:
                         if item.slot in self.goal.constraints:
                             self.agenda.push(
                                 DialogueAct(
-                                    'inform',
-                                    [DialogueActItem(
-                                        deepcopy(item.slot),
-                                        deepcopy(
-                                            self.goal.constraints[
-                                                item.slot].op),
-                                        deepcopy(
-                                            self.goal.constraints[
-                                                item.slot].value))]))
+                                    "inform",
+                                    [
+                                        DialogueActItem(
+                                            deepcopy(item.slot),
+                                            deepcopy(
+                                                self.goal.constraints[item.slot].op
+                                            ),
+                                            deepcopy(
+                                                self.goal.constraints[item.slot].value
+                                            ),
+                                        )
+                                    ],
+                                )
+                            )
                         else:
                             self.agenda.push(
                                 DialogueAct(
-                                    'inform',
-                                    [DialogueActItem(
-                                        deepcopy(item.slot),
-                                        Operator.EQ, 'dontcare')]))
+                                    "inform",
+                                    [
+                                        DialogueActItem(
+                                            deepcopy(item.slot), Operator.EQ, "dontcare"
+                                        )
+                                    ],
+                                )
+                            )
 
             # TODO Relax goals if system returns no info for name
 
@@ -343,22 +360,23 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         """
 
         if self.curr_patience == 0:
-            return [DialogueAct('bye', [])]
+            return [DialogueAct("bye", [])]
 
         # Sample the number of acts to pop.
         acts = []
         pops = min(
             random.choices(
-                range(1, len(self.pop_distribution)+1),
-                weights=self.pop_distribution)[0],
-            self.agenda.size())
+                range(1, len(self.pop_distribution) + 1), weights=self.pop_distribution
+            )[0],
+            self.agenda.size(),
+        )
 
         for pop in range(pops):
             act = self.error_model.semantic_noise(self.agenda.pop())
 
             # Keep track of actual requests made. These are used in reward and
             # success calculation
-            if act.intent == 'request' and act.params:
+            if act.intent == "request" and act.params:
                 self.goal.requests_made[act.params[0].slot] = act.params[0]
 
             acts.append(act)
@@ -393,18 +411,18 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
         if isinstance(path, str):
             if os.path.isfile(path):
-                with open(path, 'rb') as file:
+                with open(path, "rb") as file:
                     obj = pickle.load(file)
 
-                    if 'policy' in obj:
-                        self.policy = obj['policy']
+                    if "policy" in obj:
+                        self.policy = obj["policy"]
 
-                    print('ABUS policy loaded.')
+                    print("ABUS policy loaded.")
 
             else:
-                raise FileNotFoundError('ABUS policy file %s not found' % path)
+                raise FileNotFoundError("ABUS policy file %s not found" % path)
         else:
-            raise ValueError('Unacceptable ABUS policy file name: %s ' % path)
+            raise ValueError("Unacceptable ABUS policy file name: %s " % path)
 
     def at_terminal_state(self):
         """
