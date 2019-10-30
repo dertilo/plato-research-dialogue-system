@@ -49,11 +49,7 @@ class DialogueManager(ConversationalModule):
         """
 
         self.settings = settings
-        self.print_level = "debug"
-        if "GENERAL" in settings and "print_level" in settings["GENERAL"]:
-            self.print_level = settings["GENERAL"]["print_level"]
 
-        self.TRAIN_DST = False
         self.TRAIN_POLICY = False
 
         self.MAX_DB_RESULTS = 10
@@ -156,23 +152,9 @@ class DialogueManager(ConversationalModule):
         # (i.e. do not output slots or values)
         for sys_act in sys_acts:
             if not sys_act.params:
-                if sys_act.intent == "canthelp":
-                    self.cant_help(d_state, new_sys_acts, sys_act, sys_acts_copy)
-
-                elif sys_act.intent == "offer":
-                    self.sys_offer(
-                        d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy
-                    )
-
-                elif sys_act.intent == "inform" and not sys_act.params[0].value:
-
-                    self.sys_inform(d_state, new_sys_acts, sys_act)
-                    sys_acts_copy.remove(sys_act)
-
-                elif sys_act.intent == "request":
-                    self.handle_empty_request_action(
-                        d_state, new_sys_acts, sys_act, sys_acts_copy
-                    )
+                handle_empty_params(
+                    d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy
+                )
 
         # Append unique new sys acts
         for sa in new_sys_acts:
@@ -182,143 +164,6 @@ class DialogueManager(ConversationalModule):
         self.DSTracker.update_state_sysact(sys_acts_copy)
 
         return sys_acts_copy
-
-    def handle_empty_request_action(
-        self, d_state, new_sys_acts, sys_act, sys_acts_copy
-    ):
-        def get_unfilled_slot(d_state):
-            for slot in d_state.slots_filled:
-                if not d_state.slots_filled[slot]:
-                    request_unfilled_slot = DialogueAct(
-                        "request", [DialogueActItem(slot, Operator.EQ, "")]
-                    )
-                    return request_unfilled_slot
-
-            return None
-
-        def build_act_that_requests_random_slot(
-            d_state
-        ):  # TODO: why would one do such a thing?
-            request_random_slot = DialogueAct(
-                "request",
-                [
-                    DialogueActItem(
-                        random.choice(list(d_state.slots_filled.keys())[:-1]),
-                        Operator.EQ,
-                        "",
-                    )
-                ],
-            )
-            return request_random_slot
-
-        act = get_unfilled_slot(d_state)
-        if act is None:
-            act = build_act_that_requests_random_slot(d_state)
-        new_sys_acts.append(act)
-        # Remove the empty request
-        sys_acts_copy.remove(sys_act)
-
-    def sys_inform(self, d_state, new_sys_acts, sys_act):
-        if sys_act.params:
-            slot = sys_act.params[0].slot
-        else:
-            slot = d_state.requested_slot
-        if not slot:
-            slot = random.choice(list(d_state.slots_filled.keys()))
-        if d_state.item_in_focus:
-            if slot not in d_state.item_in_focus or not d_state.item_in_focus[slot]:
-                new_sys_acts.append(
-                    DialogueAct(
-                        "inform", [DialogueActItem(slot, Operator.EQ, "no info")]
-                    )
-                )
-            else:
-                if slot == "name":
-                    new_sys_acts.append(
-                        DialogueAct(
-                            "offer",
-                            [
-                                DialogueActItem(
-                                    slot, Operator.EQ, d_state.item_in_focus[slot]
-                                )
-                            ],
-                        )
-                    )
-                else:
-                    new_sys_acts.append(
-                        DialogueAct(
-                            "inform",
-                            [
-                                DialogueActItem(
-                                    slot, Operator.EQ, d_state.item_in_focus[slot]
-                                )
-                            ],
-                        )
-                    )
-
-        else:
-            new_sys_acts.append(
-                DialogueAct("inform", [DialogueActItem(slot, Operator.EQ, "no info")])
-            )
-
-    def sys_offer(self, d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy):
-        # Remove the empty offer
-        sys_acts_copy.remove(sys_act)
-        if d_state.item_in_focus:
-            new_sys_acts.append(
-                DialogueAct(
-                    "offer",
-                    [
-                        DialogueActItem(
-                            "name", Operator.EQ, d_state.item_in_focus["name"]
-                        )
-                    ],
-                )
-            )
-
-            # Only add these slots if no other acts were output
-            # by the DM
-            if len(sys_acts) == 1:
-                for slot in d_state.slots_filled:
-                    if slot in d_state.item_in_focus:
-                        if (
-                            slot not in ["id", "name"]
-                            and slot != d_state.requested_slot
-                        ):
-                            new_sys_acts.append(
-                                DialogueAct(
-                                    "inform",
-                                    [
-                                        DialogueActItem(
-                                            slot,
-                                            Operator.EQ,
-                                            d_state.item_in_focus[slot],
-                                        )
-                                    ],
-                                )
-                            )
-                    else:
-                        new_sys_acts.append(
-                            DialogueAct(
-                                "inform",
-                                [DialogueActItem(slot, Operator.EQ, "no info")],
-                            )
-                        )
-
-    def cant_help(self, d_state, new_sys_acts, sys_act, sys_acts_copy):
-        slots = [s for s in d_state.slots_filled if d_state.slots_filled[s]]
-        if slots:
-            slot = random.choice(slots)
-
-            # Remove the empty canthelp
-            sys_acts_copy.remove(sys_act)
-
-            new_sys_acts.append(
-                DialogueAct(
-                    "canthelp",
-                    [DialogueActItem(slot, Operator.EQ, d_state.slots_filled[slot])],
-                )
-            )
 
     def db_lookup(self):
 
@@ -396,68 +241,178 @@ class DialogueManager(ConversationalModule):
             )
 
     def get_state(self):
-        """
-        Get the current dialogue state
-
-        :return: the dialogue state
-        """
 
         return self.DSTracker.get_state()
 
     def at_terminal_state(self):
-        """
-        Assess whether the agent is at a terminal state.
-
-        :return: True or False
-        """
 
         return self.DSTracker.get_state().is_terminal()
 
     def train(self, dialogues):
-        """
-        Train the policy and dialogue state tracker, if applicable.
-
-        :param dialogues: dialogue experience
-        :return: nothing
-        """
 
         if self.TRAIN_POLICY:
             self.policy.train(dialogues)
 
-        if self.TRAIN_DST:
-            self.DSTracker.train(dialogues)
-
     def is_training(self):
-        """
-        Assess whether there are any trainable components in this Dialogue
-        Manager.
 
-        :return: True or False
-        """
-
-        return self.TRAIN_DST or self.TRAIN_POLICY
+        return self.TRAIN_POLICY
 
     def load(self, path):
-        """
-        Load models for the Dialogue State Tracker and Policy.
-
-        :param path: path to the policy model
-        :return: nothing
-        """
 
         # TODO: Handle path and loading properly
         self.DSTracker.load("")
         self.policy.load(self.policy_path)
 
     def save(self):
-        """
-        Save the models.
-
-        :return: nothing
-        """
 
         if self.DSTracker:
             self.DSTracker.save()
 
         if self.policy:
             self.policy.save(self.policy_path)
+
+
+#######################################################################################
+
+
+def handle_empty_params(d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy):
+    if sys_act.intent == "canthelp":
+        cant_help(d_state, new_sys_acts, sys_act, sys_acts_copy)
+
+    elif sys_act.intent == "offer":
+        sys_offer(d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy)
+
+    elif sys_act.intent == "inform" and not sys_act.params[0].value:
+
+        sys_inform(d_state, new_sys_acts, sys_act)
+        sys_acts_copy.remove(sys_act)
+
+    elif sys_act.intent == "request":
+        handle_empty_request_action(d_state, new_sys_acts, sys_act, sys_acts_copy)
+
+
+def handle_empty_request_action(d_state, new_sys_acts, sys_act, sys_acts_copy):
+    def get_unfilled_slot(d_state):
+        for slot in d_state.slots_filled:
+            if not d_state.slots_filled[slot]:
+                request_unfilled_slot = DialogueAct(
+                    "request", [DialogueActItem(slot, Operator.EQ, "")]
+                )
+                return request_unfilled_slot
+
+        return None
+
+    def build_act_that_requests_random_slot(
+        d_state
+    ):  # TODO: why would one do such a thing?
+        request_random_slot = DialogueAct(
+            "request",
+            [
+                DialogueActItem(
+                    random.choice(list(d_state.slots_filled.keys())[:-1]),
+                    Operator.EQ,
+                    "",
+                )
+            ],
+        )
+        return request_random_slot
+
+    act = get_unfilled_slot(d_state)
+    if act is None:
+        act = build_act_that_requests_random_slot(d_state)
+    new_sys_acts.append(act)
+    # Remove the empty request
+    sys_acts_copy.remove(sys_act)
+
+
+def sys_inform(d_state, new_sys_acts, sys_act):
+    if sys_act.params:
+        slot = sys_act.params[0].slot
+    else:
+        slot = d_state.requested_slot
+    if not slot:
+        slot = random.choice(list(d_state.slots_filled.keys()))
+    if d_state.item_in_focus:
+        if slot not in d_state.item_in_focus or not d_state.item_in_focus[slot]:
+            new_sys_acts.append(
+                DialogueAct("inform", [DialogueActItem(slot, Operator.EQ, "no info")])
+            )
+        else:
+            if slot == "name":
+                new_sys_acts.append(
+                    DialogueAct(
+                        "offer",
+                        [
+                            DialogueActItem(
+                                slot, Operator.EQ, d_state.item_in_focus[slot]
+                            )
+                        ],
+                    )
+                )
+            else:
+                new_sys_acts.append(
+                    DialogueAct(
+                        "inform",
+                        [
+                            DialogueActItem(
+                                slot, Operator.EQ, d_state.item_in_focus[slot]
+                            )
+                        ],
+                    )
+                )
+
+    else:
+        new_sys_acts.append(
+            DialogueAct("inform", [DialogueActItem(slot, Operator.EQ, "no info")])
+        )
+
+
+def sys_offer(d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy):
+    # Remove the empty offer
+    sys_acts_copy.remove(sys_act)
+    if d_state.item_in_focus:
+        new_sys_acts.append(
+            DialogueAct(
+                "offer",
+                [DialogueActItem("name", Operator.EQ, d_state.item_in_focus["name"])],
+            )
+        )
+
+        # Only add these slots if no other acts were output
+        # by the DM
+        if len(sys_acts) == 1:
+            for slot in d_state.slots_filled:
+                if slot in d_state.item_in_focus:
+                    if slot not in ["id", "name"] and slot != d_state.requested_slot:
+                        new_sys_acts.append(
+                            DialogueAct(
+                                "inform",
+                                [
+                                    DialogueActItem(
+                                        slot, Operator.EQ, d_state.item_in_focus[slot]
+                                    )
+                                ],
+                            )
+                        )
+                else:
+                    new_sys_acts.append(
+                        DialogueAct(
+                            "inform", [DialogueActItem(slot, Operator.EQ, "no info")]
+                        )
+                    )
+
+
+def cant_help(d_state, new_sys_acts, sys_act, sys_acts_copy):
+    slots = [s for s in d_state.slots_filled if d_state.slots_filled[s]]
+    if slots:
+        slot = random.choice(slots)
+
+        # Remove the empty canthelp
+        sys_acts_copy.remove(sys_act)
+
+        new_sys_acts.append(
+            DialogueAct(
+                "canthelp",
+                [DialogueActItem(slot, Operator.EQ, d_state.slots_filled[slot])],
+            )
+        )
