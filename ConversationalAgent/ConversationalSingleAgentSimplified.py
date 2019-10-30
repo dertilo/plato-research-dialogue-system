@@ -3,8 +3,6 @@ from UserSimulator.AgendaBasedUserSimulator import Goal
 
 from UserSimulator.AgendaBasedUserSimulator.AgendaBasedUS import AgendaBasedUS
 from UserSimulator.AgendaBasedUserSimulator.ErrorModel import ErrorModel
-from UserSimulator.DActToLanguageUserSimulator.DTLUserSimulator import DTLUserSimulator
-from UserSimulator.UserModel import UserModel
 from DialogueManagement import DialogueManager_simplified as DialogueManager
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.slot_filling_reward_function import (
     SlotFillingReward,
@@ -95,8 +93,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.prev_success = None
         self.prev_task_success = None
 
-        self.user_model = UserModel()
-
         self.recorder = DialogueEpisodeRecorder()
 
         # TODO: Handle this properly - get reward function type from config
@@ -118,20 +114,14 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         self.build_domain_settings(configuration)
         self.build_general_settings(configuration)
-        self.build_user_simulator_settings(configuration)
-
-    def build_user_simulator_settings(self, configuration):
         self.user_simulator = AgendaBasedUS(
-            goal_generator=Goal.GoalGenerator(
-                self.ontology, self.database, None
-            ),
+            goal_generator=Goal.GoalGenerator(self.ontology, self.database, None),
             error_model=ErrorModel(
-            self.ontology,
-            slot_confuse_prob=0.0,
-            op_confuse_prob=0.0,
-            value_confuse_prob=0.0,
-        ),
-            user_model=self.user_model,
+                self.ontology,
+                slot_confuse_prob=0.0,
+                op_confuse_prob=0.0,
+                value_confuse_prob=0.0,
+            ),
         )
 
     def build_general_settings(self, configuration):

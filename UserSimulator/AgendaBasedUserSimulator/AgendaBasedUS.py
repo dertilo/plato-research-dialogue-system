@@ -24,7 +24,6 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         self,
         goal_generator:Goal.GoalGenerator,
         error_model:ErrorModel,
-        user_model,
         patience=3,
         pop_distribution=[1.0],
         goal_slot_selection_weights=None,
@@ -34,10 +33,6 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
         self.dialogue_turn = 0
         self.policy = None
-
-        self.user_model = user_model
-
-
         self.patience = patience
         self.pop_distribution = pop_distribution
 

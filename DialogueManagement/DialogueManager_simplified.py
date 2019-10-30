@@ -57,7 +57,6 @@ class DialogueManager(ConversationalModule):
         self.DSTracker = None
         self.policy = None
         self.policy_path = None
-        self.ontology = None
         assert isinstance(database, SQLDataBase)
         self.database = database
         self.domain = self.settings["DIALOGUE"]["domain"]
