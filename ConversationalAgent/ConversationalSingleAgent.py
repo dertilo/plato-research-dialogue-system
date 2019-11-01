@@ -34,6 +34,7 @@ from copy import deepcopy
 
 import os
 import random
+import logging
 import speech_recognition as speech_rec
 
 """
@@ -75,6 +76,7 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         super(ConversationalSingleAgent, self).__init__()
 
+        self.logger = logging.getLogger('plato.ConversationalAgent.ConversationalSingleAgent')
         self.configuration = configuration
         self.print_level = 'debug'
 
@@ -793,9 +795,7 @@ class ConversationalSingleAgent(ConversationalAgent):
             if self.dialogue_episode % self.train_interval == 0 and \
                     len(self.recorder.dialogues) >= self.minibatch_length:
                 for epoch in range(self.train_epochs):
-                    print('Training epoch {0} of {1}'.format(
-                        epoch,
-                        self.train_epochs)
+                    self.logger.debug('Training epoch {0} of {1}'.format(epoch, self.train_epochs)
                     )
 
                     # Sample minibatch
@@ -815,8 +815,8 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.dialogue_episode += 1
         self.cumulative_rewards += \
             self.recorder.dialogues[-1][-1]['cumulative_reward']
-        if self.print_level in ['debug']:
-            print('CUMULATIVE REWARD: {0}'.format(self.recorder.dialogues[-1][-1]['cumulative_reward']))
+
+        self.logger.debug('CUMULATIVE REWARD: {0}'.format(self.recorder.dialogues[-1][-1]['cumulative_reward']))
 
         if self.dialogue_turn > 0:
             self.total_dialogue_turns += self.dialogue_turn
