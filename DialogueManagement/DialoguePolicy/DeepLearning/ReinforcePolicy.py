@@ -24,6 +24,7 @@ import numpy as np
 import random
 import os
 import pickle
+import logging
 
 """
 ReinforcePolicy implements the REINFORCE algorithm for dialogue policy 
@@ -51,6 +52,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         """
 
         super(ReinforcePolicy, self).__init__()
+
+        self.logger = logging.getLogger('DeepLearning.ReinforcePolicy.ReinforcePolicy')
 
         self.agent_id = agent_id
         self.agent_role = agent_role
@@ -151,7 +154,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                                            'confirm']
 
             else:
-                print('Warning! Domain has not been defined. Using '
+                self.logger.warning('Warning! Domain has not been defined. Using '
                       'Slot-Filling Dialogue State')
                 d_state = \
                     SlotFillingDialogueState({'slots': self.informable_slots})
@@ -159,7 +162,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
             d_state.initialize()
             self.NStateFeatures = len(self.encode_state(d_state))
 
-            print('Reinforce DialoguePolicy {0} automatically determined '
+            self.logger.info('Reinforce DialoguePolicy {0} automatically determined '
                   'number of state features: {1}'
                   .format(self.agent_role, self.NStateFeatures))
 
@@ -203,8 +206,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                     3 + len(self.system_requestable_slots) + \
                     len(self.requestable_slots)
 
-        print('Reinforce {0} DialoguePolicy Number of Actions: {1}'
-              .format(self.agent_role, self.NActions))
+        self.logger.info('Reinforce {0} DialoguePolicy Number of Actions: {1}'.format(self.agent_role, self.NActions))
 
     def initialize(self, **kwargs):
         """
@@ -220,8 +222,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                 if 'goal' in kwargs:
                     self.warmup_simulator.initialize({kwargs['goal']})
                 else:
-                    print('WARNING ! No goal provided for Reinforce policy '
-                          'user simulator @ initialize')
+                    self.logger.warning('WARNING ! No goal provided for Reinforce policy '
+                                        'user simulator @ initialize')
                     self.warmup_simulator.initialize({})
 
         if 'policy_path' in kwargs:
@@ -257,8 +259,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
             if 'goal' in args:
                 self.warmup_simulator.initialize(args)
             else:
-                print('WARNING! No goal provided for Reinforce policy user '
-                      'simulator @ restart')
+                self.logger.warning('WARNING! No goal provided for Reinforce policy user '
+                                    'simulator @ restart')
                 self.warmup_simulator.initialize({})
 
     def next_action(self, state):
@@ -271,8 +273,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         if self.is_training and random.random() < self.epsilon:
             if random.random() < 0.75:
-                print('--- {0}: Selecting warmup action.'
-                      .format(self.agent_role))
+                self.logger.debug('--- {0}: Selecting warmup action.'
+                                  .format(self.agent_role))
 
                 if self.agent_role == 'system':
                     return self.warmup_policy.next_action(state)
@@ -283,8 +285,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                     return self.warmup_simulator.respond()
 
             else:
-                print('--- {0}: Selecting random action.'
-                      .format(self.agent_role))
+                self.logger.debug('--- {0}: Selecting random action.'
+                                  .format(self.agent_role))
                 return self.decode_action(
                     random.choice(
                         range(0, self.NActions)),
@@ -294,8 +296,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         probs = self.calculate_policy(self.encode_state(state))
 
         if any(np.isnan(probs)):
-            print('WARNING! NAN detected in action probabilities! Selecting '
-                  'random action.')
+            self.logger.warning('WARNING! NAN detected in action probabilities! Selecting '
+                                'random action.')
             return self.decode_action(
                 random.choice(range(0, self.NActions)),
                 self.agent_role == "system")
@@ -311,9 +313,9 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                     self.decode_action(
                         random.choice(maxima), self.agent_role == 'system')
             else:
-                print(
-                    f'--- {self.agent_role}: Warning! No maximum value '
-                    f'identified for policy. Selecting random action.')
+                self.logger.warning(
+                                    f'--- {self.agent_role}: Warning! No maximum value '
+                                    f'identified for policy. Selecting random action.')
                 return self.decode_action(
                     random.choice(
                         range(0, self.NActions)),
@@ -426,7 +428,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         if self.epsilon > 0.5:
             self.epsilon *= self.exploration_decay_rate
 
-        print(f'REINFORCE train, alpha: {self.alpha}, epsilon: {self.epsilon}')
+        self.logger.info(f'REINFORCE train, alpha: {self.alpha}, epsilon: {self.epsilon}')
 
     def encode_state(self, state):
         """
@@ -501,8 +503,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         # TODO: Handle multiple actions
         # TODO: Action encoding in a principled way
         if not actions:
-            print('WARNING: Reinforce DialoguePolicy action encoding called '
-                  'with empty actions list (returning 0).')
+            self.logger.warning('WARNING: Reinforce DialoguePolicy action encoding called '
+                                'with empty actions list (returning 0).')
             return -1
 
         action = actions[0]
@@ -534,9 +536,9 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                        self.requestable_slots.index(action.params[0].slot)
 
         # Default fall-back action
-        print('Reinforce ({0}) policy action encoder warning: Selecting '
-              'default action (unable to encode: {1})!'
-              .format(self.agent_role, action))
+        self.logger.warning('Reinforce ({0}) policy action encoder warning: Selecting '
+                            'default action (unable to encode: {1})!'
+                            .format(self.agent_role, action))
         return -1
 
     def decode_action(self, action_enc, system=True):
@@ -600,9 +602,9 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                         '')])]
 
         # Default fall-back action
-        print('Reinforce DialoguePolicy ({0}) policy action decoder warning: '
-              'Selecting default action (index: {1})!'
-              .format(self.agent_role, action_enc))
+        self.logger.warning('Reinforce DialoguePolicy ({0}) policy action decoder warning: '
+                            'Selecting default action (index: {1})!'
+                            .format(self.agent_role, action_enc))
         return [DialogueAct('bye', [])]
 
     def save(self, path=None):
@@ -619,8 +621,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         if not path:
             path = 'Models/Policies/reinforce.pkl'
-            print('No policy file name provided. Using default: {0}'
-                  .format(path))
+            self.logger.warning('No policy file name provided. Using default: {0}'
+                                .format(path))
 
         obj = {'weights': self.weights,
                'alpha': self.alpha,
@@ -640,7 +642,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         """
 
         if not path:
-            print('No policy loaded.')
+            self.logger.warning('No policy loaded.')
             return
 
         if isinstance(path, str):
@@ -664,12 +666,12 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                         self.exploration_decay_rate = \
                             obj['exploration_decay_rate']
 
-                    print('Reinforce DialoguePolicy loaded from {0}.'
-                          .format(path))
+                    self.logger.info('Reinforce DialoguePolicy loaded from {0}.'
+                                     .format(path))
 
             else:
-                print('Warning! Reinforce DialoguePolicy file %s not found'
-                      % path)
+                self.logger.warning('Warning! Reinforce DialoguePolicy file %s not found'
+                                    % path)
         else:
-            print('Warning! Unacceptable value for Reinforce DialoguePolicy '
-                  'file name: %s ' % path)
+            self.logger.warning('Warning! Unacceptable value for Reinforce DialoguePolicy '
+                                'file name: %s ' % path)
