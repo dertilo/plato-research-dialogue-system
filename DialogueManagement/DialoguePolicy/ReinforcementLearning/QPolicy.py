@@ -30,7 +30,7 @@ Q_Policy implements a simple Q-Learning dialogue policy.
 """
 
 # create logger
-module_logger = logging.getLogger('plato.QPolicy')
+module_logger = logging.getLogger(__name__)
 
 
 class QPolicy(DialoguePolicy.DialoguePolicy):
@@ -51,7 +51,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         :param epsilon_decay: the exploration rate discount rate
         """
 
-        self.logger = logging.getLogger('plato.QPolicy.QPolicy')
+        self.logger = logging.getLogger(__name__)
 
         self.print_level = print_level
 

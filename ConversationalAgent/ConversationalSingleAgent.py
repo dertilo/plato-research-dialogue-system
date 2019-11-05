@@ -76,7 +76,7 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         super(ConversationalSingleAgent, self).__init__()
 
-        self.logger = logging.getLogger('plato.ConversationalAgent.ConversationalSingleAgent')
+        self.logger = logging.getLogger(__name__)
         self.configuration = configuration
         self.print_level = 'debug'
 

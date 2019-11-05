@@ -37,8 +37,8 @@ appropriate input to each agent.
 """
 
 # prepare logging
-module_logger = logging.getLogger('plato')
-module_logger.setLevel(logging.INFO)
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
 
 #  create console handler
 ch = logging.StreamHandler()
@@ -47,8 +47,9 @@ ch.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 #  add the handlers to the logger
-module_logger.addHandler(ch)
+root_logger.addHandler(ch)
 
+module_logger = logging.getLogger(__name__)
 
 class Controller(object):
     def __init__(self):
@@ -56,7 +57,7 @@ class Controller(object):
         Initializes some basic structs for the Controller.
         """
 
-        self.logger = logging.getLogger('plato.Controller')
+        self.logger = logging.getLogger(__name__)
 
         self.sys_output = ''
         self.user_output = ''

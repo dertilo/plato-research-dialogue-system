@@ -53,7 +53,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         super(ReinforcePolicy, self).__init__()
 
-        self.logger = logging.getLogger('DeepLearning.ReinforcePolicy.ReinforcePolicy')
+        self.logger = logging.getLogger(__name__)
 
         self.agent_id = agent_id
         self.agent_role = agent_role
