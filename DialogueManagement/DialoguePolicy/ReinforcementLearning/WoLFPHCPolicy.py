@@ -24,6 +24,7 @@ import random
 import pprint
 import os.path
 import numpy as np
+import logging
 
 """
 WoLF_PHC_Policy implements a Win or Lose Fast DialoguePolicy Hill Climbing 
@@ -48,6 +49,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         :param alpha_decay: the learning rate discount rate
         :param epsilon_decay: the exploration rate discount rate
         """
+
+        self.logger = logging.getLogger(__name__)
 
         self.alpha = alpha
         self.gamma = gamma
@@ -200,8 +203,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                 if 'goal' in kwargs:
                     self.warmup_simulator.initialize({kwargs['goal']})
                 else:
-                    print('WARNING ! No goal provided for Supervised policy '
-                          'user simulator @ initialize')
+                    self.logger.warning('WARNING ! No goal provided for Supervised policy '
+                                        'user simulator @ initialize')
                     self.warmup_simulator.initialize({})
 
     def restart(self, args):
@@ -216,8 +219,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
             if 'goal' in args:
                 self.warmup_simulator.initialize(args)
             else:
-                print('WARNING! No goal provided for Supervised policy user '
-                      'simulator @ restart')
+                self.logger.warning('WARNING! No goal provided for Supervised policy user '
+                                    'simulator @ restart')
                 self.warmup_simulator.initialize({})
 
     def next_action(self, state):
@@ -235,16 +238,16 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                 (self.is_training and random.random() < self.epsilon):
             if not self.is_training:
                 if not self.pi:
-                    print(f'\nWARNING! WoLF-PHC pi is empty '
-                          f'({self.agent_role}). Did you load the correct '
-                          f'file?\n')
+                    self.logger.warning(f'\nWARNING! WoLF-PHC pi is empty '
+                                        f'({self.agent_role}). Did you load the correct '
+                                        f'file?\n')
                 else:
-                    print(f'\nWARNING! WoLF-PHC state not found in policy '
-                          f'pi ({self.agent_role}).\n')
+                    self.logger.warning(f'\nWARNING! WoLF-PHC state not found in policy '
+                                        f'pi ({self.agent_role}).\n')
 
             if random.random() < 0.5:
-                # print('--- {0}: Selecting warmup action.'
-                #       .format(self.agent_role))
+                self.logger.debug('--- {0}: Selecting warmup action.'
+                                  .format(self.agent_role))
                 self.statistics['supervised_turns'] += 1
 
                 if self.agent_role == 'system':
@@ -255,9 +258,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                         state.user_acts, state.user_goal)
                     return self.warmup_simulator.respond()
             else:
-                # print(
-                #     '--- {0}: Selecting random action.'.format(self.agent_role)
-                # )
+                self.logger.debug('--- {0}: Selecting random action.'.format(self.agent_role))
                 return self.decode_action(
                     random.choice(range(0, self.NActions)),
                     self.agent_role == 'system')
@@ -274,9 +275,9 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                     self.decode_action(random.choice(maxima),
                                        self.agent_role == 'system')
             else:
-                print('--- {0}: Warning! No maximum value identified for '
-                      'policy. Selecting random action.'
-                      .format(self.agent_role))
+                self.logger.warning('--- {0}: Warning! No maximum value identified for '
+                                    'policy. Selecting random action.'
+                                    .format(self.agent_role))
 
                 return self.decode_action(
                     random.choice(range(0, self.NActions)),
@@ -368,8 +369,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
 
         # TODO: Handle multiple actions
         if not actions:
-            print('WARNING: WoLF-PHC DialoguePolicy action encoding called '
-                  'with empty actions list (returning -1).')
+            self.logger.warning('WARNING: WoLF-PHC DialoguePolicy action encoding called '
+                                'with empty actions list (returning -1).')
             return -1
 
         action = actions[0]
@@ -402,13 +403,13 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                            action.params[0].slot)
 
         if (self.agent_role == 'system') == system:
-            print('WoLF-PHC ({0}) policy action encoder warning: Selecting '
-                  'default action (unable to encode: {1})!'
-                  .format(self.agent_role, action))
+            self.logger.warning('WoLF-PHC ({0}) policy action encoder warning: Selecting '
+                                'default action (unable to encode: {1})!'
+                                .format(self.agent_role, action))
         else:
-            print('WoLF-PHC ({0}) policy action encoder warning: Selecting '
-                  'default action (unable to encode other agent action: {1})!'
-                  .format(self.agent_role, action))
+            self.logger.warning('WoLF-PHC ({0}) policy action encoder warning: Selecting '
+                                'default action (unable to encode other agent action: {1})!'
+                                .format(self.agent_role, action))
 
         return -1
 
@@ -478,9 +479,9 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                         '')])]
 
         # Default fall-back action
-        print('WoLF-PHC DialoguePolicy ({0}) policy action decoder warning: '
-              'Selecting repeat() action (index: {1})!'
-              .format(self.agent_role, action_enc))
+        self.logger.warning('WoLF-PHC DialoguePolicy ({0}) policy action decoder warning: '
+                            'Selecting repeat() action (index: {1})!'
+                            .format(self.agent_role, action_enc))
         return [DialogueAct('repeat', [])]
 
     def train(self, dialogues):
@@ -587,7 +588,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         if self.epsilon > 0.25:
             self.epsilon *= self.epsilon_decay
 
-        # print('[alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
+        self.logger.info('[alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
 
     def save(self, path=None):
         """
@@ -603,8 +604,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
 
         if not path:
             path = 'Models/Policies/wolf_phc_policy.pkl'
-            print('No policy file name provided. Using default: {0}'
-                  .format(path))
+            self.logger.warning('No policy file name provided. Using default: {0}'.format(path))
 
         obj = {'Q': self.Q,
                'pi': self.pi,
@@ -618,14 +618,14 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
             pickle.dump(obj, file, pickle.HIGHEST_PROTOCOL)
 
         if self.statistics['total_turns'] > 0:
-            print('DEBUG > {0} WoLF PHC DialoguePolicy supervision ratio: {1}'
-                  .format(self.agent_role,
-                          float(
-                              self.statistics['supervised_turns'] /
-                              self.statistics['total_turns'])))
+            self.logger.debug('{0} WoLF PHC DialoguePolicy supervision ratio: {1}'
+                              .format(self.agent_role,
+                                      float(
+                                          self.statistics['supervised_turns'] /
+                                          self.statistics['total_turns'])))
 
-        print(f'DEBUG > {self.agent_role} WoLF PHC DialoguePolicy state space '
-              f'size: {len(self.pi)}')
+        self.logger.debug(f'{self.agent_role} WoLF PHC DialoguePolicy state space '
+                          f'size: {len(self.pi)}')
 
     def load(self, path=None):
         """
@@ -636,7 +636,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         """
 
         if not path:
-            print('No policy loaded.')
+            self.logger.info('No policy loaded.')
             return
 
         if isinstance(path, str):
@@ -659,12 +659,9 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                     if 'g' in obj:
                         self.gamma = obj['g']
 
-                    print('WoLF-PHC DialoguePolicy loaded from {0}.'
-                          .format(path))
+                    self.logger.info('WoLF-PHC DialoguePolicy loaded from {0}.'.format(path))
 
             else:
-                print('Warning! WoLF-PHC DialoguePolicy file %s not found'
-                      % path)
+                self.logger.warning('Warning! WoLF-PHC DialoguePolicy file %s not found' % path)
         else:
-            print('Warning! Unacceptable value for WoLF-PHC policy file name:'
-                  ' %s ' % path)
+            self.logger.warning('Warning! Unacceptable value for WoLF-PHC policy file name: %s ' % path)
