@@ -35,8 +35,10 @@ manually download [metalwoz](https://www.microsoft.com/en-us/research/project/me
 
     python runPlatoRDS.py -config Examples/config/metalwoz_generic.yaml
 
-## Paper: Collaborative Multi-Agent Dialogue Model Training Via Reinforcement
-Learning [Papangelis 2019]
+## Paper: Collaborative Multi-Agent Dialogue Model Training Via Reinforcement Learning [Papangelis 2019]
 * DSTC2 as seed data, we trained (NLU) and (NLG) 
 * Win or Lose Fast Policy Hill Climbing (WoLF-PHC)
 * only observing the other agent’s language output and a reward signal.
+
+# Notes
+* why _interaction_mode: simulation_ ? 

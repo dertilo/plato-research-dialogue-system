@@ -223,7 +223,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         """
 
         if self.is_training and random.random() < self.epsilon:
-            if random.random() < 0.75:
+            if random.random() < .75:
                 # print('--- {0}: Selecting warmup action.'
                 #       .format(self.agent_role))
 
@@ -375,7 +375,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         if self.alpha > 0.01:
             self.alpha *= self.alpha_decay_rate
 
-        if self.epsilon > 0.5:
+        if self.epsilon > 0.01:
             self.epsilon *= self.exploration_decay_rate
 
         # print(f'REINFORCE train, alpha: {self.alpha}, epsilon: {self.epsilon}')

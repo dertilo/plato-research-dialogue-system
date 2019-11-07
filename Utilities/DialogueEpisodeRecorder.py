@@ -77,7 +77,7 @@ class DialogueEpisodeRecorder:
                        the above structures
         :return: Nothing
         """
-
+        # TODO: what does len(actions)==0 mean ??
         self.cumulative_reward += reward
 
         # Check if a dialogue is starting or ending

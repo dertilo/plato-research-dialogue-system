@@ -12,7 +12,7 @@ def run_single_agent(config, num_dialogues):
     ca = ConversationalSingleAgent(config)
     ca.initialize()
 
-    params_to_monitor = {'dialogue': 0, 'success-rate': 0.0}
+    params_to_monitor = {'dialogue': 0, 'success-rate': 0.0,'reward':0.0}
     running_factor=.99
     with tqdm(postfix=[params_to_monitor]) as pbar:
 
@@ -25,9 +25,13 @@ def run_single_agent(config, num_dialogues):
 
             pbar.postfix[0]['dialogue'] = dialogue
             success = int(ca.recorder.dialogues[-1][-1]['success'])
+            reward = int(ca.recorder.dialogues[-1][-1]['cumulative_reward'])
             pbar.postfix[0]['success-rate'] = round(
                 running_factor * pbar.postfix[0]['success-rate'] + (
                             1 - running_factor) * success, 2)
+            pbar.postfix[0]['reward'] = round(
+                running_factor * pbar.postfix[0]['reward'] + (
+                            1 - running_factor) * reward, 2)
             pbar.update()
 
     # Collect statistics
@@ -91,7 +95,7 @@ def arg_parse(cfg_filename:str='config/train_reinforce.yaml'):
 
 
 if __name__ == '__main__':
-    arguments = arg_parse()
+    arguments = arg_parse(cfg_filename='../alex-plato/Config/simulate_agenda_dacts_train.yaml')
     statistics = run_single_agent(
         arguments['cfg_parser'], arguments['dialogues'])
 

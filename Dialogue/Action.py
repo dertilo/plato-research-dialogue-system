@@ -57,19 +57,12 @@ class DialogueAct(Action):
     and a list of DialogueActItem parameters, which are triplets of
     <slot, operator, value>.
     """
-    def __init__(self, intent='', params=None):
+    def __init__(self, intent:str, params=[]):
         super(DialogueAct, self).__init__()
 
         self.name = 'dialogue_act'
-        self.intent = ''
-        if isinstance(intent, str) and intent is not '':
-            self.intent = intent
-        else:
-            raise ValueError('Unacceptable dialogue act type: %s ' % intent)
-
+        self.intent = intent
         self.params = params
-        if self.params is None:
-            self.params = []
 
     def __eq__(self, other):
         """

@@ -64,8 +64,8 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.cumulative_rewards = 0
         self.total_dialogue_turns = 0
 
-        self.minibatch_length = 200
-        self.train_interval = 50
+        self.minibatch_length = 50
+        self.train_interval = 10
         self.train_epochs = 10
 
         self.SAVE_LOG = True
@@ -227,8 +227,7 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.dialogue_manager.restart({})
         sys_response = [DialogueAct("welcomemsg", [])]
 
-        usim_input = sys_response
-        self.user_simulator.receive_input(usim_input)
+        self.user_simulator.receive_input(sys_response)
         rew, success, task_success = self.reward_func.calculate(
             state=self.dialogue_manager.get_state(), goal=self.user_simulator.goal
         )
@@ -272,9 +271,7 @@ class ConversationalSingleAgent(ConversationalAgent):
         else:
             sys_response = [DialogueAct("bye", [])]
 
-        usim_input = sys_response
-
-        self.user_simulator.receive_input(usim_input)
+        self.user_simulator.receive_input(sys_response)
         rew, success, task_success = self.reward_func.calculate(
             state=self.dialogue_manager.get_state(), goal=self.user_simulator.goal
         )

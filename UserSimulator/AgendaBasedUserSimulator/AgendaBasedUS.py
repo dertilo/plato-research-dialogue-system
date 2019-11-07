@@ -52,7 +52,6 @@ class AgendaBasedUS(object):
             goal_slot_selection_weights=self.goal_slot_selection_weights
         )
 
-        # Initialize agenda and user state
         self.agenda.initialize(deepcopy(self.goal))
 
         self.prev_system_acts = None
@@ -67,13 +66,13 @@ class AgendaBasedUS(object):
         self.dialogue_turn += 1
         for system_act in system_acts:
             if system_act.intent == "offer":
-                self.handle_offer(system_act)
+                self._handle_offer(system_act)
 
-        self.receive_input_handcrafted(system_acts)
+        self._receive_input_handcrafted(system_acts)
 
         self.agenda.consistency_check()
 
-    def handle_offer(self, system_act):
+    def _handle_offer(self, system_act):
         self.offer_made = True
         # Reset past requests
         if (
@@ -92,15 +91,7 @@ class AgendaBasedUS(object):
             for item in self.goal.requests:
                 item.value = ""
 
-    def receive_input_handcrafted(self, system_acts):
-        """
-        Handle the input according to probabilistic rules
-
-        :param system_acts: a list with the system's dialogue acts
-        :return: Nothing
-        """
-
-        # TODO: Revise these rules wrt other operators (i.e. not only EQ)
+    def _receive_input_handcrafted(self, system_acts):
 
         if self.prev_system_acts and self.prev_system_acts == system_acts:
             self.curr_patience -= 1
@@ -117,15 +108,13 @@ class AgendaBasedUS(object):
                 self.agenda.push(DialogueAct("bye", []))
 
             elif system_act.intent in ["inform", "offer"]:
-                self.handle_inform_and_offer(system_act)
+                self._handle_inform_and_offer(system_act)
 
             # Push appropriate acts into the agenda
             elif system_act.intent == "request":
-                self.handle_request(system_act)
+                self._handle_request(system_act)
 
-            # TODO Relax goals if system returns no info for name
-
-    def handle_inform_and_offer(self, system_act):
+    def _handle_inform_and_offer(self, system_act):
         # Check that the venue provided meets the constraints
         meets_constraints = True
         for item in system_act.params:
@@ -161,6 +150,8 @@ class AgendaBasedUS(object):
                     # operator to NE
 
                     self.agenda.push(dact)
+                else:
+                    pass
         # If it meets the constraints, update the requests
         if meets_constraints:
             for item in system_act.params:
@@ -184,14 +175,17 @@ class AgendaBasedUS(object):
         # When the system makes a new offer, replace all requests in
         # the agenda
         if system_act.intent == "offer":
-            for r in self.goal.requests:
-                req = deepcopy(self.goal.requests[r])
-                req_dact = DialogueAct("request", [req])
+            self._push_all_goal_request_to_agenda()
 
-                # The agenda will replace the old act first
-                self.agenda.push(req_dact)
+    def _push_all_goal_request_to_agenda(self):
+        for r in self.goal.requests:
+            req = deepcopy(self.goal.requests[r])
+            req_dact = DialogueAct("request", [req])
 
-    def handle_request(self, system_act):
+            # The agenda will replace the old act first
+            self.agenda.push(req_dact)
+
+    def _handle_request(self, system_act):
         if system_act.params:
             for item in system_act.params:
                 if item.slot in self.goal.constraints:
