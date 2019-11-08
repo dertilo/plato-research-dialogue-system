@@ -124,7 +124,6 @@ class SQLDataBase(DataBase):
         args = ''
         prev_arg = False
         prev_query_arg = False
-
         # Impose constraints
         for slot in DState.slots_filled:
             if DState.slots_filled[slot] and DState.slots_filled[slot] != \
@@ -134,24 +133,6 @@ class SQLDataBase(DataBase):
 
                 args += slot + " = \"" + DState.slots_filled[slot] + "\""
                 prev_arg = True
-
-        # Impose queries
-        if prev_arg and DState.slot_queries:
-            args += " AND ("
-
-        for slot in DState.slot_queries:
-            for slot_query in DState.slot_queries[slot]:
-                query = slot_query[0]
-                op = slot_query[1]
-
-                if prev_query_arg:
-                    args += f" {op} "
-
-                args += slot + " LIKE \'%" + query + "%\' "
-                prev_query_arg = True
-
-        if prev_arg and DState.slot_queries:
-            args += " ) "
 
         if args:
             sql_command += " WHERE " + args + ";"
