@@ -40,7 +40,6 @@ class AgendaBasedUS(object):
 
         self.goal_generator = goal_generator
         self.goal: Goal = None
-        self.offer_made = False
         self.prev_offer_name = None
 
         # Store previous system actions to keep track of patience
@@ -58,7 +57,6 @@ class AgendaBasedUS(object):
         self.curr_patience = self.patience
 
         self.dialogue_turn = 0
-        self.offer_made = False
         self.prev_offer_name = None
 
     def receive_input(self, system_acts: List[DialogueAct]):
@@ -78,7 +76,6 @@ class AgendaBasedUS(object):
         [self._reset_past_requests(offer_act) for offer_act in new_offers]
 
     def _reset_past_requests(self, system_act):
-        self.offer_made = True
 
         self.prev_offer_name = system_act.params[0].value
 
