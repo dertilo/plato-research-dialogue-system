@@ -56,9 +56,19 @@ class DialogueEpisodeRecorder:
         """
         self.path = path
 
-    def record(self, state, new_state, action, reward, success,
-               input_utterance=None, output_utterance=None,
-               task_success=None, force_terminate=False, custom=None):
+    def record(
+        self,
+        state,
+        new_state,
+        action,
+        reward,
+        success,
+        input_utterance=None,
+        output_utterance=None,
+        task_success=None,
+        force_terminate=False,
+        custom=None,
+    ):
         """
         Records experience. Currently designed from a Reinforcement Learning
         perspective.
@@ -84,25 +94,28 @@ class DialogueEpisodeRecorder:
         if self.current_dialogue is None:
             self.current_dialogue = []
 
-        self.current_dialogue.append({
-            'state': deepcopy(state),
-            'new_state': deepcopy(new_state),
-            'action': deepcopy(action),
-            'reward': deepcopy(reward),
-            'input_utterance':
-                deepcopy(input_utterance) if input_utterance else '',
-            'output_utterance':
-                deepcopy(output_utterance) if output_utterance else '',
-            'success': '',
-            'task_success': '',
-            'cumulative_reward': deepcopy(self.cumulative_reward),
-            'custom': deepcopy(custom) if custom else ''})
+        self.current_dialogue.append(
+            {
+                "state": deepcopy(state),
+                "new_state": deepcopy(new_state),
+                "action": deepcopy(action),
+                "reward": deepcopy(reward),
+                "input_utterance": deepcopy(input_utterance) if input_utterance else "",
+                "output_utterance": deepcopy(output_utterance)
+                if output_utterance
+                else "",
+                "success": "",
+                "task_success": "",
+                "cumulative_reward": deepcopy(self.cumulative_reward),
+                "custom": deepcopy(custom) if custom else "",
+            }
+        )
 
         if state.is_terminal() or force_terminate:
             if success is not None:
-                self.current_dialogue[-1]['success'] = success
+                self.current_dialogue[-1]["success"] = success
             if task_success is not None:
-                self.current_dialogue[-1]['task_success'] = task_success
+                self.current_dialogue[-1]["task_success"] = task_success
             else:
                 pass
                 # print('Warning! DialogueEpisodeRecorder terminal state '
@@ -110,8 +123,7 @@ class DialogueEpisodeRecorder:
 
             # Check if maximum size has been reached
             if self.size and len(self.dialogues) >= self.size:
-                self.dialogues = \
-                    self.dialogues[(len(self.dialogues)-self.size + 1):]
+                self.dialogues = self.dialogues[(len(self.dialogues) - self.size + 1) :]
 
             self.dialogues.append(self.current_dialogue)
             self.current_dialogue = []
@@ -129,18 +141,19 @@ class DialogueEpisodeRecorder:
             path = self.path
 
         if not path:
-            path = f'Logs/Dialogues{datetime.datetime.now().isoformat()}.pkl'
-            print('No Log file name provided. Using default: {0}'.format(path))
+            path = f"Logs/Dialogues{datetime.datetime.now().isoformat()}.pkl"
+            print("No Log file name provided. Using default: {0}".format(path))
 
-        obj = {'dialogues': self.dialogues}
+        obj = {"dialogues": self.dialogues}
 
         try:
-            with open(path, 'wb') as file:
+            with open(path, "wb") as file:
                 pickle.dump(obj, file, pickle.HIGHEST_PROTOCOL)
 
         except IOError:
-            raise IOError('Dialogue Episode Recorder I/O Error when '
-                          'attempting to save!')
+            raise IOError(
+                "Dialogue Episode Recorder I/O Error when " "attempting to save!"
+            )
 
     def load(self, path):
         """
@@ -151,30 +164,35 @@ class DialogueEpisodeRecorder:
         """
 
         if not path:
-            print('WARNING! Dialogue Episode Recorder: No Log file provided '
-                  'to load from.')
+            print(
+                "WARNING! Dialogue Episode Recorder: No Log file provided "
+                "to load from."
+            )
 
         if self.dialogues:
-            print('WARNING! Dialogue Episode Recorder is not empty! Loading '
-                  'on top of existing experience.')
+            print(
+                "WARNING! Dialogue Episode Recorder is not empty! Loading "
+                "on top of existing experience."
+            )
 
         if isinstance(path, str):
             if os.path.isfile(path):
-                print(f'Dialogue Episode Recorder loading dialogues from '
-                      f'{path}...')
+                print(f"Dialogue Episode Recorder loading dialogues from " f"{path}...")
 
-                with open(path, 'rb') as file:
+                with open(path, "rb") as file:
                     obj = pickle.load(file)
 
-                    if 'dialogues' in obj:
-                        self.dialogues = obj['dialogues']
+                    if "dialogues" in obj:
+                        self.dialogues = obj["dialogues"]
 
-                    print('Dialogue Episode Recorder loaded from {0}.'
-                          .format(path))
+                    print("Dialogue Episode Recorder loaded from {0}.".format(path))
 
             else:
-                print('Warning! Dialogue Episode Recorder Log file %s not '
-                      'found' % path)
+                print(
+                    "Warning! Dialogue Episode Recorder Log file %s not " "found" % path
+                )
         else:
-            print('Warning! Unacceptable value for Dialogue Episode Recorder '
-                  'Log file name: %s ' % path)
+            print(
+                "Warning! Unacceptable value for Dialogue Episode Recorder "
+                "Log file name: %s " % path
+            )
