@@ -64,13 +64,19 @@ class AgendaBasedUS(object):
     def receive_input(self, system_acts: List[DialogueAct]):
 
         self.dialogue_turn += 1
-        for system_act in system_acts:
-            if system_act.intent == "offer":
-                self._handle_offer(system_act)
+
+        self._handle_offers(system_acts)
 
         self._receive_input_handcrafted(system_acts)
 
         self.agenda.consistency_check()
+
+    def _handle_offers(self, system_acts):
+        [
+            self._handle_offer(system_act)
+            for system_act in system_acts
+            if system_act.intent == "offer"
+        ]
 
     def _handle_offer(self, system_act):
         self.offer_made = True
@@ -93,10 +99,7 @@ class AgendaBasedUS(object):
 
     def _receive_input_handcrafted(self, system_acts):
 
-        if self.prev_system_acts and self.prev_system_acts == system_acts:
-            self.curr_patience -= 1
-        else:
-            self.curr_patience = self.patience
+        self.alter_patience(system_acts)
 
         self.prev_system_acts = deepcopy(system_acts)
 
@@ -110,17 +113,25 @@ class AgendaBasedUS(object):
             elif system_act.intent in ["inform", "offer"]:
                 self._handle_inform_and_offer(system_act)
 
-            # Push appropriate acts into the agenda
-            elif system_act.intent == "request":
-                self._handle_request(system_act)
+            elif system_act.intent == "request" and len(system_act.params) > 0:
+                self._handle_request(system_act.params)
+
+    def alter_patience(self, system_acts):
+        system_repeats_itself = (
+            self.prev_system_acts and self.prev_system_acts == system_acts
+        )
+        if system_repeats_itself:
+            self.curr_patience -= 1
+        else:
+            self.curr_patience = self.patience
 
     def _handle_inform_and_offer(self, system_act):
         # Check that the venue provided meets the constraints
         meets_constraints = True
         for item in system_act.params:
             if (
-                    item.slot in self.goal.constraints
-                    and self.goal.constraints[item.slot].value != "dontcare"
+                item.slot in self.goal.constraints
+                and self.goal.constraints[item.slot].value != "dontcare"
             ):
                 # Remove the inform from the agenda, assuming the
                 # value provided is correct. If it is not, the
@@ -168,8 +179,7 @@ class AgendaBasedUS(object):
                     # TODO: Revise this for all operators
                     self.agenda.remove(
                         DialogueAct(
-                            "request",
-                            [DialogueActItem(item.slot, Operator.EQ, "")],
+                            "request", [DialogueActItem(item.slot, Operator.EQ, "")]
                         )
                     )
         # When the system makes a new offer, replace all requests in
@@ -185,37 +195,24 @@ class AgendaBasedUS(object):
             # The agenda will replace the old act first
             self.agenda.push(req_dact)
 
-    def _handle_request(self, system_act):
-        if system_act.params:
-            for item in system_act.params:
-                if item.slot in self.goal.constraints:
-                    self.agenda.push(
-                        DialogueAct(
-                            "inform",
-                            [
-                                DialogueActItem(
-                                    deepcopy(item.slot),
-                                    deepcopy(
-                                        self.goal.constraints[item.slot].op
-                                    ),
-                                    deepcopy(
-                                        self.goal.constraints[item.slot].value
-                                    ),
-                                )
-                            ],
-                        )
-                    )
-                else:
-                    self.agenda.push(
-                        DialogueAct(
-                            "inform",
-                            [
-                                DialogueActItem(
-                                    deepcopy(item.slot), Operator.EQ, "dontcare"
-                                )
-                            ],
-                        )
-                    )
+    def _handle_request(self, items: List[DialogueActItem]):
+        # Push appropriate acts into the agenda
+        for item in items:
+            system_asks_for_slot_in_goal = item.slot in self.goal.constraints
+
+            if system_asks_for_slot_in_goal:
+                operation = deepcopy(self.goal.constraints[item.slot].op)
+                slot_value = deepcopy(self.goal.constraints[item.slot].value)
+            else:
+                operation = Operator.EQ
+                slot_value = "dontcare"
+
+            slot_name = deepcopy(item.slot)
+            self.agenda.push(
+                DialogueAct(
+                    "inform", [DialogueActItem(slot_name, operation, slot_value)]
+                )
+            )
 
     def respond(self):
 
