@@ -125,67 +125,87 @@ class AgendaBasedUS(object):
         else:
             self.curr_patience = self.patience
 
-    def _handle_inform_and_offer(self, system_act):
-        # Check that the venue provided meets the constraints
-        meets_constraints = True
-        for item in system_act.params:
-            if (
-                item.slot in self.goal.constraints
-                and self.goal.constraints[item.slot].value != "dontcare"
-            ):
-                # Remove the inform from the agenda, assuming the
-                # value provided is correct. If it is not, the
-                # act will be pushed again and will be on top of the
-                # agenda (this way we avoid adding / removing
-                # twice.
-                dact = DialogueAct(
-                    "inform",
-                    [
-                        DialogueActItem(
-                            deepcopy(item.slot),
-                            deepcopy(self.goal.constraints[item.slot].op),
-                            deepcopy(self.goal.constraints[item.slot].value),
-                        )
-                    ],
-                )
+    def _user_previously_requested_this_slot(self, item):
+        return item.slot in self.goal.requests_made
 
-                # Remove and push to make sure the act is on top -
-                # if it already exists
-                self.agenda.remove(dact)
-
-                if item.value != self.goal.constraints[item.slot].value:
-                    meets_constraints = False
-
-                    # For each violated constraint add an inform
-                    # TODO: Make this a deny-inform or change
-                    # operator to NE
-
-                    self.agenda.push(dact)
-                else:
-                    pass
+    def _handle_inform_and_offer(self, system_act: DialogueAct):
         # If it meets the constraints, update the requests
-        if meets_constraints:
-            for item in system_act.params:
-                if item.slot in self.goal.requests_made:
-                    self.goal.requests_made[item.slot].value = item.value
+        items = system_act.params
+        if self.check_that_all_slots_do_meet_constraints_and_update_agenda(items):
 
-                    # Mark the value only if the slot has been
-                    # requested and is in the requests
-                    if item.slot in self.goal.requests:
-                        self.goal.requests[item.slot].value = item.value
-
-                    # Remove any requests from the agenda that ask
-                    # for that slot
-                    # TODO: Revise this for all operators
-                    self.agenda.remove(
-                        DialogueAct(
-                            "request", [DialogueActItem(item.slot, Operator.EQ, "")]
-                        )
-                    )
+            [
+                self._update_goal_request_value_remove_from_agenda(item)
+                for item in items
+                if self._user_previously_requested_this_slot(item)
+            ]
         # When the system makes a new offer, replace all requests in
         # the agenda
-        if system_act.intent == "offer":
+        elif system_act.intent == "offer":
             self._push_all_goal_request_to_agenda()
+        else:
+            pass
+
+    def _update_goal_request_value_remove_from_agenda(self, item):
+        self.goal.requests_made[item.slot].value = item.value
+        # Mark the value only if the slot has been
+        # requested and is in the requests
+        if item.slot in self.goal.requests:
+            self.goal.requests[item.slot].value = item.value
+        # Remove any requests from the agenda that ask
+        # for that slot
+        # TODO: Revise this for all operators
+        self.agenda.remove(
+            DialogueAct("request", [DialogueActItem(item.slot, Operator.EQ, "")])
+        )
+
+    def _user_does_care(self, item, goal_constraints):
+        return (
+            item.slot in goal_constraints
+            and goal_constraints[item.slot].value != "dontcare"
+        )
+
+    def check_that_all_slots_do_meet_constraints_and_update_agenda(
+        self, items: List[DialogueActItem]
+    ):
+        # Check that the venue provided meets the constraints
+        meets_constraints = all(
+            [
+                self.remove_from_agenda_push_again_if_false_value(item)
+                for item in items
+                if self._user_does_care(item, self.goal.constraints)
+            ]
+        )
+        return meets_constraints
+
+    def remove_from_agenda_push_again_if_false_value(self, item):
+        # Remove the inform from the agenda, assuming the
+        # value provided is correct. If it is not, the
+        # act will be pushed again and will be on top of the
+        # agenda (this way we avoid adding / removing
+        # twice.
+        dact = DialogueAct(
+            "inform",
+            [
+                DialogueActItem(
+                    deepcopy(item.slot),
+                    deepcopy(self.goal.constraints[item.slot].op),
+                    deepcopy(self.goal.constraints[item.slot].value),
+                )
+            ],
+        )
+        # Remove and push to make sure the act is on top -
+        # if it already exists
+        self.agenda.remove(dact)
+        if item.value != self.goal.constraints[item.slot].value:
+            meets_constraints = False
+            # For each violated constraint add an inform
+            # TODO: Make this a deny-inform or change
+            # operator to NE
+            self.agenda.push(dact)
+        else:
+            meets_constraints = True
+
+        return meets_constraints
 
     def _push_all_goal_request_to_agenda(self):
         for r in self.goal.requests:
