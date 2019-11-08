@@ -85,7 +85,7 @@ class AgendaBasedUS(object):
             self.prev_offer_name
             and system_act.params
             and system_act.params[0].slot
-            and system_act.params[0].slot == "name"
+            and system_act.params[0].slot == "name" # TODO(tilo): hardcoded from CamDial ?
             and system_act.params[0].value
             and self.prev_offer_name != system_act.params[0].value
         ):
