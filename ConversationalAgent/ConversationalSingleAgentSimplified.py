@@ -228,7 +228,7 @@ class ConversationalSingleAgent(ConversationalAgent):
         sys_response = [DialogueAct("welcomemsg", [])]
 
         self.user_simulator.receive_input(sys_response)
-        rew, success, task_success = self.reward_func.calculate(
+        rew, success = self.reward_func.calculate(
             state=self.dialogue_manager.get_state(), goal=self.user_simulator.goal
         )
 
@@ -238,7 +238,6 @@ class ConversationalSingleAgent(ConversationalAgent):
             sys_response,
             rew,
             success,
-            task_success,
         )
 
         self.dialogue_turn += 1
@@ -272,7 +271,7 @@ class ConversationalSingleAgent(ConversationalAgent):
             sys_response = [DialogueAct("bye", [])]
 
         self.user_simulator.receive_input(sys_response)
-        rew, success, task_success = self.reward_func.calculate(
+        rew, success = self.reward_func.calculate(
             state=self.dialogue_manager.get_state(), goal=self.user_simulator.goal
         )
 
@@ -291,7 +290,6 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.prev_action = deepcopy(sys_response)
         self.prev_reward = rew
         self.prev_success = success
-        self.prev_task_success = task_success
 
     def end_dialogue(self):
         """
@@ -307,7 +305,6 @@ class ConversationalSingleAgent(ConversationalAgent):
             self.prev_action,
             self.prev_reward,
             self.prev_success,
-            task_success=self.prev_task_success,
         )
 
         if self.dialogue_manager.is_training():
@@ -334,15 +331,13 @@ class ConversationalSingleAgent(ConversationalAgent):
             self.dialogue_manager.save()
 
         # Count successful dialogues
-        if self.recorder.dialogues[-1][-1]["success"]:
-            self.num_successful_dialogues += int(
-                self.recorder.dialogues[-1][-1]["success"]
-            )
+        dialogue_success = self.recorder.dialogues[-1][-1]["success"]
+        if dialogue_success:
+            self.num_successful_dialogues += int(dialogue_success)
 
-        if self.recorder.dialogues[-1][-1]["task_success"]:
-            self.num_task_success += int(
-                self.recorder.dialogues[-1][-1]["task_success"]
-            )
+        task_sucess = self.recorder.dialogues[-1][-1]["task_success"]
+        if task_sucess:
+            self.num_task_success += int(task_sucess)
 
         # print('OBJECTIVE TASK SUCCESS: {0}'.
         #       format(self.recorder.dialogues[-1][-1]['task_success']))

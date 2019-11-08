@@ -65,7 +65,6 @@ class DialogueEpisodeRecorder:
         success,
         input_utterance=None,
         output_utterance=None,
-        task_success=None,
         force_terminate=False,
         custom=None,
     ):
@@ -114,12 +113,6 @@ class DialogueEpisodeRecorder:
         if state.is_terminal() or force_terminate:
             if success is not None:
                 self.current_dialogue[-1]["success"] = success
-            if task_success is not None:
-                self.current_dialogue[-1]["task_success"] = task_success
-            else:
-                pass
-                # print('Warning! DialogueEpisodeRecorder terminal state '
-                #       'without success signal.')
 
             # Check if maximum size has been reached
             if self.size and len(self.dialogues) >= self.size:

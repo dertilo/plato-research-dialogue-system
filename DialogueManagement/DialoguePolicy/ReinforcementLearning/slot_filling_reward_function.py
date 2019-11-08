@@ -5,26 +5,8 @@ from Dialogue.State import SlotFillingDialogueState
 from UserSimulator.AgendaBasedUserSimulator.Goal import Goal
 
 
-def filled_wrongly(
-    gold_slot: str, state: SlotFillingDialogueState, act_item: DialogueActItem
-):
-    return (
-        user_does_care(act_item)
-        and gold_slot_was_filled(gold_slot, state)
-        and with_wrong_value(act_item, gold_slot, state)
-    )
-
-
 def user_does_care(act_item):
     return act_item.value != "dontcare"
-
-
-def with_wrong_value(act_item, gold_slot, state):
-    return state.slots_filled[gold_slot] != act_item.value
-
-
-def gold_slot_was_filled(gold_slot, state):
-    return gold_slot in state.slots_filled
 
 
 def request_was_not_done(value):
@@ -48,9 +30,7 @@ class SlotFillingReward(object):
 
         dialogue_success, reward = self.evaluate_dialogue_success(goal, state)
 
-        task_success = self.evaluate_task_success(goal, state)
-
-        return reward, dialogue_success, task_success
+        return reward, dialogue_success
 
     def evaluate_dialogue_success(self, goal, state):
         if state.is_terminal():
@@ -67,18 +47,6 @@ class SlotFillingReward(object):
             reward = self.turn_penalty
             dialogue_success = False
         return dialogue_success, reward
-
-    def evaluate_task_success(self, goal: Goal, state: SlotFillingDialogueState):
-        # Liu & Lane ASRU 2017 Definition of task success
-        # We don't care for slots that are not in the goal constraints
-        if all(
-            not filled_wrongly(slot, state, act_item)
-            for slot, act_item in goal.constraints.items()
-        ) and all_requests_done(goal.requests.values()):
-            task_success = True
-        else:
-            task_success = False
-        return task_success
 
     def _evaluate_offer(
         self,
