@@ -27,12 +27,12 @@ def gold_slot_was_filled(gold_slot, state):
     return gold_slot in state.slots_filled
 
 
-def request_was_not_done(act_item):
-    return isinstance(act_item.value, list) and len(act_item.value) == 0
+def request_was_not_done(value):
+    return isinstance(value, list) and len(value) == 0
 
 
-def all_requests_met(act_items: List[DialogueActItem]):
-    return not any(request_was_not_done(act_item) for act_item in act_items)
+def all_requests_done(act_items: List[DialogueActItem]):
+    return all(not request_was_not_done(act_item.value) for act_item in act_items)
 
 
 class SlotFillingReward(object):
@@ -45,12 +45,18 @@ class SlotFillingReward(object):
     def calculate(self, state: SlotFillingDialogueState, goal: Goal):
 
         assert goal is not None
-        dialogue_success = False
 
+        dialogue_success, reward = self.evaluate_dialogue_success(goal, state)
+
+        task_success = self.evaluate_task_success(goal, state)
+
+        return reward, dialogue_success, task_success
+
+    def evaluate_dialogue_success(self, goal, state):
         if state.is_terminal():
             # Check that an offer has actually been made
             if state.system_made_offer:
-                dialogue_success, reward = self.evaluate_dialog_success(
+                dialogue_success, reward = self._evaluate_offer(
                     goal.constraints, list(goal.requests_made.values()), state
                 )
 
@@ -59,24 +65,22 @@ class SlotFillingReward(object):
                 dialogue_success = False
         else:
             reward = self.turn_penalty
-
-        task_success = self.evaluate_task_success(goal, state)
-
-        return reward, dialogue_success, task_success
+            dialogue_success = False
+        return dialogue_success, reward
 
     def evaluate_task_success(self, goal: Goal, state: SlotFillingDialogueState):
         # Liu & Lane ASRU 2017 Definition of task success
         # We don't care for slots that are not in the goal constraints
-        if not any(
-            filled_wrongly(slot, state, act_item)
+        if all(
+            not filled_wrongly(slot, state, act_item)
             for slot, act_item in goal.constraints.items()
-        ) and all_requests_met(goal.requests.values()):
+        ) and all_requests_done(goal.requests.values()):
             task_success = True
         else:
             task_success = False
         return task_success
 
-    def evaluate_dialog_success(
+    def _evaluate_offer(
         self,
         goal_constraints,
         requests_made_by_user: List[DialogueActItem],
@@ -85,7 +89,7 @@ class SlotFillingReward(object):
 
         if offered_item_meets_all_user_constraints(
             goal_constraints, state.item_in_focus
-        ) and all_requests_met(requests_made_by_user):
+        ) and all_requests_done(requests_made_by_user):
             reward = self.success_reward
             dialogue_success = True
         else:
