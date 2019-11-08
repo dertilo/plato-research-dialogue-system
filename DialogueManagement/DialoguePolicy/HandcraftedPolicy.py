@@ -15,15 +15,25 @@ requests from the user.
 """
 
 
-def get_value(dialogue_state, requested_slot):
+def get_value(item_in_focus, requested_slot):
     if (
-        requested_slot in dialogue_state.item_in_focus
-        and dialogue_state.item_in_focus[requested_slot]
+        requested_slot in item_in_focus
+        and item_in_focus[requested_slot]
     ):
-        value = dialogue_state.item_in_focus[requested_slot]
+        value = item_in_focus[requested_slot]
     else:
         value = "not available"
     return value
+
+def build_inform_act(dialogue_state:SlotFillingDialogueState):
+    requested_slot = dialogue_state.requested_slot
+    # Reset request as we attempt to address it
+    dialogue_state.requested_slot = ""
+    value = get_value(dialogue_state.item_in_focus, requested_slot)
+    dact = [
+        DialogueAct("inform", [DialogueActItem(requested_slot, Operator.EQ, value)])
+    ]
+    return dact
 
 
 class HandcraftedPolicy(DialoguePolicy.DialoguePolicy):
@@ -42,7 +52,7 @@ class HandcraftedPolicy(DialoguePolicy.DialoguePolicy):
             and dialogue_state.item_in_focus
             and dialogue_state.system_made_offer
         ):
-            dacts = self.handle_user_request(dialogue_state)
+            dacts = build_inform_act(dialogue_state)
         else:
             dacts = self.handle_else(dialogue_state)
         return dacts
@@ -135,15 +145,6 @@ class HandcraftedPolicy(DialoguePolicy.DialoguePolicy):
             dacts = [DialogueAct("canthelp", [])]
         return dacts
 
-    def handle_user_request(self, dialogue_state):
-        requested_slot = dialogue_state.requested_slot
-        # Reset request as we attempt to address it
-        dialogue_state.requested_slot = ""
-        value = get_value(dialogue_state, requested_slot)
-        dact = [
-            DialogueAct("inform", [DialogueActItem(requested_slot, Operator.EQ, value)])
-        ]
-        return dact
 
     def train(self, data):
         """
