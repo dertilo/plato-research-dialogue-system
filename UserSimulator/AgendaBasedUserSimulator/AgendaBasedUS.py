@@ -65,37 +65,38 @@ class AgendaBasedUS(object):
 
         self.dialogue_turn += 1
 
-        self._handle_offers(system_acts)
+        new_offers = list(filter(self.is_new_offer, system_acts))
+        if len(new_offers) > 0:
+            self._reset_requests_dueto_new_offers(new_offers)
 
         self._receive_input_handcrafted(system_acts)
 
         self.agenda.consistency_check()
 
-    def _handle_offers(self, system_acts):
-        [
-            self._handle_offer(system_act)
-            for system_act in system_acts
-            if system_act.intent == "offer"
-        ]
+    def _reset_requests_dueto_new_offers(self, new_offers: List[DialogueAct]):
 
-    def _handle_offer(self, system_act):
+        [self._reset_past_requests(offer_act) for offer_act in new_offers]
+
+    def _reset_past_requests(self, system_act):
         self.offer_made = True
-        # Reset past requests
-        if (
-            self.prev_offer_name
+
+        self.prev_offer_name = system_act.params[0].value
+
+        self.goal.requests_made = {}
+
+        for item in self.goal.requests:
+            item.value = ""
+
+    def is_new_offer(self, system_act):
+        return (
+            system_act.intent == "offer"
+            and self.prev_offer_name
             and system_act.params
             and system_act.params[0].slot
-            and system_act.params[0].slot == "name" # TODO(tilo): hardcoded from CamDial ?
+            and system_act.params[0].slot == "name"
             and system_act.params[0].value
             and self.prev_offer_name != system_act.params[0].value
-        ):
-
-            self.prev_offer_name = system_act.params[0].value
-
-            self.goal.requests_made = {}
-
-            for item in self.goal.requests:
-                item.value = ""
+        )
 
     def _receive_input_handcrafted(self, system_acts):
 
