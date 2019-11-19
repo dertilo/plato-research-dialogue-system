@@ -91,7 +91,7 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.cumulative_rewards = 0
         self.total_dialogue_turns = 0
 
-        self.minibatch_length = 200
+        self.minibatch_length = 500
         self.train_interval = 50
         self.train_epochs = 10
 
