@@ -151,17 +151,18 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
 
                     if self.agent_role == 'system':
                         self.dstc2_acts = self.dstc2_acts_sys
+                        self.NActions = len(self.dstc2_acts)  # system acts without parameters
+                        self.NActions += len(self.system_requestable_slots)  # system request with certain slots
+                        self.NActions += len(self.requestable_slots)  # system inform with certain slot
 
                     elif self.agent_role == 'user':
                         self.dstc2_acts = self.dstc2_acts_usr
-
-                    self.NActions = \
-                        len(self.dstc2_acts) + len(self.requestable_slots)
-
-                    if self.agent_role == 'system':
-                        self.NActions += len(self.system_requestable_slots)
+                        self.NActions = len(self.dstc2_acts)  # user acts without parameters
+                        self.NActions += len(self.requestable_slots)  # user request with certain slot
+                        self.NActions += len(self.system_requestable_slots)  # user inform with certain slot
                     else:
-                        self.NActions += len(self.requestable_slots)
+                        self.logger.warning('Unknown agent role: "{}"'.format(self.agent_role))
+
 
     def initialize(self, **kwargs):
         """
@@ -344,46 +345,42 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
             return -1
 
         action = actions[0]
+        intent = action.intent
 
         slot = None
         if action.params and action.params[0].slot:
             slot = action.params[0].slot
 
-        if system:
-            if self.dstc2_acts_sys and action.intent in self.dstc2_acts_sys:
+        if system:  # encode for system
+            if self.dstc2_acts_sys and intent in self.dstc2_acts_sys:
                 return self.dstc2_acts_sys.index(action.intent)
 
             if slot:
-                if action.intent == 'request' and slot in \
-                        self.system_requestable_slots:
+                if intent == 'request' and slot in self.system_requestable_slots:
                     return len(self.dstc2_acts_sys) + \
                            self.system_requestable_slots.index(slot)
 
-                if action.intent == 'inform' and slot in \
-                        self.requestable_slots:
+                if intent == 'inform' and slot in self.requestable_slots:
                     return len(self.dstc2_acts_sys) + \
                            len(self.system_requestable_slots) + \
                            self.requestable_slots.index(slot)
-        else:
-            if self.dstc2_acts_usr and action.intent in self.dstc2_acts_usr:
+        else:  # encode for user
+            if self.dstc2_acts_usr and intent in self.dstc2_acts_usr:
                 return self.dstc2_acts_usr.index(action.intent)
 
             if slot:
-                if action.intent == 'request' and slot in \
-                        self.requestable_slots:
+                if intent == 'request' and slot in self.requestable_slots:
                     return len(self.dstc2_acts_usr) + \
                            self.requestable_slots.index(slot)
 
-                if action.intent == 'inform' and slot in \
-                        self.requestable_slots:
+                if action.intent == 'inform' and slot in self.system_requestable_slots:
                     return len(self.dstc2_acts_usr) + \
                            len(self.requestable_slots) + \
-                           self.requestable_slots.index(slot)
+                           self.system_requestable_slots.index(slot)
 
         # Unable to encode action
         print('Q-Learning ({0}) policy action encoder warning: Selecting '
-              'default action (unable to encode: {1})!'
-              .format(self.agent_role, action))
+              'default action (unable to encode: {1})!'.format(self.agent_role, action))
         return -1
 
     def decode_action(self, action_enc, system=True):
@@ -398,7 +395,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         :return: the decoded action
         """
 
-        if system:
+        if system:  # decode for system
             if action_enc < len(self.dstc2_acts_sys):
                 return [DialogueAct(self.dstc2_acts_sys[action_enc], [])]
 
@@ -423,7 +420,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                     [DialogueActItem(
                         self.requestable_slots[index], Operator.EQ, '')])]
 
-        else:
+        else:  # decode for user
             if action_enc < len(self.dstc2_acts_usr):
                 return [DialogueAct(self.dstc2_acts_usr[action_enc], [])]
 
@@ -438,11 +435,12 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                         '')])]
 
             if action_enc < len(self.dstc2_acts_usr) + \
-                    2 * len(self.requestable_slots):
+                    len(self.requestable_slots) + \
+                    len(self.system_requestable_slots):
                 return [DialogueAct(
                     'inform',
                     [DialogueActItem(
-                        self.requestable_slots[
+                        self.system_requestable_slots[
                             action_enc - len(self.dstc2_acts_usr) -
                             len(self.requestable_slots)], Operator.EQ, '')])]
 
