@@ -1,0 +1,15 @@
+---
+
+GENERAL:
+  csv_file_name: flowershop_test.csv_for_test
+  db_table_name: flowershop
+  db_file_path: flowershop-dbase-test.db
+  ontology_file_path: flowershop-rules-test.json
+
+
+ONTOLOGY:
+  informable_slots: [type, price, occasion]
+
+  requestable_slots: [price, color]
+
+  system_requestable_slots: [price, occasion]
