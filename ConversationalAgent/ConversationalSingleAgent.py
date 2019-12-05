@@ -93,7 +93,7 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         self.minibatch_length = 500
         self.train_interval = 50
-        self.train_epochs = 10
+        self.train_epochs = 3
 
         # True values here would imply some default modules
         self.USE_USR_SIMULATOR = False
