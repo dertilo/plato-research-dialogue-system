@@ -36,7 +36,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
     def __init__(self, ontology, database, agent_id=0, agent_role='system',
                  domain=None, alpha=0.2, epsilon=0.95,
-                 gamma=0.95, alpha_decay=0.995, epsilon_decay=0.9995):
+                 gamma=0.95, alpha_decay=0.995, epsilon_decay=0.9995, epsilon_min=0.05):
         """
         Initialize parameters and internal structures
 
@@ -83,6 +83,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         self.epsilon = epsilon
         self.alpha_decay_rate = alpha_decay
         self.exploration_decay_rate = epsilon_decay
+        self.epsilon_min = epsilon_min
 
         # System and user expert policies (optional)
         self.warmup_policy = None
@@ -180,7 +181,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
             elif self.agent_role == 'user':
                 self.NActions = \
                     len(self.dstc2_acts_usr) + \
-                    2 * len(self.requestable_slots)
+                    len(self.requestable_slots) + \
+                    len(self.system_requestable_slots)
 
                 self.NOtherActions = \
                     len(self.dstc2_acts_sys) + \
@@ -425,10 +427,22 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         if self.alpha > 0.01:
             self.alpha *= self.alpha_decay_rate
 
-        if self.epsilon > 0.5:
-            self.epsilon *= self.exploration_decay_rate
+        self.decay_epsilon()
 
         self.logger.info(f'REINFORCE train, alpha: {self.alpha}, epsilon: {self.epsilon}')
+
+    def decay_epsilon(self):
+        """
+        Decays epsilon (exploration rate) by epsilon decay.
+
+         Decays epsilon (exploration rate) by epsilon decay.
+         If epsilon is already less or equal compared to epsilon_min,
+         the call of this method has no effect.
+
+        :return:
+        """
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
 
     def encode_state(self, state):
         """
@@ -533,7 +547,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
             if action.intent == 'inform':
                 return len(self.dstc2_acts_usr) + \
                        len(self.requestable_slots) + \
-                       self.requestable_slots.index(action.params[0].slot)
+                       self.system_requestable_slots.index(action.params[0].slot)
 
         # Default fall-back action
         self.logger.warning('Reinforce ({0}) policy action encoder warning: Selecting '
@@ -591,11 +605,12 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                         '')])]
 
             if action_enc < len(self.dstc2_acts_usr) + \
-                    2 * len(self.requestable_slots):
+                    len(self.requestable_slots) + \
+                    len(self.system_requestable_slots):
                 return [DialogueAct(
                     'inform',
                     [DialogueActItem(
-                        self.requestable_slots[
+                        self.system_requestable_slots[
                             action_enc - len(self.dstc2_acts_usr) -
                             len(self.requestable_slots)],
                         Operator.EQ,
@@ -628,7 +643,8 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                'alpha': self.alpha,
                'alpha_decay_rate': self.alpha_decay_rate,
                'epsilon': self.epsilon,
-               'exploration_decay_rate': self.exploration_decay_rate}
+               'exploration_decay_rate': self.exploration_decay_rate,
+               'epsilon_min': self.epsilon_min}
 
         with open(path, 'wb') as file:
             pickle.dump(obj, file, pickle.HIGHEST_PROTOCOL)
@@ -665,6 +681,9 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
                     if 'exploration_decay_rate' in obj:
                         self.exploration_decay_rate = \
                             obj['exploration_decay_rate']
+
+                    if 'epsilon_min' in obj:
+                        self.epsilon_min = obj['epsilon_min']
 
                     self.logger.info('Reinforce DialoguePolicy loaded from {0}.'
                                      .format(path))

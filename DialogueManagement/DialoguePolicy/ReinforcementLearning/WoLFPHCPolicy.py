@@ -35,7 +35,7 @@ dialogue policy learning algorithm, designed for multi-agent systems.
 class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
     def __init__(self, ontology, database, agent_id=0, agent_role='system',
                  alpha=0.25, gamma=0.95, epsilon=0.25,
-                 alpha_decay=0.9995, epsilon_decay=0.995):
+                 alpha_decay=0.9995, epsilon_decay=0.995, epsilon_min=0.05):
         """
         Initialize parameters and internal structures
 
@@ -57,6 +57,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         self.epsilon = epsilon
         self.alpha_decay = alpha_decay
         self.epsilon_decay = epsilon_decay
+        self.epsilon_min = epsilon_min
 
         self.IS_GREEDY_POLICY = False
 
@@ -585,10 +586,23 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
             self.alpha *= self.alpha_decay
 
         # Decay exploration rate after each episode
-        if self.epsilon > 0.25:
-            self.epsilon *= self.epsilon_decay
+        self.decay_epsilon()
 
         self.logger.info('[alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
+
+    def decay_epsilon(self):
+        """
+        Decays epsilon (exploration rate) by epsilon decay.
+
+         Decays epsilon (exploration rate) by epsilon decay.
+         If epsilon is already less or equal compared to epsilon_min,
+         the call of this method has no effect.
+
+        :return:
+        """
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
 
     def save(self, path=None):
         """
@@ -612,6 +626,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                'state_counter': self.state_counter,
                'a': self.alpha,
                'e': self.epsilon,
+               'e_decay': self.epsilon_decay,
+               'e_min': self.epsilon_min,
                'g': self.gamma}
 
         with open(path, 'wb') as file:
@@ -656,6 +672,10 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                         self.alpha = obj['a']
                     if 'e' in obj:
                         self.epsilon = obj['e']
+                    if 'e_decay' in obj:
+                        self.epsilon_decay = obj['e_decay']
+                    if 'e_min' in obj:
+                        self.epsilon_min = obj['e_min']
                     if 'g' in obj:
                         self.gamma = obj['g']
 

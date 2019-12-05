@@ -136,184 +136,7 @@ class DialogueManager(ConversationalModule):
                 self.CALCULATE_SLOT_ENTROPIES = \
                     bool(args['calculate_slot_entropies'])
 
-            if args['policy']['type'] == 'handcrafted':
-                self.policy = HandcraftedPolicy(self.ontology)
-
-            elif args['policy']['type'] == 'q_learning':
-                alpha = None
-                if 'learning_rate' in args['policy']:
-                    alpha = float(args['policy']['learning_rate'])
-
-                gamma = None
-                if 'discount_factor' in args['policy']:
-                    gamma = float(args['policy']['discount_factor'])
-
-                epsilon = None
-                if 'exploration_rate' in args['policy']:
-                    epsilon = float(args['policy']['exploration_rate'])
-
-                alpha_decay = None
-                if 'learning_decay_rate' in args['policy']:
-                    alpha_decay = float(args['policy']['learning_decay_rate'])
-
-                epsilon_decay = None
-                if 'exploration_decay_rate' in args['policy']:
-                    epsilon_decay = \
-                        float(args['policy']['exploration_decay_rate'])
-
-                self.policy = \
-                    QPolicy(self.ontology,
-                            self.database,
-                            self.agent_id,
-                            self.agent_role,
-                            self.domain,
-                            alpha=alpha,
-                            epsilon=epsilon,
-                            gamma=gamma,
-                            alpha_decay=alpha_decay,
-                            epsilon_decay=epsilon_decay,
-                            print_level=self.print_level)
-
-            elif args['policy']['type'] == 'minimax_q':
-                alpha = 0.25
-                gamma = 0.95
-                epsilon = 0.25
-                alpha_decay = 0.9995
-                epsilon_decay = 0.995
-
-                if 'learning_rate' in args['policy']:
-                    alpha = float(args['policy']['learning_rate'])
-
-                if 'discount_factor' in args['policy']:
-                    gamma = float(args['policy']['discount_factor'])
-
-                if 'exploration_rate' in args['policy']:
-                    epsilon = float(args['policy']['exploration_rate'])
-
-                if 'learning_decay_rate' in args['policy']:
-                    alpha_decay = float(args['policy']['learning_decay_rate'])
-
-                if 'exploration_decay_rate' in args['policy']:
-                    epsilon_decay = \
-                        float(args['policy']['exploration_decay_rate'])
-
-                self.policy = \
-                    MinimaxQPolicy(
-                        self.ontology,
-                        self.database,
-                        self.agent_id,
-                        self.agent_role,
-                        alpha=alpha,
-                        epsilon=epsilon,
-                        gamma=gamma,
-                        alpha_decay=alpha_decay,
-                        epsilon_decay=epsilon_decay)
-
-            elif args['policy']['type'] == 'wolf_phc':
-                alpha = 0.25
-                gamma = 0.95
-                epsilon = 0.25
-                alpha_decay = 0.9995
-                epsilon_decay = 0.995
-
-                if 'learning_rate' in args['policy']:
-                    alpha = float(args['policy']['learning_rate'])
-
-                if 'discount_factor' in args['policy']:
-                    gamma = float(args['policy']['discount_factor'])
-
-                if 'exploration_rate' in args['policy']:
-                    epsilon = float(args['policy']['exploration_rate'])
-
-                if 'learning_decay_rate' in args['policy']:
-                    alpha_decay = float(args['policy']['learning_decay_rate'])
-
-                if 'exploration_decay_rate' in args['policy']:
-                    epsilon_decay = \
-                        float(args['policy']['exploration_decay_rate'])
-
-                self.policy = \
-                    WoLFPHCPolicy(
-                        self.ontology,
-                        self.database,
-                        self.agent_id,
-                        self.agent_role,
-                        alpha=alpha,
-                        epsilon=epsilon,
-                        gamma=gamma,
-                        alpha_decay=alpha_decay,
-                        epsilon_decay=epsilon_decay)
-
-            elif args['policy']['type'] == 'reinforce':
-                alpha = None
-                if 'learning_rate' in args['policy']:
-                    alpha = float(args['policy']['learning_rate'])
-
-                gamma = None
-                if 'discount_factor' in args['policy']:
-                    gamma = float(args['policy']['discount_factor'])
-
-                epsilon = None
-                if 'exploration_rate' in args['policy']:
-                    epsilon = float(args['policy']['exploration_rate'])
-
-                alpha_decay = None
-                if 'learning_decay_rate' in args['policy']:
-                    alpha_decay = float(args['policy']['learning_decay_rate'])
-
-                epsilon_decay = None
-                if 'exploration_decay_rate' in args['policy']:
-                    epsilon_decay = \
-                        float(args['policy']['exploration_decay_rate'])
-
-                self.policy = \
-                    ReinforcePolicy(
-                        self.ontology,
-                        self.database,
-                        self.agent_id,
-                        self.agent_role,
-                        self.domain,
-                        alpha=alpha,
-                        epsilon=epsilon,
-                        gamma=gamma,
-                        alpha_decay=alpha_decay,
-                        epsilon_decay=epsilon_decay)
-
-            elif args['policy']['type'] == 'calculated':
-                self.policy = \
-                    CalculatedPolicy(
-                        self.ontology,
-                        self.database,
-                        self.agent_id,
-                        self.agent_role,
-                        self.domain)
-
-            elif args['policy']['type'] == 'supervised':
-                self.policy = \
-                    SupervisedPolicy(
-                        self.ontology,
-                        self.database,
-                        self.agent_id,
-                        self.agent_role,
-                        self.domain)
-
-            elif args['policy']['type'] == 'ludwig':
-                if args['policy']['policy_path']:
-                    print('DialogueManager: Instantiate your ludwig-based'
-                          'policy here')
-                else:
-                    raise ValueError(
-                        'Cannot find policy_path in the config for dialogue '
-                        'policy.')
-            else:
-                raise ValueError('DialogueManager: Unsupported policy type!'
-                                 .format(args['policy']['type']))
-
-            if 'train' in args['policy']:
-                self.TRAIN_POLICY = bool(args['policy']['train'])
-
-            if 'policy_path' in args['policy']:
-                self.policy_path = args['policy']['policy_path']
+            self.init_policy(args)
 
         # DST Settings
         if 'DST' in args and args['DST']['dst']:
@@ -338,6 +161,114 @@ class DialogueManager(ConversationalModule):
             self.DSTracker = DummyStateTracker(dst_args)
 
         self.load('')
+
+    def init_policy(self, args):
+        if not args or not args['policy']:
+            # Early return
+            return
+
+        # collect all (potential) parameters
+        policy_params = dict()
+
+        if 'learning_rate' in args['policy']:
+            policy_params['alpha'] = float(args['policy']['learning_rate'])
+
+        if 'discount_factor' in args['policy']:
+            policy_params['gamma'] = float(args['policy']['discount_factor'])
+
+        if 'exploration_rate' in args['policy']:
+            policy_params['epsilon'] = float(args['policy']['exploration_rate'])
+
+        if 'learning_decay_rate' in args['policy']:
+            policy_params['alpha_decay'] = float(args['policy']['learning_decay_rate'])
+
+        if 'exploration_decay_rate' in args['policy']:
+            policy_params['epsilon_decay'] = float(args['policy']['exploration_decay_rate'])
+
+        if 'min_exploration_rate' in args['policy']:
+            policy_params['epsilon_min'] = float(args['policy']['min_exploration_rate'])
+
+        # initialize the policy (depending on the configured policy type)
+        if args['policy']['type'] == 'handcrafted':
+            self.policy = HandcraftedPolicy(self.ontology)
+
+        elif args['policy']['type'] == 'q_learning':
+
+            self.policy = \
+                QPolicy(self.ontology,
+                        self.database,
+                        self.agent_id,
+                        self.agent_role,
+                        self.domain,
+                        print_level=self.print_level,
+                        **policy_params)
+
+        elif args['policy']['type'] == 'minimax_q':
+
+            self.policy = \
+                MinimaxQPolicy(
+                    self.ontology,
+                    self.database,
+                    self.agent_id,
+                    self.agent_role,
+                    **policy_params)
+
+        elif args['policy']['type'] == 'wolf_phc':
+
+            self.policy = \
+                WoLFPHCPolicy(
+                    self.ontology,
+                    self.database,
+                    self.agent_id,
+                    self.agent_role,
+                    **policy_params)
+
+        elif args['policy']['type'] == 'reinforce':
+
+            self.policy = \
+                ReinforcePolicy(
+                    self.ontology,
+                    self.database,
+                    self.agent_id,
+                    self.agent_role,
+                    self.domain,
+                    **policy_params)
+
+        elif args['policy']['type'] == 'calculated':
+            self.policy = \
+                CalculatedPolicy(
+                    self.ontology,
+                    self.database,
+                    self.agent_id,
+                    self.agent_role,
+                    self.domain)
+
+        elif args['policy']['type'] == 'supervised':
+            self.policy = \
+                SupervisedPolicy(
+                    self.ontology,
+                    self.database,
+                    self.agent_id,
+                    self.agent_role,
+                    self.domain)
+
+        elif args['policy']['type'] == 'ludwig':
+            if args['policy']['policy_path']:
+                print('DialogueManager: Instantiate your ludwig-based'
+                      'policy here')
+            else:
+                raise ValueError(
+                    'Cannot find policy_path in the config for dialogue '
+                    'policy.')
+        else:
+            raise ValueError('DialogueManager: Unsupported policy type!'
+                             .format(args['policy']['type']))
+
+        if 'train' in args['policy']:
+            self.TRAIN_POLICY = bool(args['policy']['train'])
+
+        if 'policy_path' in args['policy']:
+            self.policy_path = args['policy']['policy_path']
 
     def initialize(self, args):
         """

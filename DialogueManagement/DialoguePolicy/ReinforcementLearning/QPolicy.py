@@ -36,7 +36,7 @@ module_logger = logging.getLogger(__name__)
 class QPolicy(DialoguePolicy.DialoguePolicy):
     def __init__(self, ontology, database, agent_id=0, agent_role='system',
                  domain=None, alpha=0.95, epsilon=0.95,
-                 gamma=0.15, alpha_decay=0.995, epsilon_decay=0.995, print_level='debug'):
+                 gamma=0.15, alpha_decay=0.995, epsilon_decay=0.995, print_level='debug', epsilon_min=0.05):
         """
         Initialize parameters and internal structures
 
@@ -60,6 +60,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         self.gamma = gamma
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
+        self.epsilon_min = epsilon_min
 
         self.is_training = False
         self.IS_GREEDY_POLICY = True
@@ -497,10 +498,23 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
             self.alpha *= self.alpha_decay
 
         # Decay exploration rate
-        if self.epsilon > 0.05:
+        if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
         self.logger.debug('Q-Learning factors: [alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
+
+    def decay_epsilon(self):
+        """
+        Decays epsilon (exploration rate) by epsilon decay.
+
+         Decays epsilon (exploration rate) by epsilon decay.
+         If epsilon is already less or equal compared to epsilon_min,
+         the call of this method has no effect.
+
+        :return:
+        """
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
 
     def save(self, path=None):
         """
@@ -521,6 +535,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         obj = {'Q': self.Q,
                'a': self.alpha,
                'e': self.epsilon,
+               'e_decay': self.epsilon_decay,
+               'e_min': self.epsilon_min,
                'g': self.gamma,
                'i': self.Q_info}
 
@@ -559,6 +575,10 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                     if 'e' in obj:
                         self.epsilon = obj['e']
                         self.logger.debug('Epsilon from loaded policy: {}'.format(obj['e']))
+                    if 'e_decay' in obj:
+                        self.epsilon_decay = obj['e_decay']
+                    if 'e_min' in obj:
+                        self.epsilon_min = obj['e_min']
                     if 'g' in obj:
                         self.gamma = obj['g']
                         self.logger.debug('Gamma from loaded policy: {}'.format(obj['g']))
