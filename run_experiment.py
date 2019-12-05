@@ -22,7 +22,7 @@ def run_config(config_dir, plato_dir, mode=None):
         plato_script = plato_dir + '/runPlatoRDS.py'
         commands = [['python', plato_script, '-f', tc] for tc in train_configs]
         # processes = [Popen(cmd, stdout=PIPE, stderr=PIPE) for cmd in commands]
-        processes = [Popen(cmd, stdout=PIPE, stderr=PIPE) for cmd in commands]
+        processes = [Popen(cmd) for cmd in commands]
 
         print('Run configs for mode "{}"'.format(mode))
         status = [proc.wait() for proc in processes]
