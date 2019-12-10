@@ -442,7 +442,7 @@ class ReinforcePolicy(DialoguePolicy.DialoguePolicy):
         :return:
         """
         if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+            self.epsilon *= self.exploration_decay_rate
 
     def encode_state(self, state):
         """

@@ -28,9 +28,9 @@ class TestReinforcePolicy(unittest.TestCase):
         os.remove(TestReinforcePolicy.ontology_file)
 
     def setUp(self):
-        ontology = Ontology(TestReinforcePolicy.ontology_file)
-        database = DataBase(TestReinforcePolicy.db_file)
-        self.policy = ReinforcePolicy(ontology=ontology, database=database, domain='CamRest')
+        self.ontology = Ontology(TestReinforcePolicy.ontology_file)
+        self.database = DataBase(TestReinforcePolicy.db_file)
+        self.policy = ReinforcePolicy(ontology=self.ontology, database=self.database, domain='CamRest')
 
     def test_encoding_decoding_of_acts_for_system(self):
         intents = self.policy.dstc2_acts_sys
@@ -94,19 +94,17 @@ class TestReinforcePolicy(unittest.TestCase):
             self.assertEqual(s, slot_decoded, 'Error in slot en- or decoding.')
 
     def test_decay_epsilon(self):
-        self.policy.epsilon = 1
-        self.policy.epsilon_decay = 0.5
-        self.policy.epsilon_min = 0.3
-
+        policy = ReinforcePolicy(ontology=self.ontology, database=self.database, domain='CamRest',
+                                 epsilon=1, epsilon_decay=0.5, epsilon_min=0.3)
         # check that decay works
-        self.policy.decay_epsilon()
-        self.assertEqual(self.policy.epsilon, 0.5)
-        self.policy.decay_epsilon()
-        self.assertEqual(self.policy.epsilon, 0.25)
+        policy.decay_epsilon()
+        self.assertEqual(policy.epsilon, 0.5)
+        policy.decay_epsilon()
+        self.assertEqual(policy.epsilon, 0.25)
 
         # check that threshold (epsilon_min) works
-        self.policy.decay_epsilon()  # epsilon should not be changed here, as it is already less than 0.3
-        self.assertEqual(self.policy.epsilon, 0.25)
+        policy.decay_epsilon()  # epsilon should not be changed here, as it is already less than 0.3
+        self.assertEqual(policy.epsilon, 0.25)
 
 
 if __name__ == '__main__':
