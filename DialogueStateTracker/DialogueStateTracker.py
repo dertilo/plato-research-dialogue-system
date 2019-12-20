@@ -309,12 +309,6 @@ class DummyStateTracker(DialogueStateTracker):
 
             for sys_act in sys_acts:
 
-                # If the system says'bye' we are in a terminal state.
-                # If we do not switch to terminal state now, we will have at one additional
-                # turn (if we are lucky and the user says allows 'bye' in the next turn).
-                if sys_act.intent == 'bye':
-                    self.DState.is_terminal_state = True
-
                 if sys_act.intent == 'offer':
                     self.DState.system_made_offer = True
 

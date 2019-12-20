@@ -699,7 +699,8 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         # print('\nDEBUG> '+str(self.dialogue_manager.get_state()) + '\n')
 
-        if self.dialogue_turn < self.MAX_TURNS:
+        user_says_bye = usr_input and len(usr_input) > 0 and usr_input[0].intent == 'bye'
+        if self.dialogue_turn < self.MAX_TURNS and not user_says_bye:
             sys_response = self.dialogue_manager.generate_output()
 
         else:
