@@ -91,9 +91,9 @@ class ConversationalSingleAgent(ConversationalAgent):
         self.cumulative_rewards = 0
         self.total_dialogue_turns = 0
 
-        self.minibatch_length = 500
+        self.minibatch_length = 30
         self.train_interval = 50
-        self.train_epochs = 3
+        self.train_epochs = 50
 
         # True values here would imply some default modules
         self.USE_USR_SIMULATOR = False
@@ -699,7 +699,7 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         # print('\nDEBUG> '+str(self.dialogue_manager.get_state()) + '\n')
 
-        if self.dialogue_turn < self.MAX_TURNS:
+        if self.dialogue_turn < self.MAX_TURNS and usr_input[0].intent != 'bye':
             sys_response = self.dialogue_manager.generate_output()
 
         else:
