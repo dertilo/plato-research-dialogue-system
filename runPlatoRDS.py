@@ -8,6 +8,8 @@ You may obtain a copy of the License at the root directory of this project.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import shutil
+from os import chdir
 from pprint import pprint
 from tqdm import tqdm
 
@@ -27,7 +29,7 @@ import os.path
 import time
 import random
 import logging
-
+import numpy as np
 """
 This is the main entry point to Plato Research Dialogue System.
 
@@ -38,11 +40,11 @@ appropriate input to each agent.
 
 # prepare logging
 root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
+root_logger.setLevel(logging.WARNING)
 
 #  create console handler
 ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
+ch.setLevel(logging.WARNING)
 #  create formatter and add it to the handlers
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
@@ -82,19 +84,23 @@ class Controller(object):
 
         ca.initialize()
 
-        for dialogue in range(num_dialogues):
+        params_to_monitor = {'dialogue': 0, 'success-rate': 0.0}
+        running_factor = np.exp(np.log(0.05) / 100)  # after 100 steps sunk to 0.05
 
-            if (dialogue + 1) % 10 == 0:
-                module_logger.info('=====================================================')
-                module_logger.info('Dialogue %d (out of %d)\n' % (dialogue+1, num_dialogues))
+        with tqdm(postfix=[params_to_monitor]) as pbar:
 
-            ca.start_dialogue()
 
-            while not ca.terminated():
-                ca.continue_dialogue()
+            for dialogue in range(num_dialogues):
 
-            ca.end_dialogue()
-            
+                ca.start_dialogue()
+
+                while not ca.terminated():
+                    ca.continue_dialogue()
+
+                ca.end_dialogue()
+
+                Controller.update_progress_bar(ca, dialogue, pbar, running_factor)
+
         # Collect statistics
         statistics = {'AGENT_0': {}}
         
@@ -114,6 +120,18 @@ class Controller(object):
                      statistics['AGENT_0']['avg_turns']))
         
         return statistics
+
+    @staticmethod
+    def update_progress_bar(ca, dialogue, pbar, running_factor):
+        pbar.postfix[0]['dialogue'] = dialogue
+        success = int(ca.recorder.dialogues[-1][-1]['success'])
+        pbar.postfix[0]['success-rate'] = round(
+            running_factor * pbar.postfix[0]['success-rate'] + (
+                        1 - running_factor) * success, 2)
+
+        eps = ca.dialogue_manager.policy.epsilon
+        pbar.postfix[0]["eps"] = eps
+        pbar.update()
 
     @staticmethod
     def run_multi_agent(config, num_dialogues, num_agents):
@@ -432,6 +450,10 @@ def run_controller(args):
     return 0
 
 
+def clean_dir(dir):
+    shutil.rmtree(dir)
+    os.mkdir(dir)
+
 if __name__ == '__main__':
     """
     This is the main entry point to Plato. 
@@ -445,37 +467,32 @@ if __name__ == '__main__':
     
     Remember, Plato runs with Python 3.6
     """
-    arguments = arg_parse()
+    base_path = '../alex-plato/experiments/exp_04'
+    chdir('%s' % base_path)
 
-    if 'test_mode' in arguments and arguments['test_mode']:
-        # Runs Plato with all configuration files in the config/tests/
-        # directory and prints a FAIL message upon any exception raised.
-        passed = []
-        failed = []
+    clean_dir('logs')
+    clean_dir('policies')
 
-        for (dirpath, dirnames, filenames) in \
-                os.walk('Tests/'):
-            if not filenames or filenames[0] == '.DS_Store':
-                continue
-                
-            for config_file in filenames:
-                module_logger.info(f'\n\nRunning test with configuration {config_file}\n')
+    config_file = 'train_q_learning.yaml'
+    # train_config = 'eval_q_learning.yaml'
+    arguments = arg_parse(['','f', ('configs/%s' % config_file)])
+    arguments['dialogues']=100
+    run_controller(arguments)
 
-                args = arg_parse(['_', '-c', dirpath + config_file])
+    config_file = 'eval_q_learning.yaml'
+    arguments = arg_parse(['','f', ('configs/%s' % config_file)])
+    arguments['dialogues']=1000
+    run_controller(arguments)
 
-                if run_controller(args) < 0:
-                    module_logger.error(f'FAIL! With {config_file}')
-                    failed.append(config_file)
-
-                else:
-                    module_logger.info('PASS!')
-                    passed.append(config_file)
-
-        module_logger.info('\nTEST RESULTS:')
-        module_logger.info(f'Passed {len(passed)} out of {(len(passed) + len(failed))}')
-
-        module_logger.warning(f'Failed on: {failed}')
-
-    else:
-        # Normal Plato execution
-        run_controller(arguments)
+    '''
+    100it [00:15,  6.42it/s[{'dialogue': 99, 'success-rate': 0.84, 'eps': 0.7674635923780313}]]
+    ('Results:\n'
+     "{'AGENT_0': {'dialogue_success_percentage': 100.0, 'avg_cumulative_rewards': "
+     "19.531, 'avg_turns': 10.38, 'objective_task_completion_percentage': 100.0}}")
+     
+    1000it [02:18,  6.21it/s[{'dialogue': 999, 'success-rate': 0.84, 'eps': 0.7674635923780313}]]
+    ('Results:\n'
+     "{'AGENT_0': {'dialogue_success_percentage': 98.3, 'avg_cumulative_rewards': "
+     "19.136249999999983, 'avg_turns': 11.118, "
+     "'objective_task_completion_percentage': 98.3}}")
+    '''

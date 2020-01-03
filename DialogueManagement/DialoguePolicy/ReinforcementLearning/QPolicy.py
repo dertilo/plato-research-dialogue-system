@@ -52,7 +52,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         """
 
         self.logger = logging.getLogger(__name__)
-
+        self.warmup_mode = True
         self.print_level = print_level
 
         self.alpha = alpha
@@ -200,7 +200,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         if state_enc not in self.Q or (self.is_training and
                                        random.random() < self.epsilon):
 
-            if random.random() < 0.5:
+            threshold = 1.0 if self.warmup_mode else 0.5
+            if random.random() < threshold:
                 # During exploration we may want to follow another policy,
                 # e.g. an expert policy.
 
@@ -453,9 +454,11 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                           (state, action, reward triplets).
         :return:
         """
-
+        self.warmup_mode = True
         self.logger.info('Train Q with {} dialogues'.format(len(dialogues)))
-        for dialogue in dialogues:
+        for k,dialogue in enumerate(dialogues):
+            # if k>50:
+            #     self.warmup_mode = False
             if len(dialogue) > 1:
                 dialogue[-2]['reward'] = dialogue[-1]['reward']
 
