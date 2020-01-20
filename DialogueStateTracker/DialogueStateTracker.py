@@ -308,6 +308,7 @@ class DummyStateTracker(DialogueStateTracker):
             self.DState.last_sys_acts = sys_acts
 
             for sys_act in sys_acts:
+
                 if sys_act.intent == 'offer':
                     self.DState.system_made_offer = True
 

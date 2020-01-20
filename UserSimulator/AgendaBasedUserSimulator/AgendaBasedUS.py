@@ -346,7 +346,8 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         for system_act in system_acts:
             # Update user goal (in ABUS the state is factored into the goal
             # and the agenda)
-            if system_act.intent == 'bye' or self.dialogue_turn > 15:
+            # If the user receives a 'bye' this is ignored, as the user should decide about the end of the dialogue
+            if self.dialogue_turn > 15:
                 self.agenda.clear()
                 self.agenda.push(DialogueAct('bye', []))
 
