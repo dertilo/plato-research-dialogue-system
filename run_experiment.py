@@ -62,6 +62,27 @@ def create_csv_files(logs_dir, plato_dir):
     print('Status from CSV file generation: {}'.format(status))
 
 
+def create_turn_wise_csv_files(logs_dir, plato_dir):
+    print('Create turn wise CSV files from pickle logs.')
+
+    pkl_files = glob.glob(logs_dir + '/*.pkl')
+    print('Existing PKL files: {}'.format(pkl_files))
+
+    # create csv file name from pkl_files
+    csv_files = [pkl.replace('.pkl', '_turn_wise.csv') for pkl in pkl_files]
+    print('CSV files to be generated: {}'.format(csv_files))
+
+    file_tuples = list(zip(pkl_files, csv_files))
+
+    script = plato_dir + '/log_to_csv.py'
+    commands = [['python', script, '-i', ft[0], '-o', ft[1], '-l', 't'] for ft in file_tuples]
+    processes = [Popen(cmd, stdout=PIPE, stderr=PIPE) for cmd in commands]
+
+    print('Generate turn wise CSV files')
+    status = [proc.wait() for proc in processes]
+    print('Status from turn wise CSV file generation: {}'.format(status))
+
+
 if __name__ == '__main__':
 
     plato_directory = getcwd()
@@ -105,3 +126,4 @@ if __name__ == '__main__':
     run_config(config_directory, plato_directory, mode='eval')
     compress_logs(log_directory)
     create_csv_files(log_directory, plato_directory)
+    create_turn_wise_csv_files(log_directory, plato_directory)
