@@ -116,72 +116,23 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
             self.agent_role = kwargs['agent_role']
 
     def restart(self, args):
-        """
-        Nothing to do here.
-
-        :return:
-        """
-
         pass
 
     def next_action(self, state):
-        """
-        Consults the policy to produce the agent's response
-
-        :param state: the current dialogue state
-        :return: a list of dialogue acts, representing the agent's response
-        """
 
         state_enc = self.encode_state(state)
 
         if state_enc not in self.Q or (self.is_training and
                                        random.random() < self.epsilon):
-
-            threshold = 1.0 if self.warmup_mode else 0.5
-            if random.random() < threshold:
-                # During exploration we may want to follow another policy,
-                # e.g. an expert policy.
-
-                if self.print_level in ['debug']:
-                    print('---: Selecting warmup action.')
-
-                if self.agent_role == 'system':
-                    return self.warmup_policy.next_action(state)
-                else:
-                    self.warmup_simulator.receive_input(
-                        state.user_acts, state.user_goal)
-                    return self.warmup_simulator.respond()
-
-            else:
-                # Return a random action
-                if self.print_level in ['debug']:
-                    print('---: Selecting random action')
-                return self.decode_action(
-                    random.choice(
-                        range(0, self.NActions)),
-                    self.agent_role == 'system')
-
-        if self.IS_GREEDY_POLICY:
-            # Return action with maximum Q value from the given state
+            sys_acts = self.warmup_policy.next_action(state)
+        else:
             sys_acts = self.decode_action(max(self.Q[state_enc],
                                               key=self.Q[state_enc].get),
                                           self.agent_role == 'system')
-        else:
-            sys_acts = self.decode_action(
-                random.choices(
-                    range(0, self.NActions),
-                    self.Q[state_enc])[0],
-                self.agent_role == 'system')
 
         return sys_acts
 
     def encode_state(self, state):
-        """
-        Encodes the dialogue state into an index used to address the Q matrix.
-
-        :param state: the state to encode
-        :return: int - a unique state ID
-        """
 
         def encode_item_in_focus(state):
             # If the agent is a system, then this shows what the top db result is.
@@ -383,7 +334,7 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
             # if k>50:
             #     self.warmup_mode = False
             if len(dialogue) > 1:
-                dialogue[-2]['reward'] = dialogue[-1]['reward']
+                dialogue[-2]['reward'] = dialogue[-1]['reward'] # TODO(tilo): why is this done?
 
             for turn in dialogue:
                 state_enc = self.encode_state(turn['state'])
