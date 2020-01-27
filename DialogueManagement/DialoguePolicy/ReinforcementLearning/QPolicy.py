@@ -246,6 +246,47 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         :return: int - a unique state ID
         """
 
+        def encode_item_in_focus(state):
+            # If the agent is a system, then this shows what the top db result is.
+            # If the agent is a user, then this shows what information the
+            # system has provided
+            out = []
+            if state.item_in_focus:
+                for slot in self.ontology.ontology['requestable']:
+                    if slot in state.item_in_focus and state.item_in_focus[slot]:
+                        out.append(1)
+                    else:
+                        out.append(0)
+            else:
+                out = [0] * len(self.ontology.ontology['requestable'])
+            return out
+
+        def encode_db_matches_ratio(state):
+            if state.db_matches_ratio >= 0:
+                return [int(b) for b in
+                     format(int(round(state.db_matches_ratio, 2) * 100), '07b')]
+            else:
+                # If the number is negative (should not happen in general) there
+                # will be a minus sign
+                return [int(b) for b in
+                     format(int(round(state.db_matches_ratio, 2) * 100),
+                            '07b')[1:]]
+
+        def encode_user_acts(state):
+            if state.user_acts:
+                return [int(b) for b in
+                     format(self.encode_action(state.user_acts, False), '05b')]
+            else:
+                return [0, 0, 0, 0, 0]
+
+        def encode_last_sys_acts(state):
+            if state.last_sys_acts:
+                integer = self.encode_action([state.last_sys_acts[0]])
+                # assert integer<16 # TODO(tilo):
+                return [int(b) for b in format(integer, '04b')]
+            else:
+                return [0, 0, 0, 0]
+        # --------------------------------------------------------------------------
         temp = []
 
         temp += [int(b) for b in format(state.turn, '06b')]
@@ -259,73 +300,16 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
 
         temp.append(int(state.is_terminal_state))
 
-        # If the agent is a system, then this shows what the top db result is.
-        # If the agent is a user, then this shows what information the
-        # system has provided
-        if state.item_in_focus:
-            for slot in self.ontology.ontology['requestable']:
-                if slot in state.item_in_focus and state.item_in_focus[slot]:
-                    temp.append(1)
-                else:
-                    temp.append(0)
-        else:
-            temp += [0] * len(self.ontology.ontology['requestable'])
-
-        if state.db_matches_ratio >= 0:
-            temp += \
-                [int(b) for b in
-                 format(int(round(state.db_matches_ratio, 2) * 100), '07b')]
-        else:
-            # If the number is negative (should not happen in general) there
-            # will be a minus sign
-            temp += \
-                [int(b) for b in
-                 format(int(round(state.db_matches_ratio, 2) * 100),
-                        '07b')[1:]]
-
+        temp += encode_item_in_focus(state)
+        temp += encode_db_matches_ratio(state)
         temp.append(1) if state.system_made_offer else temp.append(0)
+        temp += encode_user_acts(state)
+        temp += encode_last_sys_acts(state)
 
-        if state.user_acts:
-            temp += \
-                [int(b) for b in
-                 format(self.encode_action(state.user_acts, False), '05b')]
-        else:
-            temp += [0, 0, 0, 0, 0]
-
-        if state.last_sys_acts:
-            temp += \
-                [int(b) for b in
-                 format(self.encode_action([state.last_sys_acts[0]]), '04b')]
-        else:
-            temp += [0, 0, 0, 0]
-
-        # If the agent plays the role of the user it needs access to its own
-        # goal
-        if state.user_goal:
-            for c in self.ontology.ontology['informable']:
-                if c in state.user_goal.constraints and \
-                        state.user_goal.constraints[c].value:
-                    temp.append(1)
-                else:
-                    temp.append(0)
-
-            for r in self.ontology.ontology['requestable']:
-                if r in state.user_goal.requests and \
-                        state.user_goal.requests[r].value:
-                    temp.append(1)
-                else:
-                    temp.append(0)
-        else:
-            # Just for symmetry, for all other roles append zeros
-            temp += [0] * (len(self.ontology.ontology['informable']) +
-                           len(self.ontology.ontology['requestable']))
-
-        # Encode state
-        state_enc = 0
-        for t in temp:
-            state_enc = (state_enc << 1) | t
-
+        state_enc = sum([2**k for k,b in enumerate(reversed(temp)) if b==1])
         return state_enc
+
+
 
     def encode_action(self, actions, system=True):
         """
