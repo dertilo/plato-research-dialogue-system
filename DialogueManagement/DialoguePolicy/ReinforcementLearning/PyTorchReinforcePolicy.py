@@ -135,7 +135,7 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
         pass
 
     def next_action(self, state:SlotFillingDialogueState):
-
+        self.agent.eval()
         # if (self.is_training and random.random() < self.epsilon):
         if (self.is_training):
             sys_acts = self.warmup_policy.next_action(state)
@@ -167,6 +167,7 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
         return returns
 
     def train(self, dialogues):
+        self.agent.train()
         losses = []
         policy_losses = []
         for k,dialogue in enumerate(dialogues):
@@ -198,7 +199,12 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
         self.logger.debug('Q-Learning factors: [alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
 
     def save(self, path=None):
-        pass
+        torch.save(self.agent.state_dict(), path+'/agent.pth')
+        # self.agent=None
+        # pickle.dump(self,path+'/pytorch_policy.pkl')
 
     def load(self, path=None):
-        pass
+        if os.path.isfile(path+'/agent.pth'):
+            agent = PolicyAgent(STATE_DIM, self.NActions)
+            agent.load_state_dict(torch.load(path+'/agent.pth'))
+            self.agent = agent
