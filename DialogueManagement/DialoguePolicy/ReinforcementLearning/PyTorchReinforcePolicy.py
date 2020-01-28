@@ -136,8 +136,7 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
     def next_action(self, state:SlotFillingDialogueState):
         self.agent.eval()
-        # if (self.is_training and random.random() < self.epsilon):
-        if (self.is_training):
+        if (self.is_training and random.random() < self.epsilon):
             sys_acts = self.warmup_policy.next_action(state)
         else:
             state_enc = self.encode_state(state)
