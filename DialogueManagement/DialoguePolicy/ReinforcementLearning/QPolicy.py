@@ -93,18 +93,9 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         self.warmup_policy = None
         self.warmup_simulator = None
 
-        if self.agent_role == 'system':
-            # Put your system expert policy here
-            self.warmup_policy = \
-                HandcraftedPolicy.HandcraftedPolicy(self.ontology)
+        self.warmup_policy = \
+            HandcraftedPolicy.HandcraftedPolicy(self.ontology)
 
-        elif self.agent_role == 'user':
-            usim_args = \
-                dict(
-                    zip(['ontology', 'database'],
-                        [self.ontology, self.database]))
-            # Put your user expert policy here
-            self.warmup_simulator = AgendaBasedUS(usim_args)
 
         # Extract lists of slots that are frequently used
         self.informable_slots = \
@@ -114,58 +105,23 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         self.system_requestable_slots = \
             deepcopy(self.ontology.ontology['system_requestable'])
 
-        self.dstc2_acts = None
+        self.dstc2_acts_sys = ['offer', 'canthelp', 'affirm',
+                               'deny', 'ack', 'bye', 'reqmore',
+                               'welcomemsg', 'expl-conf', 'select',
+                               'repeat', 'confirm-domain',
+                               'confirm']
 
-        if not domain:
-            # Default to CamRest dimensions
-            self.NStateFeatures = 56
+        # Does not include inform and request that are modelled
+        # together with their arguments
+        self.dstc2_acts_usr = ['affirm', 'negate', 'deny', 'ack',
+                               'thankyou', 'bye', 'reqmore',
+                               'hello', 'expl-conf', 'repeat',
+                               'reqalts', 'restart', 'confirm']
 
-            # Default to CamRest actions
-            self.dstc2_acts = ['repeat', 'canthelp', 'affirm', 'negate',
-                               'deny', 'ack', 'thankyou', 'bye',
-                               'reqmore', 'hello', 'welcomemsg', 'expl-conf',
-                               'select', 'offer', 'reqalts',
-                               'confirm-domain', 'confirm']
-
-        else:
-            # Try to identify number of state features
-            if domain in ['SlotFilling', 'CamRest']:
-
-                # Plato does not use action masks (rules to define which
-                # actions are valid from each state) and so training can
-                # be harder. This becomes easier if we have a smaller
-                # action set.
-
-                # Sub-case for CamRest
-                if domain == 'CamRest':
-                    # Does not include inform and request that are modelled
-                    # together with their arguments
-                    self.dstc2_acts_sys = ['offer', 'canthelp', 'affirm',
-                                           'deny', 'ack', 'bye', 'reqmore',
-                                           'welcomemsg', 'expl-conf', 'select',
-                                           'repeat', 'confirm-domain',
-                                           'confirm']
-
-                    # Does not include inform and request that are modelled
-                    # together with their arguments
-                    self.dstc2_acts_usr = ['affirm', 'negate', 'deny', 'ack',
-                                           'thankyou', 'bye', 'reqmore',
-                                           'hello', 'expl-conf', 'repeat',
-                                           'reqalts', 'restart', 'confirm']
-
-                    if self.agent_role == 'system':
-                        self.dstc2_acts = self.dstc2_acts_sys
-                        self.NActions = len(self.dstc2_acts)  # system acts without parameters
-                        self.NActions += len(self.system_requestable_slots)  # system request with certain slots
-                        self.NActions += len(self.requestable_slots)  # system inform with certain slot
-
-                    elif self.agent_role == 'user':
-                        self.dstc2_acts = self.dstc2_acts_usr
-                        self.NActions = len(self.dstc2_acts)  # user acts without parameters
-                        self.NActions += len(self.requestable_slots)  # user request with certain slot
-                        self.NActions += len(self.system_requestable_slots)  # user inform with certain slot
-                    else:
-                        self.logger.warning('Unknown agent role: "{}"'.format(self.agent_role))
+        self.dstc2_acts = self.dstc2_acts_sys
+        self.NActions = len(self.dstc2_acts)  # system acts without parameters
+        self.NActions += len(self.system_requestable_slots)  # system request with certain slots
+        self.NActions += len(self.requestable_slots)  # system inform with certain slot
 
         self.domain = Domain(self.dstc2_acts_sys,self.dstc2_acts_usr,self.system_requestable_slots,self.requestable_slots)
 
