@@ -8,6 +8,9 @@ You may obtain a copy of the License at the root directory of this project.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from Dialogue.State import SlotFillingDialogueState
+from DialogueManagement.DialoguePolicy.dialogue_common import encode_state, \
+    encode_action, decode_action, Domain
 
 __author__ = "Alexandros Papangelis"
 
@@ -164,6 +167,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                     else:
                         self.logger.warning('Unknown agent role: "{}"'.format(self.agent_role))
 
+        self.domain = Domain(self.dstc2_acts_sys,self.dstc2_acts_usr,self.system_requestable_slots,self.requestable_slots)
+
 
     def initialize(self, **kwargs):
         """
@@ -196,9 +201,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         """
 
         state_enc = self.encode_state(state)
-
-        if state_enc not in self.Q or (self.is_training and
-                                       random.random() < self.epsilon):
+        assert self.IS_GREEDY_POLICY
+        if self.is_training and (state_enc not in self.Q or random.random() < self.epsilon):
 
             threshold = 1.0 if self.warmup_mode else 0.5
             if random.random() < threshold:
@@ -209,228 +213,49 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                     print('---: Selecting warmup action.')
 
                 if self.agent_role == 'system':
-                    return self.warmup_policy.next_action(state)
+                    sys_acts = self.warmup_policy.next_action(state)
                 else:
                     self.warmup_simulator.receive_input(
                         state.user_acts, state.user_goal)
-                    return self.warmup_simulator.respond()
+                    sys_acts = self.warmup_simulator.respond()
 
             else:
                 # Return a random action
                 if self.print_level in ['debug']:
                     print('---: Selecting random action')
-                return self.decode_action(
-                    random.choice(
-                        range(0, self.NActions)),
-                    self.agent_role == 'system')
+                sys_acts = self.decode_action(
+                    random.choice(range(0, self.NActions)),
+                    )
 
-        if self.IS_GREEDY_POLICY:
+        elif self.IS_GREEDY_POLICY and state_enc in self.Q:
             # Return action with maximum Q value from the given state
             sys_acts = self.decode_action(max(self.Q[state_enc],
                                               key=self.Q[state_enc].get),
-                                          self.agent_role == 'system')
+                                          )
         else:
+            # Return a random action
+            if self.print_level in ['debug']:
+                print('---: Selecting random action')
             sys_acts = self.decode_action(
-                random.choices(
-                    range(0, self.NActions),
-                    self.Q[state_enc])[0],
-                self.agent_role == 'system')
+                random.choice(range(0, self.NActions)),
+                )
+            #
+            # sys_acts = self.decode_action(
+            #     random.choices(range(0, self.NActions), self.Q[state_enc])[0],
+            #                    self.agent_role == 'system')
 
         return sys_acts
 
-    def encode_state(self, state):
-        """
-        Encodes the dialogue state into an index used to address the Q matrix.
-
-        :param state: the state to encode
-        :return: int - a unique state ID
-        """
-
-        def encode_item_in_focus(state):
-            # If the agent is a system, then this shows what the top db result is.
-            # If the agent is a user, then this shows what information the
-            # system has provided
-            out = []
-            if state.item_in_focus:
-                for slot in self.ontology.ontology['requestable']:
-                    if slot in state.item_in_focus and state.item_in_focus[slot]:
-                        out.append(1)
-                    else:
-                        out.append(0)
-            else:
-                out = [0] * len(self.ontology.ontology['requestable'])
-            return out
-
-        def encode_db_matches_ratio(state):
-            if state.db_matches_ratio >= 0:
-                return [int(b) for b in
-                     format(int(round(state.db_matches_ratio, 2) * 100), '07b')]
-            else:
-                # If the number is negative (should not happen in general) there
-                # will be a minus sign
-                return [int(b) for b in
-                     format(int(round(state.db_matches_ratio, 2) * 100),
-                            '07b')[1:]]
-
-        def encode_user_acts(state):
-            if state.user_acts:
-                return [int(b) for b in
-                     format(self.encode_action(state.user_acts, False), '05b')]
-            else:
-                return [0, 0, 0, 0, 0]
-
-        def encode_last_sys_acts(state):
-            if state.last_sys_acts:
-                integer = self.encode_action([state.last_sys_acts[0]])
-                # assert integer<16 # TODO(tilo):
-                return [int(b) for b in format(integer, '04b')]
-            else:
-                return [0, 0, 0, 0]
-        # --------------------------------------------------------------------------
-        temp = []
-
-        temp += [int(b) for b in format(state.turn, '06b')]
-
-        for value in state.slots_filled.values():
-            # This contains the requested slot
-            temp.append(1) if value else temp.append(0)
-
-        for slot in self.ontology.ontology['requestable']:
-            temp.append(1) if slot == state.requested_slot else temp.append(0)
-
-        temp.append(int(state.is_terminal_state))
-
-        temp += encode_item_in_focus(state)
-        temp += encode_db_matches_ratio(state)
-        temp.append(1) if state.system_made_offer else temp.append(0)
-        temp += encode_user_acts(state)
-        temp += encode_last_sys_acts(state)
-
-        state_enc = sum([2**k for k,b in enumerate(reversed(temp)) if b==1])
+    def encode_state(self, state:SlotFillingDialogueState):
+        temp = encode_state(state, self.domain)
+        state_enc = sum([2 ** k for k, b in enumerate(reversed(temp)) if b == 1])
         return state_enc
 
-
-
     def encode_action(self, actions, system=True):
-        """
-        Encode the action, given the role. Note that does not have to match
-        the agent's role, as the agent may be encoding another agent's action
-        (e.g. a system encoding the previous user act).
+        return encode_action(actions,system,self.domain)
 
-        :param actions: actions to be encoded
-        :param system: whether the role whose action we are encoding is a
-                       'system'
-        :return: the encoded action
-        """
-
-        # TODO: Handle multiple actions
-        # TODO: Action encoding in a principled way
-        if not actions:
-            print('WARNING: Supervised DialoguePolicy action encoding called '
-                  'with empty actions list (returning -1).')
-            return -1
-
-        action = actions[0]
-        intent = action.intent
-
-        slot = None
-        if action.params and action.params[0].slot:
-            slot = action.params[0].slot
-
-        enc = None
-        if system:  # encode for system
-            if self.dstc2_acts_sys and intent in self.dstc2_acts_sys:
-                enc = self.dstc2_acts_sys.index(action.intent)
-
-            elif slot:
-                if intent == 'request' and slot in self.system_requestable_slots:
-                    enc = len(self.dstc2_acts_sys) + self.system_requestable_slots.index(
-                        slot)
-
-                elif intent == 'inform' and slot in self.requestable_slots:
-                    enc = len(self.dstc2_acts_sys) + len(
-                        self.system_requestable_slots) + self.requestable_slots.index(slot)
-        else:
-            if self.dstc2_acts_usr and intent in self.dstc2_acts_usr:
-                enc =  self.dstc2_acts_usr.index(action.intent)
-
-            elif slot:
-                if intent == 'request' and slot in self.requestable_slots:
-                    enc = len(self.dstc2_acts_usr) + \
-                           self.requestable_slots.index(slot)
-
-                elif action.intent == 'inform' and slot in self.system_requestable_slots:
-                    enc = len(self.dstc2_acts_usr) + \
-                           len(self.requestable_slots) + \
-                           self.system_requestable_slots.index(slot)
-        if enc is None:
-            # Unable to encode action
-            print('Q-Learning ({0}) policy action encoder warning: Selecting '
-                  'default action (unable to encode: {1})!'.format(self.agent_role, action))
-            enc = -1
-
-        return enc
-
-    def decode_action(self, action_enc, system=True):
-        """
-        Decode the action, given the role. Note that does not have to match
-        the agent's role, as the agent may be decoding another agent's action
-        (e.g. a system decoding the previous user act).
-
-        :param action_enc: action encoding to be decoded
-        :param system: whether the role whose action we are decoding is a
-                       'system'
-        :return: the decoded action
-        """
-
-        if system:  # decode for system
-            if action_enc < len(self.dstc2_acts_sys):
-                return [DialogueAct(self.dstc2_acts_sys[action_enc], [])]
-
-            if action_enc < len(self.dstc2_acts_sys) + \
-                    len(self.system_requestable_slots):
-                return [DialogueAct(
-                    'request',
-                    [DialogueActItem(
-                        self.system_requestable_slots[
-                            action_enc - len(self.dstc2_acts_sys)],
-                        Operator.EQ,
-                        '')])]
-
-            if action_enc < len(self.dstc2_acts_sys) + \
-                    len(self.system_requestable_slots) + \
-                    len(self.requestable_slots):
-                index = \
-                    action_enc - len(self.dstc2_acts_sys) - \
-                    len(self.system_requestable_slots)
-                return [DialogueAct(
-                    'inform',
-                    [DialogueActItem(
-                        self.requestable_slots[index], Operator.EQ, '')])]
-
-        else:  # decode for user
-            if action_enc < len(self.dstc2_acts_usr):
-                return [DialogueAct(self.dstc2_acts_usr[action_enc], [])]
-
-            if action_enc < len(self.dstc2_acts_usr) + \
-                    len(self.requestable_slots):
-                return [DialogueAct(
-                    'request',
-                    [DialogueActItem(
-                        self.requestable_slots[
-                            action_enc - len(self.dstc2_acts_usr)],
-                        Operator.EQ,
-                        '')])]
-
-            if action_enc < len(self.dstc2_acts_usr) + \
-                    len(self.requestable_slots) + \
-                    len(self.system_requestable_slots):
-                return [DialogueAct(
-                    'inform',
-                    [DialogueActItem(
-                        self.system_requestable_slots[
-                            action_enc - len(self.dstc2_acts_usr) -
-                            len(self.requestable_slots)], Operator.EQ, '')])]
+    def decode_action(self, action_enc):
+        return decode_action(action_enc,self.domain)
 
     def train(self, dialogues):
         """
