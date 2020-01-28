@@ -10,7 +10,7 @@ limitations under the License.
 """
 from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.dialogue_common import encode_state, \
-    encode_action, decode_action, Domain
+    encode_action, decode_action, Domain, setup_domain
 
 __author__ = "Alexandros Papangelis"
 
@@ -96,34 +96,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         self.warmup_policy = \
             HandcraftedPolicy.HandcraftedPolicy(self.ontology)
 
-
-        # Extract lists of slots that are frequently used
-        self.informable_slots = \
-            deepcopy(list(self.ontology.ontology['informable'].keys()))
-        self.requestable_slots = \
-            deepcopy(self.ontology.ontology['requestable'])
-        self.system_requestable_slots = \
-            deepcopy(self.ontology.ontology['system_requestable'])
-
-        self.dstc2_acts_sys = ['offer', 'canthelp', 'affirm',
-                               'deny', 'ack', 'bye', 'reqmore',
-                               'welcomemsg', 'expl-conf', 'select',
-                               'repeat', 'confirm-domain',
-                               'confirm']
-
-        # Does not include inform and request that are modelled
-        # together with their arguments
-        self.dstc2_acts_usr = ['affirm', 'negate', 'deny', 'ack',
-                               'thankyou', 'bye', 'reqmore',
-                               'hello', 'expl-conf', 'repeat',
-                               'reqalts', 'restart', 'confirm']
-
-        self.dstc2_acts = self.dstc2_acts_sys
-        self.NActions = len(self.dstc2_acts)  # system acts without parameters
-        self.NActions += len(self.system_requestable_slots)  # system request with certain slots
-        self.NActions += len(self.requestable_slots)  # system inform with certain slot
-
-        self.domain = Domain(self.dstc2_acts_sys,self.dstc2_acts_usr,self.system_requestable_slots,self.requestable_slots)
+        self.domain = setup_domain(self.ontology)
+        self.NActions = self.domain.NActions
 
 
     def initialize(self, **kwargs):
