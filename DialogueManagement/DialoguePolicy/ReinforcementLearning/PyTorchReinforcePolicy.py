@@ -25,7 +25,7 @@ module_logger = logging.getLogger(__name__)
 
 
 class PolicyAgent(nn.Module):
-    def __init__(self, obs_dim, num_actions,hidden_dim = 24) -> None:
+    def __init__(self, obs_dim, num_actions,hidden_dim = 32) -> None:
         super().__init__()
         self.affine1 = nn.Linear(obs_dim, hidden_dim)
         self.affine2 = nn.Linear(hidden_dim, num_actions)
@@ -59,7 +59,7 @@ STATE_DIM = 45
 class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
     def __init__(self, ontology, database, agent_id=0, agent_role='system',
                  domain=None, alpha=0.95, epsilon=0.95,
-                 gamma=0.15, alpha_decay=0.995, epsilon_decay=0.995, print_level='info', epsilon_min=0.05):
+                 gamma=0.99, alpha_decay=0.995, epsilon_decay=0.995, print_level='info', epsilon_min=0.05):
         """
         Initialize parameters and internal structures
 
@@ -81,7 +81,7 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         self.alpha = alpha
         self.alpha_decay = alpha_decay
-        self.gamma = gamma
+        self.gamma = 0.99
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
@@ -161,7 +161,8 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
     def next_action(self, state:SlotFillingDialogueState):
 
-        if (self.is_training and random.random() < self.epsilon):
+        # if (self.is_training and random.random() < self.epsilon):
+        if (self.is_training):
             sys_acts = self.warmup_policy.next_action(state)
         else:
             state_enc = self.encode_state(state)
@@ -351,11 +352,12 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
             R = r + gamma * R
             returns.insert(0, R)
         returns = torch.tensor(returns)
-        returns = (returns - returns.mean()) / (returns.std() + eps)
+        # returns = (returns - returns.mean()) / (returns.std() + eps)
         return returns
 
     def train(self, dialogues):
-
+        losses = []
+        policy_losses = []
         for k,dialogue in enumerate(dialogues):
             exp = []
             for turn in dialogue:
@@ -366,12 +368,17 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
                 exp.append((action_enc, log_probs, turn['reward']))
 
             returns = self._calc_returns(exp, self.gamma)
-            policy_loss = [-log_prob * R for (_, log_prob, _), R in zip(exp, returns)]
-            policy_loss = torch.cat(policy_loss).sum()
+            policy_losses.extend([-log_prob * R for (_, log_prob, _), R in zip(exp, returns)])
 
-            self.optimizer.zero_grad()
-            policy_loss.backward()
-            self.optimizer.step()
+        policy_loss = torch.cat(policy_losses).mean()
+
+        self.optimizer.zero_grad()
+        policy_loss.backward()
+        self.optimizer.step()
+        losses.append(policy_loss.data.numpy())
+
+        print('loss: %0.2f'%numpy.mean(losses))
+
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
