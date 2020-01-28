@@ -37,11 +37,22 @@ class PolicyAgent(nn.Module):
         return F.softmax(action_scores, dim=1)
 
     def step(self, state):
-        state = torch.from_numpy(state).float().unsqueeze(0)
-        probs = self.forward(state)
+        probs = self.calc_probs(state)
         m = Categorical(probs)
         action = m.sample()
         return action.item(), m.log_prob(action)
+
+    def calc_probs(self,state):
+        state = torch.from_numpy(state).float().unsqueeze(0)
+        probs = self.forward(state)
+        return probs
+
+    def log_probs(self,state,action):
+        probs = self.calc_probs(state)
+        m = Categorical(probs)
+        action_tensor = torch.from_numpy(action).float().unsqueeze(0)
+        return m.log_prob(action_tensor)
+
 
 STATE_DIM = 45
 
@@ -128,6 +139,8 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
         self.NActions += len(self.system_requestable_slots)  # system request with certain slots
         self.NActions += len(self.requestable_slots)  # system inform with certain slot
         self.agent:PolicyAgent = PolicyAgent(STATE_DIM, self.NActions)
+        self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
+
 
 
     def initialize(self, **kwargs):
@@ -148,7 +161,7 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
     def next_action(self, state:SlotFillingDialogueState):
 
-        if (self.is_training and random.random() < self.epsilon) and False:
+        if (self.is_training and random.random() < self.epsilon):
             sys_acts = self.warmup_policy.next_action(state)
         else:
             state_enc = self.encode_state(state)
@@ -330,18 +343,35 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
                 [DialogueActItem(
                     self.requestable_slots[index], Operator.EQ, '')])]
 
+    @staticmethod
+    def _calc_returns(exp, gamma,eps=numpy.finfo(numpy.float32).eps.item()):
+        returns = []
+        R = 0
+        for action, log_prob, r in reversed(exp):
+            R = r + gamma * R
+            returns.insert(0, R)
+        returns = torch.tensor(returns)
+        returns = (returns - returns.mean()) / (returns.std() + eps)
+        return returns
+
     def train(self, dialogues):
 
         for k,dialogue in enumerate(dialogues):
-            state, ep_reward = env.reset(), 0
             exp = []
             for turn in dialogue:
                 state_enc = self.encode_state(turn['state'])
                 action_enc = self.encode_action(turn['action'])
 
-                action, log_probs = self.agent(state)
-                state, reward, done, _ = env.step(action)
-                exp.append((action, log_probs, reward))
+                log_probs = self.agent.log_probs(numpy.array(state_enc),numpy.array(action_enc))
+                exp.append((action_enc, log_probs, turn['reward']))
+
+            returns = self._calc_returns(exp, self.gamma)
+            policy_loss = [-log_prob * R for (_, log_prob, _), R in zip(exp, returns)]
+            policy_loss = torch.cat(policy_loss).sum()
+
+            self.optimizer.zero_grad()
+            policy_loss.backward()
+            self.optimizer.step()
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
