@@ -1,3 +1,6 @@
+import numpy
+
+from Dialogue.State import SlotFillingDialogueState
 from .. import DialoguePolicy, HandcraftedPolicy
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 from UserSimulator.AgendaBasedUserSimulator.AgendaBasedUS import AgendaBasedUS
@@ -11,10 +14,36 @@ import random
 import pprint
 import os.path
 import logging
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.distributions import Categorical
 
 # create logger
 module_logger = logging.getLogger(__name__)
 
+
+class PolicyAgent(nn.Module):
+    def __init__(self, obs_dim, num_actions,hidden_dim = 24) -> None:
+        super().__init__()
+        self.affine1 = nn.Linear(obs_dim, hidden_dim)
+        self.affine2 = nn.Linear(hidden_dim, num_actions)
+
+    def forward(self, x):
+        x = self.affine1(x)
+        x = F.relu(x)
+        action_scores = self.affine2(x)
+        return F.softmax(action_scores, dim=1)
+
+    def step(self, state):
+        state = torch.from_numpy(state).float().unsqueeze(0)
+        probs = self.forward(state)
+        m = Categorical(probs)
+        action = m.sample()
+        return action.item(), m.log_prob(action)
+
+STATE_DIM = 45
 
 class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
     def __init__(self, ontology, database, agent_id=0, agent_role='system',
@@ -60,8 +89,6 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         self.database = database
 
-        self.Q = {}
-        self.Q_info = {}  # tracks information about training of Q
 
         self.pp = pprint.PrettyPrinter(width=160)  # For debug!
 
@@ -100,6 +127,7 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
         self.NActions = len(self.dstc2_acts)  # system acts without parameters
         self.NActions += len(self.system_requestable_slots)  # system request with certain slots
         self.NActions += len(self.requestable_slots)  # system inform with certain slot
+        self.agent:PolicyAgent = PolicyAgent(STATE_DIM, self.NActions)
 
 
     def initialize(self, **kwargs):
@@ -118,21 +146,18 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
     def restart(self, args):
         pass
 
-    def next_action(self, state):
+    def next_action(self, state:SlotFillingDialogueState):
 
-        state_enc = self.encode_state(state)
-
-        if state_enc not in self.Q or (self.is_training and
-                                       random.random() < self.epsilon):
+        if (self.is_training and random.random() < self.epsilon) and False:
             sys_acts = self.warmup_policy.next_action(state)
         else:
-            sys_acts = self.decode_action(max(self.Q[state_enc],
-                                              key=self.Q[state_enc].get),
-                                          self.agent_role == 'system')
+            state_enc = self.encode_state(state)
+            action,_ = self.agent.step(numpy.array(state_enc,dtype=numpy.int64))
+            sys_acts = self.decode_action(action)
 
         return sys_acts
 
-    def encode_state(self, state):
+    def encode_state(self, state:SlotFillingDialogueState):
 
         def encode_item_in_focus(state):
             # If the agent is a system, then this shows what the top db result is.
@@ -151,14 +176,16 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         def encode_db_matches_ratio(state):
             if state.db_matches_ratio >= 0:
-                return [int(b) for b in
+                out = [int(b) for b in
                      format(int(round(state.db_matches_ratio, 2) * 100), '07b')]
             else:
                 # If the number is negative (should not happen in general) there
                 # will be a minus sign
-                return [int(b) for b in
+                out = [int(b) for b in
                      format(int(round(state.db_matches_ratio, 2) * 100),
                             '07b')[1:]]
+            assert len(out)==7
+            return out
 
         def encode_user_acts(state):
             if state.user_acts:
@@ -171,17 +198,26 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
             if state.last_sys_acts:
                 integer = self.encode_action([state.last_sys_acts[0]])
                 # assert integer<16 # TODO(tilo):
-                return [int(b) for b in format(integer, '04b')]
+                out = [int(b) for b in format(integer, '05b')]
             else:
-                return [0, 0, 0, 0]
+                out = [0, 0, 0, 0, 0]
+            assert len(out)==5
+            return out
+
+        def encode_slots_filled_values(state):
+            out = []
+            for value in state.slots_filled.values():
+                # This contains the requested slot
+                out.append(1) if value else out.append(0)
+            assert len(out)==6
+            return out
+
         # --------------------------------------------------------------------------
         temp = []
 
         temp += [int(b) for b in format(state.turn, '06b')]
 
-        for value in state.slots_filled.values():
-            # This contains the requested slot
-            temp.append(1) if value else temp.append(0)
+        temp += encode_slots_filled_values(state)
 
         for slot in self.ontology.ontology['requestable']:
             temp.append(1) if slot == state.requested_slot else temp.append(0)
@@ -194,9 +230,9 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
         temp += encode_user_acts(state)
         temp += encode_last_sys_acts(state)
 
-        state_enc = sum([2**k for k,b in enumerate(reversed(temp)) if b==1])
-        return state_enc
-
+        # state_enc = sum([2**k for k,b in enumerate(reversed(temp)) if b==1])
+        assert len(temp)==STATE_DIM
+        return temp
 
 
     def encode_action(self, actions, system=True):
@@ -259,7 +295,7 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         return enc
 
-    def decode_action(self, action_enc, system=True):
+    def decode_action(self, action_enc):
         """
         Decode the action, given the role. Note that does not have to match
         the agent's role, as the agent may be decoding another agent's action
@@ -270,109 +306,42 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
                        'system'
         :return: the decoded action
         """
+        if action_enc < len(self.dstc2_acts_sys):
+            return [DialogueAct(self.dstc2_acts_sys[action_enc], [])]
 
-        if system:  # decode for system
-            if action_enc < len(self.dstc2_acts_sys):
-                return [DialogueAct(self.dstc2_acts_sys[action_enc], [])]
+        if action_enc < len(self.dstc2_acts_sys) + \
+                len(self.system_requestable_slots):
+            return [DialogueAct(
+                'request',
+                [DialogueActItem(
+                    self.system_requestable_slots[
+                        action_enc - len(self.dstc2_acts_sys)],
+                    Operator.EQ,
+                    '')])]
 
-            if action_enc < len(self.dstc2_acts_sys) + \
-                    len(self.system_requestable_slots):
-                return [DialogueAct(
-                    'request',
-                    [DialogueActItem(
-                        self.system_requestable_slots[
-                            action_enc - len(self.dstc2_acts_sys)],
-                        Operator.EQ,
-                        '')])]
-
-            if action_enc < len(self.dstc2_acts_sys) + \
-                    len(self.system_requestable_slots) + \
-                    len(self.requestable_slots):
-                index = \
-                    action_enc - len(self.dstc2_acts_sys) - \
-                    len(self.system_requestable_slots)
-                return [DialogueAct(
-                    'inform',
-                    [DialogueActItem(
-                        self.requestable_slots[index], Operator.EQ, '')])]
-
-        else:  # decode for user
-            if action_enc < len(self.dstc2_acts_usr):
-                return [DialogueAct(self.dstc2_acts_usr[action_enc], [])]
-
-            if action_enc < len(self.dstc2_acts_usr) + \
-                    len(self.requestable_slots):
-                return [DialogueAct(
-                    'request',
-                    [DialogueActItem(
-                        self.requestable_slots[
-                            action_enc - len(self.dstc2_acts_usr)],
-                        Operator.EQ,
-                        '')])]
-
-            if action_enc < len(self.dstc2_acts_usr) + \
-                    len(self.requestable_slots) + \
-                    len(self.system_requestable_slots):
-                return [DialogueAct(
-                    'inform',
-                    [DialogueActItem(
-                        self.system_requestable_slots[
-                            action_enc - len(self.dstc2_acts_usr) -
-                            len(self.requestable_slots)], Operator.EQ, '')])]
+        if action_enc < len(self.dstc2_acts_sys) + \
+                len(self.system_requestable_slots) + \
+                len(self.requestable_slots):
+            index = \
+                action_enc - len(self.dstc2_acts_sys) - \
+                len(self.system_requestable_slots)
+            return [DialogueAct(
+                'inform',
+                [DialogueActItem(
+                    self.requestable_slots[index], Operator.EQ, '')])]
 
     def train(self, dialogues):
-        """
-        Train the model using Q-learning.
 
-        :param dialogues: a list dialogues, which is a list of dialogue turns
-                          (state, action, reward triplets).
-        :return:
-        """
-        self.warmup_mode = True
-        self.logger.info('Train Q with {} dialogues'.format(len(dialogues)))
         for k,dialogue in enumerate(dialogues):
-            # if k>50:
-            #     self.warmup_mode = False
-            if len(dialogue) > 1:
-                dialogue[-2]['reward'] = dialogue[-1]['reward'] # TODO(tilo): why is this done?
-
+            state, ep_reward = env.reset(), 0
+            exp = []
             for turn in dialogue:
                 state_enc = self.encode_state(turn['state'])
-                new_state_enc = self.encode_state(turn['new_state'])
                 action_enc = self.encode_action(turn['action'])
 
-                if action_enc < 0:
-                    continue
-
-                if state_enc not in self.Q:
-                    self.Q[state_enc] = {}
-
-                if action_enc not in self.Q[state_enc]:
-                    self.Q[state_enc][action_enc] = 0
-
-                max_q = 0
-                if new_state_enc in self.Q:
-                    max_q = max(self.Q[new_state_enc].values())
-
-                new_q = self.alpha * (turn['reward'] +
-                                      self.gamma * max_q -
-                                      self.Q[state_enc][action_enc])
-
-                # self.logger.debug('Old q: {}, New q: {}, Diff: {}'.format(self.Q[state_enc][action_enc], new_q,
-                #                                                          new_q - self.Q[state_enc][action_enc]))
-
-                self.Q[state_enc][action_enc] += new_q
-
-                # count update of Q
-                if state_enc not in self.Q_info:
-                    self.Q_info[state_enc] = {}
-                if action_enc not in self.Q_info[state_enc]:
-                    self.Q_info[state_enc][action_enc] = 0
-                self.Q_info[state_enc][action_enc] += 1
-
-        # Decay learning rate
-        if self.alpha > 0.001:
-            self.alpha *= self.alpha_decay
+                action, log_probs = self.agent(state)
+                state, reward, done, _ = env.step(action)
+                exp.append((action, log_probs, reward))
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
@@ -380,91 +349,8 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
 
         self.logger.debug('Q-Learning factors: [alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
 
-    def decay_epsilon(self):
-        """
-        Decays epsilon (exploration rate) by epsilon decay.
-
-         Decays epsilon (exploration rate) by epsilon decay.
-         If epsilon is already less or equal compared to epsilon_min,
-         the call of this method has no effect.
-
-        :return:
-        """
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
-
     def save(self, path=None):
-        """
-        Save the Q learning policy model
-
-        :param path: the path to save the model to
-        :return: nothing
-        """
-
-        # Don't save if not training
-        if not self.is_training:
-            return
-
-        if not path:
-            path = 'Models/Policies/q_policy.pkl'
-            self.logger.warning('No policy file name provided. Using default: {0}'.format(path))
-
-        obj = {'Q': self.Q,
-               'a': self.alpha,
-               'e': self.epsilon,
-               'e_decay': self.epsilon_decay,
-               'e_min': self.epsilon_min,
-               'g': self.gamma,
-               'i': self.Q_info}
-
-        with open(path, 'wb') as file:
-            pickle.dump(obj, file, pickle.HIGHEST_PROTOCOL)
+        pass
 
     def load(self, path=None):
-        """
-        Loads the Q learning policy model
-
-        :param path: the path to load the model from
-        :return: nothing
-        """
-
-        self.logger.info('Load policy model.'.format(path))
-
-        if not path:
-            self.logger.warning('No policy loaded.')
-            return
-
-        if isinstance(path, str):
-            if os.path.isfile(path):
-                with open(path, 'rb') as file:
-                    obj = pickle.load(file)
-
-                    if 'Q' in obj:
-                        self.Q = obj['Q']
-                        self.logger.debug('Number of states in Q: {}'.format(len(self.Q)))
-                        actions = set()
-                        for k, v in self.Q.items():
-                            actions.update(list(v.keys()))
-                        self.logger.debug('Q contains {} distinct actions: {}'.format(len(actions), actions))
-                    if 'a' in obj:
-                        self.alpha = obj['a']
-                        self.logger.debug('Alpha from loaded policy: {}'.format(obj['a']))
-                    if 'e' in obj:
-                        self.epsilon = obj['e']
-                        self.logger.debug('Epsilon from loaded policy: {}'.format(obj['e']))
-                    if 'e_decay' in obj:
-                        self.epsilon_decay = obj['e_decay']
-                    if 'e_min' in obj:
-                        self.epsilon_min = obj['e_min']
-                    if 'g' in obj:
-                        self.gamma = obj['g']
-                        self.logger.debug('Gamma from loaded policy: {}'.format(obj['g']))
-                    if 'i' in obj:
-                        self.Q_info = obj['i']
-
-                    self.logger.info('Q DialoguePolicy loaded from {0}.'.format(path))
-
-            else:
-                self.logger.warning('Warning! Q DialoguePolicy file {} not found'.format(path))
-        else:
-            self.logger.warning('Unacceptable value for Q policy file name: {} '.format(path))
+        pass
