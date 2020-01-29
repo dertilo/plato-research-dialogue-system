@@ -83,7 +83,12 @@ class PyTorchReinforcePolicy(QPolicy):
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
         if self.is_training and random.random() < self.epsilon:
-            sys_acts = self.warmup_policy.next_action(state)
+            if random.random() < 0.5:
+                sys_acts = self.warmup_policy.next_action(state)
+            else:
+                sys_acts = self.decode_action(
+                    random.choice(range(0, self.NActions)))
+
         else:
             state_enc = self.encode_state(state)
             action, _ = self.agent.step(numpy.array(state_enc, dtype=numpy.int64))
