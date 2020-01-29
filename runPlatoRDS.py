@@ -425,26 +425,26 @@ def run_controller(args):
 
         statistics = {}
 
-        try:
-            if interaction_mode in ['simulation', 'text', 'speech']:
-                # YAML version
-                statistics = controller.run_single_agent(
-                    cfg_parser, dialogues)
+        # try:
+        if interaction_mode in ['simulation', 'text', 'speech']:
+            # YAML version
+            statistics = controller.run_single_agent(
+                cfg_parser, dialogues)
 
-            elif interaction_mode == 'multi_agent':
-                # YAML version
-                statistics = controller.run_multi_agent(
-                    cfg_parser, dialogues, num_agents)
+        elif interaction_mode == 'multi_agent':
+            # YAML version
+            statistics = controller.run_multi_agent(
+                cfg_parser, dialogues, num_agents)
 
-            else:
-                msg = 'Unknown interaction mode: {0}'.format(interaction_mode)
-                ValueError(msg)
-                return -1
-
-        except (ValueError, FileNotFoundError, TypeError, AttributeError) \
-                as err:
-            module_logger.error('\nPlato error! {0}\n'.format(err))
+        else:
+            msg = 'Unknown interaction mode: {0}'.format(interaction_mode)
+            ValueError(msg)
             return -1
+
+        # except (ValueError, FileNotFoundError, TypeError, AttributeError) \
+        #         as err:
+        #     module_logger.error('\nPlato error! {0}\n'.format(err))
+        #     return -1
 
     pprint(f'Results:\n{statistics}')
     return 0
@@ -472,19 +472,24 @@ if __name__ == '__main__':
 
     clean_dir('logs')
     clean_dir('policies')
+    if os.path.isfile('/tmp/agent'):
+        os.remove('/tmp/agent')
 
-    config_file = 'train_q_learning.yaml'
-    # train_config = 'eval_q_learning.yaml'
+    # config_file = 'train_q_learning.yaml'
+    config_file = 'train_dl_reinforce.yaml'
     arguments = arg_parse(['','f', ('configs/%s' % config_file)])
     arguments['dialogues']=100
     run_controller(arguments)
 
-    config_file = 'eval_q_learning.yaml'
+    config_file = 'eval_dl_reinforce.yaml'
+    # config_file = 'eval_q_learning.yaml'
     arguments = arg_parse(['','f', ('configs/%s' % config_file)])
-    arguments['dialogues']=1000
+    arguments['dialogues']=100
+    # arguments['cfg_parser']['GENERAL']['print_level'] = 'debug'
     run_controller(arguments)
 
     '''
+    ### q-learning ###
     100it [00:15,  6.42it/s[{'dialogue': 99, 'success-rate': 0.84, 'eps': 0.7674635923780313}]]
     ('Results:\n'
      "{'AGENT_0': {'dialogue_success_percentage': 100.0, 'avg_cumulative_rewards': "
