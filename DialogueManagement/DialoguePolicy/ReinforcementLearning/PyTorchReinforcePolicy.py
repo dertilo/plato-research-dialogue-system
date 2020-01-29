@@ -188,8 +188,6 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
         self.optimizer.step()
         losses.append(policy_loss.data.numpy())
 
-        print('loss: %0.2f'%numpy.mean(losses))
-
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
@@ -198,12 +196,12 @@ class PyTorchReinforcePolicy(DialoguePolicy.DialoguePolicy):
         self.logger.debug('Q-Learning factors: [alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))
 
     def save(self, path=None):
-        torch.save(self.agent.state_dict(), path+'/agent.pth')
+        torch.save(self.agent.state_dict(), path)
         # self.agent=None
         # pickle.dump(self,path+'/pytorch_policy.pkl')
 
     def load(self, path=None):
-        if os.path.isfile(path+'/agent.pth'):
+        if os.path.isfile(path):
             agent = PolicyAgent(STATE_DIM, self.NActions)
-            agent.load_state_dict(torch.load(path+'/agent.pth'))
+            agent.load_state_dict(torch.load(path))
             self.agent = agent
