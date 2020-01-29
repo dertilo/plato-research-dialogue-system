@@ -294,9 +294,9 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         if state.last_sys_acts:
             temp += \
                 [int(b) for b in
-                 format(self.encode_action([state.last_sys_acts[0]]), '04b')]
+                 format(self.encode_action([state.last_sys_acts[0]]), '05b')]
         else:
-            temp += [0, 0, 0, 0]
+            temp += [0, 0, 0, 0, 0]
 
         # If the agent plays the role of the user it needs access to its own
         # goal
