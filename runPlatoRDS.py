@@ -314,7 +314,7 @@ def arg_parse(args=None):
     # Parse arguments
     if len(arg_vec) < 3:
         module_logger.warning('WARNING: No configuration file provided.')
-        arg_vec+=['-config','Examples/config/CamRest_MA_train_acts.yaml']
+        arg_vec+=['-config','configs/train_dl_pytorch_reinforce.yaml']
 
     test_mode = arg_vec[1] == '-t'
 
@@ -445,6 +445,9 @@ if __name__ == '__main__':
     
     Remember, Plato runs with Python 3.6
     """
+    base_path = '../alex-plato/experiments/exp_09'
+    os.chdir('%s' % base_path)
+
     arguments = arg_parse()
 
     if 'test_mode' in arguments and arguments['test_mode']:
