@@ -500,4 +500,15 @@ if __name__ == '__main__':
      "{'AGENT_0': {'dialogue_success_percentage': 98.3, 'avg_cumulative_rewards': "
      "19.136249999999983, 'avg_turns': 11.118, "
      "'objective_task_completion_percentage': 98.3}}")
+     
+     ### pytorch REINFORCE ###
+         100it [00:17,  5.77it/s[{'dialogue': 99, 'success-rate': 0.84, 'eps': 0.0852575903343082}]]
+    ('Results:\n'
+     "{'AGENT_0': {'dialogue_success_percentage': 84.0, 'avg_cumulative_rewards': "
+     "16.078999999999994, 'avg_turns': 12.06, "
+     "'objective_task_completion_percentage': 80.0}}")
+    100it [00:15,  7.18it/s[{'dialogue': 99, 'success-rate': 0.84, 'eps': 0.95}]]
+    ('Results:\n'
+     "{'AGENT_0': {'dialogue_success_percentage': 96.0, 'avg_cumulative_rewards': "
+     "18.6035, 'avg_turns': 12.09, 'objective_task_completion_percentage': 49.0}}")
     '''
