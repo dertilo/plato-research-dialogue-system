@@ -8,9 +8,11 @@ You may obtain a copy of the License at the root directory of this project.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from sklearn import preprocessing
+from typing import List
+
 from Dialogue.State import SlotFillingDialogueState
-from DialogueManagement.DialoguePolicy.dialogue_common import encode_state, \
-    encode_action, decode_action, Domain, setup_domain
+from DialogueManagement.DialoguePolicy.dialogue_common import Domain, setup_domain
 
 __author__ = "Alexandros Papangelis"
 
@@ -99,6 +101,11 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         self.domain = setup_domain(self.ontology)
         self.NActions = self.domain.NActions
 
+        self.enc_sys = preprocessing.OneHotEncoder()
+        self.enc_sys.fit([[x] for x in self.domain.dstc2_acts_sys+self.domain.system_requestable_slots])
+        self.enc_usr = preprocessing.OneHotEncoder()
+        self.enc_usr.fit([[x] for x in self.domain.dstc2_acts_usr+self.domain.requestable_slots])
+
 
     def initialize(self, **kwargs):
         """
@@ -176,16 +183,99 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
 
         return sys_acts
 
+    def encode_state_binary(self,state: SlotFillingDialogueState, d: Domain):
+
+        def encode_item_in_focus(state):
+            # If the agent is a system, then this shows what the top db result is.
+            # If the agent is a user, then this shows what information the
+            # system has provided
+            out = []
+            if state.item_in_focus:
+                for slot in d.requestable_slots:
+                    if slot in state.item_in_focus and state.item_in_focus[slot]:
+                        out.append(1)
+                    else:
+                        out.append(0)
+            else:
+                out = [0] * len(d.requestable_slots)
+            return out
+
+        def encode_db_matches_ratio(state):
+            if state.db_matches_ratio >= 0:
+                out = [int(b) for b in
+                       format(int(round(state.db_matches_ratio, 2) * 100), '07b')]
+            else:
+                # If the number is negative (should not happen in general) there
+                # will be a minus sign
+                out = [int(b) for b in
+                       format(int(round(state.db_matches_ratio, 2) * 100),
+                              '07b')[1:]]
+            assert len(out) == 7
+            return out
+
+        def encode_user_acts(state):
+            if state.user_acts:
+                return self.encode_action(state.user_acts,system=False)
+            else:
+                return [0, 0, 0, 0, 0]
+
+        def encode_last_sys_acts(state):
+            if state.last_sys_acts:
+                out = self.encode_action(state.last_sys_acts,system=True)
+            else:
+                out = [0, 0, 0, 0, 0]
+            assert len(out) == 5
+            return out
+
+        def encode_slots_filled_values(state):
+            out = []
+            for value in state.slots_filled.values():
+                # This contains the requested slot
+                out.append(1) if value else out.append(0)
+            assert len(out) == 6
+            return out
+
+        # --------------------------------------------------------------------------
+        temp = []
+
+        temp += [int(b) for b in format(state.turn, '06b')]
+
+        temp += encode_slots_filled_values(state)
+
+        for slot in d.requestable_slots:
+            temp.append(1) if slot == state.requested_slot else temp.append(0)
+
+        temp.append(int(state.is_terminal_state))
+
+        temp += encode_item_in_focus(state)
+        temp += encode_db_matches_ratio(state)
+        temp.append(1) if state.system_made_offer else temp.append(0)
+        temp += encode_user_acts(state)
+        temp += encode_last_sys_acts(state)
+
+        # assert len(temp) == STATE_DIM
+        return temp
+
     def encode_state(self, state:SlotFillingDialogueState):
-        temp = encode_state(state, self.domain)
+        temp = self.encode_state_binary(state, self.domain)
         state_enc = sum([2 ** k for k, b in enumerate(reversed(temp)) if b == 1])
         return state_enc
 
-    def encode_action(self, actions, system=True):
-        return encode_action(actions,system,self.domain)
+    def encode_action(self, actions:List[DialogueAct], system=True):
+        intent = actions[0].intent
+        slots = [p.slot for p in actions[0].params]
+        if system:
+            enc = self.enc_sys.transform([[intent]+slots])[0]
+        else:
+            enc = self.enc_usr.transform([[intent]+slots])[0]
+        return enc
 
     def decode_action(self, action_enc):
-        return decode_action(action_enc,self.domain)
+        labels = self.enc_sys.inverse_transform(action_enc).tolist()[0]
+        intent = next(filter(lambda x:x in self.domain.dstc2_acts_sys,labels))
+        slots = labels.pop(intent)
+        dact = DialogueAct(intent,[DialogueActItem(slot, Operator.EQ, '') for slot in slots])
+        return dact
 
     def train(self, dialogues):
         """
