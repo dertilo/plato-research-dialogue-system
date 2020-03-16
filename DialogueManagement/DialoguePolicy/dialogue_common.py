@@ -1,3 +1,4 @@
+import random
 from copy import deepcopy
 from typing import NamedTuple, List
 
@@ -44,3 +45,34 @@ def setup_domain(ontology):
 
     return Domain(['inform','request'],dstc2_acts_sys, dstc2_acts_usr,
                          system_requestable_slots, requestable_slots,NActions)
+
+def pick_some(x,num_min,num_max):
+    num_to_pick = random.randint(num_min,num_max)
+    random.shuffle(x)
+    return x[:num_to_pick]
+
+def create_random_dialog_act(domain:Domain,is_system=True):
+    acts = []
+    if is_system:
+        inform_slots = domain.requestable_slots
+        request_slots = domain.system_requestable_slots
+    else:
+        inform_slots = domain.system_requestable_slots
+        request_slots = domain.requestable_slots
+
+    intent_p = random.choice(domain.acts_params+[None])
+    if intent_p is not None:
+        if intent_p == 'inform':
+            slots = pick_some(inform_slots,1,3)
+        elif intent_p == 'request':
+            slots = pick_some(request_slots,1,3)
+        else:
+            assert False
+        act = DialogueAct(intent_p,params=[DialogueActItem(slot,Operator.EQ,None) for slot in slots])
+        acts.append(act)
+
+    if is_system:
+        intens_w = random.randint(0,len(domain.dstc2_acts_sys))
+    else:
+        intens_w = random.randint(0,len(domain.dstc2_acts_usr))
+    acts.extend([DialogueAct(i) for i in intens_w])
