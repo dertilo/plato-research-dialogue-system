@@ -190,7 +190,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
             if self.print_level in ['debug']:
                 print('---: Selecting random action')
             sys_acts = create_random_dialog_act(self.domain, is_system=True)
-
+        assert sys_acts is not None
         return sys_acts
 
 
@@ -312,7 +312,9 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                'e_decay': self.epsilon_decay,
                'e_min': self.epsilon_min,
                'g': self.gamma,
-               'i': self.Q_info}
+               'i': self.Q_info,
+               'hash2actions':self.hash2actions
+               }
 
         with open(path, 'wb') as file:
             pickle.dump(obj, file, pickle.HIGHEST_PROTOCOL)
@@ -358,6 +360,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                         self.logger.debug('Gamma from loaded policy: {}'.format(obj['g']))
                     if 'i' in obj:
                         self.Q_info = obj['i']
+                    if 'hash2actions' in obj:
+                        self.hash2actions = obj['hash2actions']
 
                     self.logger.info('Q DialoguePolicy loaded from {0}.'.format(path))
 

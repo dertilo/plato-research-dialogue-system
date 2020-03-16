@@ -72,7 +72,8 @@ def create_random_dialog_act(domain:Domain,is_system=True):
         acts.append(act)
 
     if is_system:
-        intens_w = random.randint(0,len(domain.dstc2_acts_sys))
+        intens_w = pick_some(domain.dstc2_acts_sys,0,3)
     else:
-        intens_w = random.randint(0,len(domain.dstc2_acts_usr))
+        intens_w = pick_some(domain.dstc2_acts_usr,0,3)
     acts.extend([DialogueAct(i) for i in intens_w])
+    return acts
