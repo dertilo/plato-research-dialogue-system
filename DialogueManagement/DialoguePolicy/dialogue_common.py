@@ -7,6 +7,7 @@ from Dialogue.State import SlotFillingDialogueState
 STATE_DIM = 45
 
 class Domain(NamedTuple):
+    acts_params:List[str]=['inform','request']
     dstc2_acts_sys:List[str] = None
     dstc2_acts_usr:List[str] = None
     system_requestable_slots:List[str] = None
@@ -41,5 +42,5 @@ def setup_domain(ontology):
         system_requestable_slots)  # system request with certain slots
     NActions += len(requestable_slots)  # system inform with certain slot
 
-    return Domain(dstc2_acts_sys, dstc2_acts_usr,
+    return Domain(['inform','request'],dstc2_acts_sys, dstc2_acts_usr,
                          system_requestable_slots, requestable_slots,NActions)
