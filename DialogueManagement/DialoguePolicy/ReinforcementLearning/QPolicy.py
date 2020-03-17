@@ -199,9 +199,15 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         del temp.context
         del temp.system_requestable_slot_entropies
         del temp.db_result
+        temp.db_matches_ratio = int(round(temp.db_matches_ratio, 2) * 100)
+        if temp.last_sys_acts is not None:
+            temp.last_sys_acts = {temp.last_sys_acts[0].intent:[p.slot for p in temp.last_sys_acts[0].params]}
+            temp.user_acts = {temp.user_acts[0].intent:[p.slot for p in temp.user_acts[0].params]}
+
         d = todict(temp)
         assert d is not None
         d['item_in_focus'] = [k for k in self.domain.requestable_slots if d['item_in_focus'] is not None and d['item_in_focus'].get(k,None) is not None]
+        # pprint.pprint(d)
         s = json.dumps(d)
         state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 16)
         return state_enc
