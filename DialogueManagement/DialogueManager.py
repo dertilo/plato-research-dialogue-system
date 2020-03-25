@@ -177,7 +177,7 @@ class DialogueManager(ConversationalModule):
                    'exploration_decay_rate':'epsilon_decay',
                    'min_exploration_rate':'epsilon_min'}
         policy_params = {key_map[k]:float(v) for k,v in args['policy'].items() if k in key_map}
-        policy_params.update({k:v for k,v in args['policy'] if k not in key_map})
+        policy_params.update({k:v for k,v in args['policy'].items() if k not in key_map})
 
         # initialize the policy (depending on the configured policy type)
         if args['policy']['type'] == 'handcrafted':
