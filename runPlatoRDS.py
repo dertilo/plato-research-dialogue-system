@@ -467,7 +467,7 @@ if __name__ == '__main__':
     
     Remember, Plato runs with Python 3.6
     """
-    base_path = '../alex-plato/experiments/exp_04'
+    base_path = '../alex-plato/experiments/exp_09'
     chdir('%s' % base_path)
 
     clean_dir('logs')
@@ -475,14 +475,14 @@ if __name__ == '__main__':
     if os.path.isfile('/tmp/agent'):
         os.remove('/tmp/agent')
 
-    # config_file = 'train_q_learning.yaml'
-    config_file = 'train_dl_reinforce.yaml'
+    config_file = 'train_q_learning.yaml'
+    # config_file = 'train_dl_reinforce.yaml'
     arguments = arg_parse(['','f', ('configs/%s' % config_file)])
-    arguments['dialogues']=100
+    arguments['dialogues']=200
     run_controller(arguments)
 
-    config_file = 'eval_dl_reinforce.yaml'
-    # config_file = 'eval_q_learning.yaml'
+    # config_file = 'eval_dl_reinforce.yaml'
+    config_file = 'eval_q_learning.yaml'
     arguments = arg_parse(['','f', ('configs/%s' % config_file)])
     arguments['dialogues']=100
     # arguments['cfg_parser']['GENERAL']['print_level'] = 'debug'
