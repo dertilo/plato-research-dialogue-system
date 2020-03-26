@@ -476,12 +476,12 @@ if __name__ == '__main__':
         os.remove('/tmp/agent')
 
     config_file = 'train_q_learning.yaml'
-    # config_file = 'train_dl_pytorch_reinforce.yaml'
+    # config_file = 'train_dl_reinforce.yaml'
     arguments = arg_parse(['','f', ('configs/%s' % config_file)])
     arguments['dialogues']=200
     run_controller(arguments)
 
-    # config_file = 'eval_dl_pytorch_reinforce.yaml'
+    # config_file = 'eval_dl_reinforce.yaml'
     config_file = 'eval_q_learning.yaml'
     arguments = arg_parse(['','f', ('configs/%s' % config_file)])
     arguments['dialogues']=100

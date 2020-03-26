@@ -170,25 +170,14 @@ class DialogueManager(ConversationalModule):
             return
 
         # collect all (potential) parameters
-        policy_params = dict()
-
-        if 'learning_rate' in args['policy']:
-            policy_params['alpha'] = float(args['policy']['learning_rate'])
-
-        if 'discount_factor' in args['policy']:
-            policy_params['gamma'] = float(args['policy']['discount_factor'])
-
-        if 'exploration_rate' in args['policy']:
-            policy_params['epsilon'] = float(args['policy']['exploration_rate'])
-
-        if 'learning_decay_rate' in args['policy']:
-            policy_params['alpha_decay'] = float(args['policy']['learning_decay_rate'])
-
-        if 'exploration_decay_rate' in args['policy']:
-            policy_params['epsilon_decay'] = float(args['policy']['exploration_decay_rate'])
-
-        if 'min_exploration_rate' in args['policy']:
-            policy_params['epsilon_min'] = float(args['policy']['min_exploration_rate'])
+        key_map = {'learning_rate':'alpha',
+                   'discount_factor':'gamma',
+                   'exploration_rate':'epsilon',
+                   'learning_decay_rate':'alpha_decay',
+                   'exploration_decay_rate':'epsilon_decay',
+                   'min_exploration_rate':'epsilon_min'}
+        policy_params = {key_map[k]:float(v) for k,v in args['policy'].items() if k in key_map}
+        policy_params.update({k:v for k,v in args['policy'].items() if k not in key_map})
 
         # initialize the policy (depending on the configured policy type)
         if args['policy']['type'] == 'handcrafted':

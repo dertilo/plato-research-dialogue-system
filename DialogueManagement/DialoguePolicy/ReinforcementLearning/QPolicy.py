@@ -63,7 +63,9 @@ def todict(obj, classkey=None):
 class QPolicy(DialoguePolicy.DialoguePolicy):
     def __init__(self, ontology, database, agent_id=0, agent_role='system',
                  domain=None, alpha=0.95, epsilon=0.95,
-                 gamma=0.15, alpha_decay=0.995, epsilon_decay=0.995, print_level='debug', epsilon_min=0.05):
+                 gamma=0.15, alpha_decay=0.995, epsilon_decay=0.995, print_level='debug', epsilon_min=0.05,
+                 **kwargs
+                 ):
         """
         Initialize parameters and internal structures
 
