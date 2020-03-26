@@ -202,7 +202,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         del temp.system_requestable_slot_entropies
         del temp.db_result
         temp.db_matches_ratio = int(round(temp.db_matches_ratio, 2) * 100)
-        temp.slots_filled = [s for s in self.domain.requestable_slots if s in temp.item_in_focus and temp.item_in_focus[s] is not None]
+        temp.slots_filled = [s for s,v in temp.slots_filled.items() if v is not None]
         if temp.last_sys_acts is not None:
             temp.last_sys_acts = self._action_to_string(temp.last_sys_acts,system=True)
             temp.user_acts = self._action_to_string(temp.user_acts,system=False)
