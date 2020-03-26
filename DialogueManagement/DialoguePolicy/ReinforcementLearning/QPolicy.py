@@ -202,9 +202,10 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         del temp.system_requestable_slot_entropies
         del temp.db_result
         temp.db_matches_ratio = int(round(temp.db_matches_ratio, 2) * 100)
+        temp.slots_filled = [s for s in self.domain.requestable_slots if s in temp.item_in_focus and temp.item_in_focus[s] is not None]
         if temp.last_sys_acts is not None:
-            temp.last_sys_acts = {temp.last_sys_acts[0].intent:[p.slot for p in temp.last_sys_acts[0].params]}
-            temp.user_acts = {temp.user_acts[0].intent:[p.slot for p in temp.user_acts[0].params]}
+            temp.last_sys_acts = self._action_to_string(temp.last_sys_acts,system=True)
+            temp.user_acts = self._action_to_string(temp.user_acts,system=False)
 
         d = todict(temp)
         assert d is not None
@@ -214,13 +215,21 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 16)
         return state_enc
 
-    def encode_action(self, actions:List[DialogueAct], system=True):
-        sys_usr = 'sys' if system else 'usr'
-        dicts = [json.dumps(todict(a)) for a in actions]
-        s = sys_usr+';'.join(dicts)
+    def encode_action(self, acts:List[DialogueAct], system=True):
+        s = self._action_to_string(acts, system)
         enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 16)
-        self.hash2actions[enc]=actions
+        self.hash2actions[enc]=acts
         return enc
+
+    def _action_to_string(self, acts, system):
+        sys_usr = 'sys' if system else 'usr'
+
+        def extract_features_from_act(act: DialogueAct):
+            return (act.intent, [p.slot for p in act.params])
+
+        strings = [json.dumps(extract_features_from_act(a)) for a in acts]
+        s = sys_usr + ';'.join(strings)
+        return s
 
     def decode_action(self, action_enc):
         return self.hash2actions[action_enc]
