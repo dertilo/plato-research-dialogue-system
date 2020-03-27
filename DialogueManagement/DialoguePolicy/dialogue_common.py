@@ -60,20 +60,20 @@ def create_random_dialog_act(domain:Domain,is_system=True):
         inform_slots = domain.system_requestable_slots
         request_slots = domain.requestable_slots
 
-    intent_p = random.choice(domain.acts_params+[None])
+    intent_p = random.choice(domain.acts_params)
     if intent_p is not None:
         if intent_p == 'inform':
-            slots = pick_some(inform_slots,1,3)
+            slots = pick_some(inform_slots,1,1)
         elif intent_p == 'request':
-            slots = pick_some(request_slots,1,3)
+            slots = pick_some(request_slots,1,1)
         else:
             assert False
         act = DialogueAct(intent_p,params=[DialogueActItem(slot,Operator.EQ,None) for slot in slots])
         acts.append(act)
 
-    if is_system:
-        intens_w = pick_some(domain.dstc2_acts_sys,0,3)
-    else:
-        intens_w = pick_some(domain.dstc2_acts_usr,0,3)
-    acts.extend([DialogueAct(i) for i in intens_w])
+    # if is_system:
+    #     intens_w = pick_some(domain.dstc2_acts_sys,0,3)
+    # else:
+    #     intens_w = pick_some(domain.dstc2_acts_usr,0,3)
+    # acts.extend([DialogueAct(i) for i in intens_w])
     return acts
