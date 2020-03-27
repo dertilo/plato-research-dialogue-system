@@ -101,6 +101,9 @@ class Controller(object):
 
                 Controller.update_progress_bar(ca, dialogue, pbar, running_factor)
 
+        print(len(ca.dialogue_manager.policy.Q.keys()))
+        print(ca.dialogue_manager.policy.counter)
+
         # Collect statistics
         statistics = {'AGENT_0': {}}
         
@@ -478,7 +481,7 @@ if __name__ == '__main__':
     config_file = 'train_q_learning.yaml'
     # config_file = 'train_dl_reinforce.yaml'
     arguments = arg_parse(['','f', ('configs/%s' % config_file)])
-    arguments['dialogues']=200
+    arguments['dialogues']=100
     run_controller(arguments)
 
     # config_file = 'eval_dl_reinforce.yaml'

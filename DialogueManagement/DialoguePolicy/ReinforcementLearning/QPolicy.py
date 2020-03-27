@@ -140,6 +140,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         if 'agent_role' in kwargs:
             self.agent_role = kwargs['agent_role']
 
+        self.counter = {'warmup':0,'learned':0,'random':0}
+
     def restart(self, args):
         """
         Nothing to do here.
@@ -175,7 +177,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                     self.warmup_simulator.receive_input(
                         state.user_acts, state.user_goal)
                     sys_acts = self.warmup_simulator.respond()
-
+                self.counter['warmup']+=1
             else:
                 # Return a random action
                 if self.print_level in ['debug']:
@@ -187,11 +189,13 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
             sys_acts = self.decode_action(max(self.Q[state_enc],
                                               key=self.Q[state_enc].get),
                                           )
+            self.counter['learned'] += 1
         else:
             # Return a random action
             if self.print_level in ['debug']:
                 print('---: Selecting random action')
             sys_acts = create_random_dialog_act(self.domain, is_system=True)
+            self.counter['random'] += 1
         assert sys_acts is not None
         return sys_acts
 
@@ -201,6 +205,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         del temp.context
         del temp.system_requestable_slot_entropies
         del temp.db_result
+        del temp.dialogStateUuid
+        del temp.user_goal
         temp.db_matches_ratio = int(round(temp.db_matches_ratio, 2) * 100)
         temp.slots_filled = [s for s,v in temp.slots_filled.items() if v is not None]
         if temp.last_sys_acts is not None:
@@ -212,12 +218,12 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         d['item_in_focus'] = [k for k in self.domain.requestable_slots if d['item_in_focus'] is not None and d['item_in_focus'].get(k,None) is not None]
         # pprint.pprint(d)
         s = json.dumps(d)
-        state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 16)
+        state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
         return state_enc
 
     def encode_action(self, acts:List[DialogueAct], system=True):
         s = self._action_to_string(acts, system)
-        enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 16)
+        enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
         self.hash2actions[enc]=acts
         return enc
 
