@@ -207,6 +207,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         del temp.db_result
         del temp.dialogStateUuid
         del temp.user_goal
+        del temp.slots
+        del temp.item_in_focus
         temp.db_matches_ratio = int(round(temp.db_matches_ratio, 2) * 100)
         temp.slots_filled = [s for s,v in temp.slots_filled.items() if v is not None]
         if temp.last_sys_acts is not None:
@@ -215,19 +217,18 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
 
         d = todict(temp)
         assert d is not None
-        d['item_in_focus'] = [k for k in self.domain.requestable_slots if d['item_in_focus'] is not None and d['item_in_focus'].get(k,None) is not None]
-        # pprint.pprint(d)
+        # d['item_in_focus'] = [(k,d['item_in_focus'] is not None and d['item_in_focus'].get(k,None) is not None) for k in self.domain.requestable_slots]
         s = json.dumps(d)
-        state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
-        return state_enc
+        # state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
+        return s
 
     def encode_action(self, acts:List[DialogueAct], system=True):
         s = self._action_to_string(acts, system)
-        enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
-        self.hash2actions[enc]=acts
-        return enc
+        # enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
+        self.hash2actions[s]=acts
+        return s
 
-    def _action_to_string(self, acts, system):
+    def _action_to_string(self, acts:List[DialogueAct], system):
         sys_usr = 'sys' if system else 'usr'
 
         def extract_features_from_act(act: DialogueAct):
@@ -260,9 +261,6 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                 state_enc = self.encode_state(turn['state'])
                 new_state_enc = self.encode_state(turn['new_state'])
                 action_enc = self.encode_action(turn['action'])
-
-                if action_enc < 0:
-                    continue
 
                 if state_enc not in self.Q:
                     self.Q[state_enc] = {}
