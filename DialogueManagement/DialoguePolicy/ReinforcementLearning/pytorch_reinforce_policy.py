@@ -113,7 +113,7 @@ class PyTorchReinforcePolicy(QPolicy):
     def _calc_returns(exp, gamma):
         returns = []
         R = 0
-        for action, log_prob, r in reversed(exp):
+        for log_prob, r in reversed(exp):
             R = r + gamma * R
             returns.insert(0, R)
         returns = torch.tensor(returns)
@@ -137,11 +137,11 @@ class PyTorchReinforcePolicy(QPolicy):
                 log_probs = self.agent.log_probs(
                     numpy.array(state_enc), numpy.array(action_enc)
                 )
-                exp.append((action_enc, log_probs, turn["reward"]))
+                exp.append((log_probs, turn["reward"]))
 
             returns = self._calc_returns(exp, self.gamma)
             policy_losses.extend(
-                [-log_prob * R for (_, log_prob, _), R in zip(exp, returns)]
+                [-log_prob * R for (log_prob, _), R in zip(exp, returns)]
             )
 
         policy_loss = torch.cat(policy_losses).mean()
