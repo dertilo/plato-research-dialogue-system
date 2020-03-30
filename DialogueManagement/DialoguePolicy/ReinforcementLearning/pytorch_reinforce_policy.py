@@ -7,8 +7,10 @@ from typing import List
 import numpy
 import random
 
+from sklearn import preprocessing
 from torchtext.data import Field, Example
 
+from Dialogue.Action import DialogueAct
 from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.QPolicy import QPolicy
 import torch
@@ -16,6 +18,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
+
+from DialogueManagement.DialoguePolicy.dialogue_common import create_random_dialog_act
 
 STATE_DIM = 57
 
@@ -48,6 +52,7 @@ class PolicyAgent(nn.Module):
         action_tensor = torch.from_numpy(action).float().unsqueeze(0)
         return m.log_prob(action_tensor)
 
+import json
 
 class PyTorchReinforcePolicy(QPolicy):
     def __init__(
@@ -93,14 +98,19 @@ class PyTorchReinforcePolicy(QPolicy):
         self.text_field = Field(batch_first=True, tokenize=regex_tokenizer)
         self.text_field.build_vocab(tokens+special_tokens)
 
+        self.action_enc = preprocessing.OneHotEncoder()
+        informs = [json.dumps({'inform':[x]}) for x in self.domain.requestable_slots]
+        requests = [json.dumps({'request':[x]}) for x in self.domain.system_requestable_slots]
+        self.action_enc.fit([[x] for x in informs+requests+[json.dumps({s:[]}) for s in self.domain.dstc2_acts_sys]])
+
+
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
         if self.is_training and random.random() < self.epsilon:
             if random.random() < 0.5:
                 sys_acts = self.warmup_policy.next_action(state)
             else:
-                sys_acts = self.decode_action(
-                    random.choice(range(0, self.NActions)))
+                sys_acts = create_random_dialog_act(self.domain, is_system=True)
 
         else:
             state_enc = self.encode_state(state)
@@ -123,6 +133,15 @@ class PyTorchReinforcePolicy(QPolicy):
         example = Example.fromlist([state_string], [('dialog_state',self.text_field)])
         return self.text_field.numericalize([example])
 
+    def encode_action(self, acts: List[DialogueAct], system=True) -> str:
+        jsoned = json.dumps(
+            {acts[0].intent: acts[0].params if acts[0].params is not None else []})
+        return self.action_enc.transform([[jsoned]])
+
+    def decode_action(self, action_enc):
+        x = self.action_enc.inverse_transform([action_enc])
+        #TODO(tilo)
+
     def train(self, dialogues):
         self.agent.train()
         losses = []
@@ -131,7 +150,7 @@ class PyTorchReinforcePolicy(QPolicy):
             exp = []
             for turn in dialogue:
                 state_enc = self.encode_state(turn['state'])
-                assert len(state_enc)==STATE_DIM
+                # assert len(state_enc)==STATE_DIM
                 action_enc = self.encode_action(turn["action"])
 
                 log_probs = self.agent.log_probs(
