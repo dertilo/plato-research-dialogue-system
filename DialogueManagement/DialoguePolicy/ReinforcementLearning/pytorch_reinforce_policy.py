@@ -1,9 +1,13 @@
 import os
+import re
 import shutil
 from os import chdir
+from typing import List
 
 import numpy
 import random
+
+from torchtext.data import Field, Example
 
 from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.QPolicy import QPolicy
@@ -60,6 +64,7 @@ class PyTorchReinforcePolicy(QPolicy):
         epsilon_decay=0.995,
         print_level="debug",
         epsilon_min=0.05,
+        **kwargs
     ):
         gamma = 0.99
         super().__init__(
@@ -79,6 +84,14 @@ class PyTorchReinforcePolicy(QPolicy):
 
         self.agent: PolicyAgent = PolicyAgent(STATE_DIM, self.NActions)
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
+        tokens = [v for vv in self.domain._asdict().values() if isinstance(vv,list) for v in vv]
+        special_tokens = [str(k) for k in range(10)]+['.',',',';',':','"','\'','{','}','[',']','(',')']
+
+        def regex_tokenizer(text, pattern=r"(?u)(?:\b\w\w+\b|\S)") -> List[str]:
+            return [m.group() for m in re.finditer(pattern, text)]
+
+        self.text_field = Field(batch_first=True, tokenize=regex_tokenizer)
+        self.text_field.build_vocab(tokens+special_tokens)
 
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
@@ -106,11 +119,9 @@ class PyTorchReinforcePolicy(QPolicy):
         returns = torch.tensor(returns)
         return returns
 
-    def encode_state(self, state):
-        state_int = super().encode_state(state)
-        state_enc = [int(b) for b in "{0:b}".format(state_int)]
-        state_enc = [0 for _ in range(STATE_DIM - len(state_enc))] + state_enc
-        return state_enc
+    def state_string_to_tensor(self,state_string:str)->torch.LongTensor:
+        example = Example.fromlist([state_string], [('dialog_state',self.text_field)])
+        return self.text_field.numericalize([example])
 
     def train(self, dialogues):
         self.agent.train()
@@ -165,7 +176,7 @@ if __name__ == "__main__":
         os.mkdir(dir)
 
     num_dialogues = 32
-    base_path = '../../../../alex-plato/experiments/exp_04'
+    base_path = '../../../../alex-plato/experiments/exp_09'
 
     chdir('%s' % base_path)
 
