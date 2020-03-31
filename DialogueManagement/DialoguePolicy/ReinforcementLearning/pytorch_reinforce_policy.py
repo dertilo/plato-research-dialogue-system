@@ -125,11 +125,10 @@ class PyTorchReinforcePolicy(QPolicy):
         self.text_field = Field(batch_first=True, tokenize=regex_tokenizer)
         self.text_field.build_vocab(tokens+special_tokens)
 
-        self.action_enc = preprocessing.OneHotEncoder(sparse=False)
+        self.action_enc = preprocessing.LabelEncoder()
         informs = [json.dumps({'inform':[x]}) for x in self.domain.requestable_slots]
         requests = [json.dumps({'request':[x]}) for x in self.domain.system_requestable_slots]
         self.action_enc.fit([[x] for x in informs+requests+[json.dumps({s:[]}) for s in self.domain.dstc2_acts_sys]])
-
 
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
@@ -179,8 +178,8 @@ class PyTorchReinforcePolicy(QPolicy):
 
     def decode_action(self, action_enc):
         x = self.action_enc.inverse_transform([action_enc])
-        d = json.loads(x)
-        acts = [DialogueAct(intent,params=[DialogueActItem(slot,Operator.EQ,'') for slot in slots]) for intent,slots in d]
+        dicts = {k:v for d in (json.loads(s) for s in x) for k,v in d.items()}
+        acts = [DialogueAct(intent,params=[DialogueActItem(slot,Operator.EQ,'') for slot in slots]) for intent,slots in dicts.items()]
         return acts
 
     def train(self, dialogues):
