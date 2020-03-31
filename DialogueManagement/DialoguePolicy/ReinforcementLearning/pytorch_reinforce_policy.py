@@ -23,11 +23,9 @@ from DialogueManagement.DialoguePolicy.dialogue_common import create_random_dial
 
 STATE_DIM = 57
 
+
 class PolicyAgent(nn.Module):
-    def __init__(self, vocab_size, num_actions,
-                 hidden_dim=64,
-                 embed_dim=32,
-                 ) -> None:
+    def __init__(self, vocab_size, num_actions, hidden_dim=64, embed_dim=32,) -> None:
         super().__init__()
 
         self.embedding = nn.Embedding(vocab_size, embed_dim)
@@ -48,9 +46,7 @@ class PolicyAgent(nn.Module):
                 stride=2,
             ),
             nn.ELU(),
-            nn.Conv1d(
-                in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3
-            ),
+            nn.Conv1d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3),
             nn.ELU(),
         )
         self.pooling = nn.AdaptiveAvgPool1d(1)
@@ -59,10 +55,10 @@ class PolicyAgent(nn.Module):
 
     def forward(self, x):
         x = self.embedding(x)
-        x = x.transpose(2,1)
+        x = x.transpose(2, 1)
         features = self.convnet(x)
         features_pooled = self.pooling(features).squeeze(2)
-        return F.softmax(self.affine2(features_pooled),dim=1)
+        return F.softmax(self.affine2(features_pooled), dim=1)
 
     def step(self, state):
         probs = self.calc_probs(state)
@@ -79,7 +75,9 @@ class PolicyAgent(nn.Module):
         action_tensor = torch.from_numpy(action).float().unsqueeze(0)
         return m.log_prob(action_tensor)
 
+
 import json
+
 
 class PyTorchReinforcePolicy(QPolicy):
     def __init__(
@@ -116,19 +114,47 @@ class PyTorchReinforcePolicy(QPolicy):
 
         self.agent: PolicyAgent = PolicyAgent(STATE_DIM, self.NActions)
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
-        tokens = [v for vv in self.domain._asdict().values() if isinstance(vv,list) for v in vv]
-        special_tokens = [str(k) for k in range(10)]+['.',',',';',':','"','\'','{','}','[',']','(',')']
+        tokens = [
+            v
+            for vv in self.domain._asdict().values()
+            if isinstance(vv, list)
+            for v in vv
+        ]
+
+        special_tokens = [str(k) for k in range(10)] + [
+            ".",
+            ",",
+            ";",
+            ":",
+            '"',
+            "'",
+            "{",
+            "}",
+            "[",
+            "]",
+            "(",
+            ")",
+        ]
 
         def regex_tokenizer(text, pattern=r"(?u)(?:\b\w\w+\b|\S)") -> List[str]:
             return [m.group() for m in re.finditer(pattern, text)]
 
         self.text_field = Field(batch_first=True, tokenize=regex_tokenizer)
-        self.text_field.build_vocab(tokens+special_tokens)
+        self.text_field.build_vocab(tokens + special_tokens)
 
         self.action_enc = preprocessing.LabelEncoder()
-        informs = [json.dumps({'inform':[x]}) for x in self.domain.requestable_slots]
-        requests = [json.dumps({'request':[x]}) for x in self.domain.system_requestable_slots]
-        self.action_enc.fit([[x] for x in informs+requests+[json.dumps({s:[]}) for s in self.domain.dstc2_acts_sys]])
+        informs = [json.dumps({"inform": [x]}) for x in self.domain.requestable_slots]
+        requests = [
+            json.dumps({"request": [x]}) for x in self.domain.system_requestable_slots
+        ]
+        self.action_enc.fit(
+            [
+                [x]
+                for x in informs
+                + requests
+                + [json.dumps({s: []}) for s in self.domain.dstc2_acts_sys]
+            ]
+        )
 
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
@@ -156,11 +182,11 @@ class PyTorchReinforcePolicy(QPolicy):
         return returns
 
     def encode_state(self, state: SlotFillingDialogueState) -> torch.LongTensor:
-        state_string =  super().encode_state(state)
-        example = Example.fromlist([state_string], [('dialog_state',self.text_field)])
+        state_string = super().encode_state(state)
+        example = Example.fromlist([state_string], [("dialog_state", self.text_field)])
         return self.text_field.numericalize([example.dialog_state])
 
-    def _get_dialog_act_slots(self, act:DialogueAct):
+    def _get_dialog_act_slots(self, act: DialogueAct):
         if act.params is not None and act.intent in self.domain.acts_params:
             slots = [d.slot for d in act.params]
         else:
@@ -169,17 +195,23 @@ class PyTorchReinforcePolicy(QPolicy):
 
     def encode_action(self, acts: List[DialogueAct], system=True) -> str:
         # TODO(tilo): DialogueManager makes offer with many informs, these should not be encoded here!
-        if any([a.intent == 'offer' for a in acts]):
+        if any([a.intent == "offer" for a in acts]):
             acts = acts[:1]
-        assert len(acts)==1
-        d = {act.intent: self._get_dialog_act_slots(act) for act in acts }
+        assert len(acts) == 1
+        d = {act.intent: self._get_dialog_act_slots(act) for act in acts}
         jsoned = json.dumps(d)
         return self.action_enc.transform([[jsoned]])
 
     def decode_action(self, action_enc):
         x = self.action_enc.inverse_transform([action_enc])
-        dicts = {k:v for d in (json.loads(s) for s in x) for k,v in d.items()}
-        acts = [DialogueAct(intent,params=[DialogueActItem(slot,Operator.EQ,'') for slot in slots]) for intent,slots in dicts.items()]
+        dicts = {k: v for d in (json.loads(s) for s in x) for k, v in d.items()}
+        acts = [
+            DialogueAct(
+                intent,
+                params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
+            )
+            for intent, slots in dicts.items()
+        ]
         return acts
 
     def train(self, dialogues):
@@ -189,12 +221,10 @@ class PyTorchReinforcePolicy(QPolicy):
         for k, dialogue in enumerate(dialogues):
             exp = []
             for turn in dialogue:
-                x = self.encode_state(turn['state'])
+                x = self.encode_state(turn["state"])
                 # assert len(state_str)==STATE_DIM
                 action_enc = self.encode_action(turn["action"])
-                log_probs = self.agent.log_probs(
-                    x, numpy.array(action_enc)
-                )
+                log_probs = self.agent.log_probs(x, numpy.array(action_enc))
                 exp.append((log_probs, turn["reward"]))
 
             returns = self._calc_returns(exp, self.gamma)
@@ -226,22 +256,23 @@ class PyTorchReinforcePolicy(QPolicy):
 
 
 if __name__ == "__main__":
-    '''
+    """
     simple test
-    '''
+    """
+
     def clean_dir(dir):
         shutil.rmtree(dir)
         os.mkdir(dir)
 
     num_dialogues = 32
-    base_path = '../../../../alex-plato/experiments/exp_09'
+    base_path = "../../../../alex-plato/experiments/exp_09"
 
-    chdir('%s' % base_path)
+    chdir("%s" % base_path)
 
-    clean_dir('logs')
-    clean_dir('policies')
-    if os.path.isfile('/tmp/agent'):
-        os.remove('/tmp/agent')
+    clean_dir("logs")
+    clean_dir("policies")
+    if os.path.isfile("/tmp/agent"):
+        os.remove("/tmp/agent")
 
     config = {
         "GENERAL": {
@@ -293,6 +324,7 @@ if __name__ == "__main__":
         },
     }
     from ConversationalAgent.ConversationalSingleAgent import ConversationalSingleAgent
+
     ca = ConversationalSingleAgent(config)
     ca.initialize()
     ca.minibatch_length = 8
