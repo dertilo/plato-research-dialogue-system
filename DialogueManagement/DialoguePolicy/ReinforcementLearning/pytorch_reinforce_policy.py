@@ -10,7 +10,7 @@ import random
 from sklearn import preprocessing
 from torchtext.data import Field, Example
 
-from Dialogue.Action import DialogueAct
+from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.QPolicy import QPolicy
 import torch
@@ -24,16 +24,45 @@ from DialogueManagement.DialoguePolicy.dialogue_common import create_random_dial
 STATE_DIM = 57
 
 class PolicyAgent(nn.Module):
-    def __init__(self, obs_dim, num_actions, hidden_dim=1024) -> None:
+    def __init__(self, vocab_size, num_actions,
+                 hidden_dim=64,
+                 embed_dim=32,
+                 ) -> None:
         super().__init__()
-        self.affine1 = nn.Linear(obs_dim, hidden_dim)
+
+        self.embedding = nn.Embedding(vocab_size, embed_dim)
+        self.convnet = nn.Sequential(
+            nn.Conv1d(in_channels=embed_dim, out_channels=hidden_dim, kernel_size=3),
+            nn.ELU(),
+            nn.Conv1d(
+                in_channels=hidden_dim,
+                out_channels=hidden_dim,
+                kernel_size=3,
+                stride=2,
+            ),
+            nn.ELU(),
+            nn.Conv1d(
+                in_channels=hidden_dim,
+                out_channels=hidden_dim,
+                kernel_size=3,
+                stride=2,
+            ),
+            nn.ELU(),
+            nn.Conv1d(
+                in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3
+            ),
+            nn.ELU(),
+        )
+        self.pooling = nn.AdaptiveAvgPool1d(1)
+
         self.affine2 = nn.Linear(hidden_dim, num_actions)
 
     def forward(self, x):
-        x = self.affine1(x)
-        x = F.relu(x)
-        action_scores = self.affine2(x)
-        return F.softmax(action_scores, dim=1)
+        x = self.embedding(x)
+        x = x.transpose(2,1)
+        features = self.convnet(x)
+        features_pooled = self.pooling(features).squeeze(2)
+        return F.softmax(self.affine2(features_pooled),dim=1)
 
     def step(self, state):
         probs = self.calc_probs(state)
@@ -42,9 +71,7 @@ class PolicyAgent(nn.Module):
         return action.item(), m.log_prob(action)
 
     def calc_probs(self, state):
-        state = torch.from_numpy(state).float().unsqueeze(0)
-        probs = self.forward(state)
-        return probs
+        return self.forward(state)
 
     def log_probs(self, state, action):
         probs = self.calc_probs(state)
@@ -98,7 +125,7 @@ class PyTorchReinforcePolicy(QPolicy):
         self.text_field = Field(batch_first=True, tokenize=regex_tokenizer)
         self.text_field.build_vocab(tokens+special_tokens)
 
-        self.action_enc = preprocessing.OneHotEncoder()
+        self.action_enc = preprocessing.OneHotEncoder(sparse=False)
         informs = [json.dumps({'inform':[x]}) for x in self.domain.requestable_slots]
         requests = [json.dumps({'request':[x]}) for x in self.domain.system_requestable_slots]
         self.action_enc.fit([[x] for x in informs+requests+[json.dumps({s:[]}) for s in self.domain.dstc2_acts_sys]])
@@ -107,14 +134,14 @@ class PyTorchReinforcePolicy(QPolicy):
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
         if self.is_training and random.random() < self.epsilon:
-            if random.random() < 0.5:
+            if random.random() < 1.0:
                 sys_acts = self.warmup_policy.next_action(state)
             else:
                 sys_acts = create_random_dialog_act(self.domain, is_system=True)
 
         else:
             state_enc = self.encode_state(state)
-            action, _ = self.agent.step(numpy.array(state_enc, dtype=numpy.int64))
+            action, _ = self.agent.step(state_enc)
             sys_acts = self.decode_action(action)
 
         return sys_acts
@@ -129,18 +156,32 @@ class PyTorchReinforcePolicy(QPolicy):
         returns = torch.tensor(returns)
         return returns
 
-    def state_string_to_tensor(self,state_string:str)->torch.LongTensor:
+    def encode_state(self, state: SlotFillingDialogueState) -> torch.LongTensor:
+        state_string =  super().encode_state(state)
         example = Example.fromlist([state_string], [('dialog_state',self.text_field)])
-        return self.text_field.numericalize([example])
+        return self.text_field.numericalize([example.dialog_state])
+
+    def _get_dialog_act_slots(self, act:DialogueAct):
+        if act.params is not None and act.intent in self.domain.acts_params:
+            slots = [d.slot for d in act.params]
+        else:
+            slots = []
+        return slots
 
     def encode_action(self, acts: List[DialogueAct], system=True) -> str:
-        jsoned = json.dumps(
-            {acts[0].intent: acts[0].params if acts[0].params is not None else []})
+        # TODO(tilo): DialogueManager makes offer with many informs, these should not be encoded here!
+        if any([a.intent == 'offer' for a in acts]):
+            acts = acts[:1]
+        assert len(acts)==1
+        d = {act.intent: self._get_dialog_act_slots(act) for act in acts }
+        jsoned = json.dumps(d)
         return self.action_enc.transform([[jsoned]])
 
     def decode_action(self, action_enc):
         x = self.action_enc.inverse_transform([action_enc])
-        #TODO(tilo)
+        d = json.loads(x)
+        acts = [DialogueAct(intent,params=[DialogueActItem(slot,Operator.EQ,'') for slot in slots]) for intent,slots in d]
+        return acts
 
     def train(self, dialogues):
         self.agent.train()
@@ -149,12 +190,11 @@ class PyTorchReinforcePolicy(QPolicy):
         for k, dialogue in enumerate(dialogues):
             exp = []
             for turn in dialogue:
-                state_enc = self.encode_state(turn['state'])
-                # assert len(state_enc)==STATE_DIM
+                x = self.encode_state(turn['state'])
+                # assert len(state_str)==STATE_DIM
                 action_enc = self.encode_action(turn["action"])
-
                 log_probs = self.agent.log_probs(
-                    numpy.array(state_enc), numpy.array(action_enc)
+                    x, numpy.array(action_enc)
                 )
                 exp.append((log_probs, turn["reward"]))
 
