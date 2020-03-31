@@ -200,7 +200,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         return sys_acts
 
 
-    def encode_state(self, state:SlotFillingDialogueState):
+    def encode_state(self, state:SlotFillingDialogueState)->str:
         temp = deepcopy(state)
         del temp.context
         del temp.system_requestable_slot_entropies
@@ -222,7 +222,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         # state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
         return s
 
-    def encode_action(self, acts:List[DialogueAct], system=True):
+    def encode_action(self, acts:List[DialogueAct], system=True)->str:
         s = self._action_to_string(acts, system)
         # enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
         self.hash2actions[s]=acts
