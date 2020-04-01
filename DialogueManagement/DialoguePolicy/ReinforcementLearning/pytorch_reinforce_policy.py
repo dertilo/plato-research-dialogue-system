@@ -70,11 +70,10 @@ class PolicyAgent(nn.Module):
     def calc_probs(self, state):
         return self.forward(state)
 
-    def log_probs(self, state, action):
+    def log_probs(self, state:torch.Tensor, action:torch.Tensor):
         probs = self.calc_probs(state)
         m = Categorical(probs)
-        action_tensor = torch.from_numpy(action).float().unsqueeze(0)
-        return m.log_prob(action_tensor)
+        return m.log_prob(action)
 
 
 import json
@@ -114,12 +113,12 @@ class PyTorchReinforcePolicy(QPolicy):
         )
 
         self.text_field = self._build_text_field(self.domain)
-        vocab_size = len(self.text_field.vocab)
+        self.vocab_size = len(self.text_field.vocab)
 
         self.action_enc=self._build_action_encoder(self.domain)
         self.NActions = self.action_enc.classes_.shape[0]
 
-        self.agent: PolicyAgent = PolicyAgent(vocab_size, self.NActions)
+        self.agent: PolicyAgent = PolicyAgent(self.vocab_size, self.NActions)
         print(self.agent)
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
 
@@ -172,6 +171,7 @@ class PyTorchReinforcePolicy(QPolicy):
 
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
+        self.agent.to(DEVICE)
         if self.is_training and random.random() < self.epsilon:
             if random.random() < 1.0:
                 sys_acts = self.warmup_policy.next_action(state)
@@ -180,7 +180,7 @@ class PyTorchReinforcePolicy(QPolicy):
 
         else:
             state_enc = self.encode_state(state)
-            action, _ = self.agent.step(state_enc)
+            action, _ = self.agent.step(state_enc.to(DEVICE))
             sys_acts = self.decode_action(action)
 
         return sys_acts
@@ -207,14 +207,15 @@ class PyTorchReinforcePolicy(QPolicy):
             slots = []
         return slots
 
-    def encode_action(self, acts: List[DialogueAct], system=True) -> str:
+    def encode_action(self, acts: List[DialogueAct], system=True) -> numpy.ndarray:
         # TODO(tilo): DialogueManager makes offer with many informs, these should not be encoded here!
         if any([a.intent == "offer" for a in acts]):
             acts = acts[:1]
         assert len(acts) == 1
         d = {act.intent: self._get_dialog_act_slots(act) for act in acts}
         jsoned = json.dumps(d)
-        return self.action_enc.transform([[jsoned]])
+        encoded_action = self.action_enc.transform([jsoned])
+        return encoded_action
 
     def decode_action(self, action_enc):
         x = self.action_enc.inverse_transform([action_enc])
@@ -230,15 +231,16 @@ class PyTorchReinforcePolicy(QPolicy):
 
     def train(self, dialogues):
         self.agent.train()
+        self.agent.to(DEVICE)
         losses = []
         policy_losses = []
         for k, dialogue in enumerate(dialogues):
             exp = []
             for turn in dialogue:
-                x = self.encode_state(turn["state"])
-                # assert len(state_str)==STATE_DIM
+                x = self.encode_state(turn["state"]).to(DEVICE)
                 action_enc = self.encode_action(turn["action"])
-                log_probs = self.agent.log_probs(x, numpy.array(action_enc))
+                action = torch.from_numpy(action_enc).float().unsqueeze(0).to(DEVICE)
+                log_probs = self.agent.log_probs(x, action)
                 exp.append((log_probs, turn["reward"]))
 
             returns = self._calc_returns(exp, self.gamma)
@@ -251,7 +253,7 @@ class PyTorchReinforcePolicy(QPolicy):
         self.optimizer.zero_grad()
         policy_loss.backward()
         self.optimizer.step()
-        losses.append(policy_loss.data.numpy())
+        losses.append(policy_loss.data.cpu().numpy())
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
@@ -264,7 +266,7 @@ class PyTorchReinforcePolicy(QPolicy):
 
     def load(self, path=None):
         if os.path.isfile(path):
-            agent = PolicyAgent(STATE_DIM, self.NActions)
+            agent = PolicyAgent(self.vocab_size, self.NActions)
             agent.load_state_dict(torch.load(path))
             self.agent = agent
 
