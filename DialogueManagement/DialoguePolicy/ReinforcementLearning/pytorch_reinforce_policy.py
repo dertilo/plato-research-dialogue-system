@@ -121,7 +121,8 @@ class PyTorchReinforcePolicy(QPolicy):
         self.action_enc = self._build_action_encoder(self.domain)
         self.NActions = self.action_enc.classes_.shape[0]
 
-        self.agent: PolicyAgent = PolicyAgent(self.vocab_size, self.NActions)
+        self.PolicyAgentModelClass = kwargs.get('PolicyAgentModelClass',PolicyAgent)
+        self.agent = self.PolicyAgentModelClass(self.vocab_size, self.NActions)
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
         self.losses = []
 
@@ -251,6 +252,6 @@ class PyTorchReinforcePolicy(QPolicy):
 
     def load(self, path=None):
         if os.path.isfile(path):
-            agent = PolicyAgent(self.vocab_size, self.NActions)
+            agent = self.PolicyAgentModelClass(self.vocab_size, self.NActions)
             agent.load_state_dict(torch.load(path))
             self.agent = agent
