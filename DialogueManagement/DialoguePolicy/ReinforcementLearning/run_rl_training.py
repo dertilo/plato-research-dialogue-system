@@ -92,10 +92,10 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
 def run_it(config,num_dialogues=100):
     ca = ConversationalSingleAgent(config)
     if config["AGENT_0"]["DM"]["policy"]["train"]:
-        print(ca.dialogue_manager.policy,flush=True)
+        print(ca.dialogue_manager.policy.agent)
     ca.initialize()
     ca.minibatch_length = 8
-    ca.train_epochs = 1
+    ca.train_epochs = 10
     ca.train_interval = 8
     params_to_monitor = {"dialogue": 0, "success-rate": 0.0,'loss':0.0}
     running_factor = np.exp(np.log(0.05) / 100)  # after 100 steps sunk to 0.05
