@@ -53,7 +53,7 @@ def build_config(do_train=True):
                     "learning_decay_rate": 0.995,
                     "discount_factor": 0.8,
                     "exploration_rate": 1.0,
-                    "exploration_decay_rate": 0.95,
+                    "exploration_decay_rate": 1.0,
                     "min_exploration_rate": 0.01,
                     "policy_path": "/tmp/agent",
                 }
@@ -66,12 +66,22 @@ def build_config(do_train=True):
 
 
 def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_factor):
+
+    def running_average(running_factor, old_val, new_val, num_deci=2):
+        val = running_factor * old_val + (1 - running_factor) * new_val
+        return round(val, num_deci)
+
+    if len(ca.dialogue_manager.policy.losses) > 0:
+        loss = ca.dialogue_manager.policy.losses[-1]
+    else:
+        loss = 0
+    pbar.postfix[0]["loss"] = running_average(
+        running_factor, pbar.postfix[0]["loss"], loss,3
+    )
     pbar.postfix[0]["dialogue"] = dialogue
     success = int(ca.recorder.dialogues[-1][-1]["success"])
-    pbar.postfix[0]["success-rate"] = round(
-        running_factor * pbar.postfix[0]["success-rate"]
-        + (1 - running_factor) * success,
-        2,
+    pbar.postfix[0]["success-rate"] = running_average(
+        running_factor, pbar.postfix[0]["success-rate"], success
     )
 
     eps = ca.dialogue_manager.policy.epsilon
@@ -79,15 +89,15 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
     pbar.update()
 
 
-def run_it(config):
+def run_it(config,num_dialogues=100):
     ca = ConversationalSingleAgent(config)
     if config["AGENT_0"]["DM"]["policy"]["train"]:
-        print(ca.dialogue_manager.policy)
+        print(ca.dialogue_manager.policy,flush=True)
     ca.initialize()
     ca.minibatch_length = 8
     ca.train_epochs = 1
     ca.train_interval = 8
-    params_to_monitor = {"dialogue": 0, "success-rate": 0.0}
+    params_to_monitor = {"dialogue": 0, "success-rate": 0.0,'loss':0.0}
     running_factor = np.exp(np.log(0.05) / 100)  # after 100 steps sunk to 0.05
     with tqdm(postfix=[params_to_monitor]) as pbar:
         for dialogue in range(num_dialogues):
@@ -124,8 +134,7 @@ if __name__ == "__main__":
         shutil.rmtree(dir)
         os.mkdir(dir)
 
-    num_dialogues = 32
-    base_path = "../../../../alex-plato/experiments/exp_09"
+    base_path = "../alex-plato/experiments/exp_09"
 
     chdir("%s" % base_path)
 
@@ -135,6 +144,6 @@ if __name__ == "__main__":
         os.remove("/tmp/agent")
 
     config = build_config(do_train=True)
-    run_it(config)
+    run_it(config,1000)
     config = build_config(do_train=False)
     run_it(config)

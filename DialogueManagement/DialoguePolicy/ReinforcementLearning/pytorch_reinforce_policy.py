@@ -50,7 +50,7 @@ class PolicyAgent(nn.Module):
             nn.Conv1d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3),
             nn.ELU(),
         )
-        self.pooling = nn.AdaptiveAvgPool1d(1)
+        self.pooling = nn.AdaptiveMaxPool1d(1)
 
         self.affine2 = nn.Linear(hidden_dim, num_actions)
 
@@ -120,6 +120,7 @@ class PyTorchReinforcePolicy(QPolicy):
 
         self.agent: PolicyAgent = PolicyAgent(self.vocab_size, self.NActions)
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
+        self.losses = []
 
     @staticmethod
     def _build_text_field(domain:Domain):
@@ -231,7 +232,6 @@ class PyTorchReinforcePolicy(QPolicy):
     def train(self, dialogues):
         self.agent.train()
         self.agent.to(DEVICE)
-        losses = []
         policy_losses = []
         for k, dialogue in enumerate(dialogues):
             exp = []
@@ -252,7 +252,7 @@ class PyTorchReinforcePolicy(QPolicy):
         self.optimizer.zero_grad()
         policy_loss.backward()
         self.optimizer.step()
-        losses.append(policy_loss.data.cpu().numpy())
+        self.losses.append(float(policy_loss.data.cpu().numpy()))
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
