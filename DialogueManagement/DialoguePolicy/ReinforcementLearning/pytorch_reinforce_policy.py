@@ -19,9 +19,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 
-from DialogueManagement.DialoguePolicy.dialogue_common import create_random_dialog_act
+from DialogueManagement.DialoguePolicy.dialogue_common import create_random_dialog_act, \
+    Domain
 
-STATE_DIM = 57
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class PolicyAgent(nn.Module):
@@ -112,15 +113,24 @@ class PyTorchReinforcePolicy(QPolicy):
             epsilon_min,
         )
 
-        self.agent: PolicyAgent = PolicyAgent(STATE_DIM, self.NActions)
+        self.text_field = self._build_text_field(self.domain)
+        vocab_size = len(self.text_field.vocab)
+
+        self.action_enc=self._build_action_encoder(self.domain)
+        self.NActions = self.action_enc.classes_.shape[0]
+
+        self.agent: PolicyAgent = PolicyAgent(vocab_size, self.NActions)
+        print(self.agent)
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
+
+    @staticmethod
+    def _build_text_field(domain:Domain):
         tokens = [
             v
-            for vv in self.domain._asdict().values()
+            for vv in domain._asdict().values()
             if isinstance(vv, list)
             for v in vv
         ]
-
         special_tokens = [str(k) for k in range(10)] + [
             ".",
             ",",
@@ -139,22 +149,26 @@ class PyTorchReinforcePolicy(QPolicy):
         def regex_tokenizer(text, pattern=r"(?u)(?:\b\w\w+\b|\S)") -> List[str]:
             return [m.group() for m in re.finditer(pattern, text)]
 
-        self.text_field = Field(batch_first=True, tokenize=regex_tokenizer)
-        self.text_field.build_vocab(tokens + special_tokens)
+        text_field = Field(batch_first=True, tokenize=regex_tokenizer)
+        text_field.build_vocab(tokens + special_tokens)
+        return text_field
 
-        self.action_enc = preprocessing.LabelEncoder()
-        informs = [json.dumps({"inform": [x]}) for x in self.domain.requestable_slots]
+    @staticmethod
+    def _build_action_encoder(domain:Domain):
+        action_enc = preprocessing.LabelEncoder()
+        informs = [json.dumps({"inform": [x]}) for x in domain.requestable_slots]
         requests = [
-            json.dumps({"request": [x]}) for x in self.domain.system_requestable_slots
+            json.dumps({"request": [x]}) for x in domain.system_requestable_slots
         ]
-        self.action_enc.fit(
+        action_enc.fit(
             [
                 [x]
                 for x in informs
-                + requests
-                + [json.dumps({s: []}) for s in self.domain.dstc2_acts_sys]
+                         + requests
+                         + [json.dumps({s: []}) for s in domain.dstc2_acts_sys]
             ]
         )
+        return action_enc
 
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
