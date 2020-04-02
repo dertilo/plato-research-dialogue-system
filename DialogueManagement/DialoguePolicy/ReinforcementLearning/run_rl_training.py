@@ -55,7 +55,7 @@ def build_config(do_train=True):
                     "exploration_rate": 1.0,
                     "exploration_decay_rate": 1.0,
                     "min_exploration_rate": 0.01,
-                    "policy_path": "/tmp/agent",
+                    "policy_path": "policies/agent",
                 }
             },
             "NLU": None,
@@ -91,9 +91,9 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
 
 def run_it(config,num_dialogues=100):
     ca = ConversationalSingleAgent(config)
+    ca.initialize()
     if config["AGENT_0"]["DM"]["policy"]["train"]:
         print(ca.dialogue_manager.policy.agent)
-    ca.initialize()
     ca.minibatch_length = 8
     ca.train_epochs = 10
     ca.train_interval = 8
@@ -126,24 +126,19 @@ def run_it(config,num_dialogues=100):
 
 
 if __name__ == "__main__":
-    """
-    simple test
-    """
 
     def clean_dir(dir):
-        shutil.rmtree(dir)
+        if os.path.isdir(dir):
+            shutil.rmtree(dir)
         os.mkdir(dir)
 
-    base_path = "../alex-plato/experiments/exp_09"
+    base_path = "."
 
     chdir("%s" % base_path)
-
     clean_dir("logs")
     clean_dir("policies")
-    if os.path.isfile("/tmp/agent"):
-        os.remove("/tmp/agent")
 
     config = build_config(do_train=True)
-    run_it(config,1000)
+    run_it(config,100)
     config = build_config(do_train=False)
     run_it(config)
