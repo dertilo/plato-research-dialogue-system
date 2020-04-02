@@ -77,13 +77,15 @@ class PolicyAgent(nn.Module):
 
     def step(self, state, draw=sample_from_distr):
         intent_probs, slot_sigms = self.forward(state)
-        intent_distr = Categorical(intent_probs)
-        slot_distr = Bernoulli(slot_sigms)
-        intent, slots = draw(intent_distr, slot_distr)
-        intent_log_probs = intent_distr.log_prob(intent)
-        slots_log_probs = slot_distr.log_prob(slots)
-        log_prob = torch.sum(torch.cat([intent_log_probs, slots_log_probs], dim=1))
-        return (intent.item(), slots.item()), log_prob
+        cd = Categorical(intent_probs)
+        bd = Bernoulli(slot_sigms)
+        intent, slots = draw(cd, bd)
+        if len(intent.shape) == 1:  # cause its stupid!
+            intent = intent.unsqueeze(0)
+        log_prob = torch.sum(
+            torch.cat([cd.log_prob(intent), bd.log_prob(slots)], dim=1)
+        )
+        return (intent.item(), slots.numpy()), log_prob
 
     def log_probs(self, state: torch.Tensor, action: Tuple):
         _, log_prob = self.step(state, lambda *_: action)
@@ -107,6 +109,12 @@ class ActionEncoder:
         intent_enc = self.intent_enc.transform([intent])
         slots_enc = self.slot_enc.transform([slots])[0]
         return intent_enc, slots_enc
+
+    def decode(self, intent_enc, slots_enc):
+        return (
+            self.intent_enc.inverse_transform([intent_enc])[0],
+            self.slot_enc.inverse_transform(slots_enc)[0],
+        )
 
 
 class PyTorchReinforcePolicy(QPolicy):
@@ -149,11 +157,15 @@ class PyTorchReinforcePolicy(QPolicy):
         self.NActions = None
 
         self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyAgent)
-        num_intents = len(self.domain.acts_params) + len(self.domain.dstc2_acts_sys)
-        num_slots = len(
+        self.num_intents = len(self.domain.acts_params) + len(
+            self.domain.dstc2_acts_sys
+        )
+        self.num_slots = len(
             set(self.domain.system_requestable_slots + self.domain.requestable_slots)
         )
-        self.agent = self.PolicyAgentModelClass(self.vocab_size, num_intents, num_slots)
+        self.agent = self.PolicyAgentModelClass(
+            self.vocab_size, self.num_intents, self.num_slots
+        )
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
         self.losses = []
 
@@ -184,7 +196,7 @@ class PyTorchReinforcePolicy(QPolicy):
         else:
             state_enc = self.encode_state(state)
             action, _ = self.agent.step(state_enc.to(DEVICE))
-            sys_acts = self.decode_action(action)
+            sys_acts = [self.decode_action(action)]
 
         return sys_acts
 
@@ -218,29 +230,23 @@ class PyTorchReinforcePolicy(QPolicy):
         if any([a.intent == "offer" for a in acts]):
             acts = acts[:1]
         assert len(acts) == 1
-        encoded_action = self.action_enc.encode(
-            acts[0].intent, [p.slot for p in acts[0].params]
-        )
+        slots = [p.slot for p in acts[0].params]
+        encoded_action = self.action_enc.encode(acts[0].intent, slots)
         return encoded_action
 
-    def decode_action(self, action_enc):
-        x = self.action_enc.inverse_transform([action_enc])
-        dicts = {k: v for d in (json.loads(s) for s in x) for k, v in d.items()}
-        acts = [
-            DialogueAct(
-                intent,
-                params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
-            )
-            for intent, slots in dicts.items()
-        ]
-        return acts
+    def decode_action(self, action_enc: Tuple):
+        intent, slots = self.action_enc.decode(*action_enc)
+        return DialogueAct(
+            intent, params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
+        )
 
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
-        policy_loss = torch.cat(
-            [loss for d in batch for loss in self._calc_dialogue_losses(d)]
-        ).mean()
+        losses = [
+            loss.unsqueeze(0) for d in batch for loss in self._calc_dialogue_losses(d)
+        ]
+        policy_loss = torch.cat(losses).mean()
 
         self.optimizer.zero_grad()
         policy_loss.backward()
@@ -272,6 +278,8 @@ class PyTorchReinforcePolicy(QPolicy):
 
     def load(self, path=None):
         if os.path.isfile(path):
-            agent = self.PolicyAgentModelClass(self.vocab_size, self.NActions)
+            agent = self.PolicyAgentModelClass(
+                self.vocab_size, self.num_intents, self.num_slots
+            )
             agent.load_state_dict(torch.load(path))
             self.agent = agent
