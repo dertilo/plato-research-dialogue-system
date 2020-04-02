@@ -2,7 +2,7 @@ import os
 import re
 import shutil
 from os import chdir
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 import numpy
 import random
@@ -18,7 +18,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.distributions import Categorical
+from torch.distributions import Categorical, Bernoulli
 
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
@@ -28,8 +28,14 @@ from DialogueManagement.DialoguePolicy.dialogue_common import (
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def sample_from_distr(*distrs):
+    return tuple([d.sample() for d in distrs])
+
+
 class PolicyAgent(nn.Module):
-    def __init__(self, vocab_size, num_actions, hidden_dim=64, embed_dim=32,) -> None:
+    def __init__(
+        self, vocab_size, num_intents, num_slots, hidden_dim=64, embed_dim=32,
+    ) -> None:
         super().__init__()
 
         self.embedding = nn.Embedding(vocab_size, embed_dim)
@@ -55,31 +61,52 @@ class PolicyAgent(nn.Module):
         )
         self.pooling = nn.AdaptiveMaxPool1d(1)
 
-        self.affine2 = nn.Linear(hidden_dim, num_actions)
+        self.intent_head = nn.Linear(hidden_dim, num_intents)
+
+        self.intent_embedding = nn.Embedding(num_intents, 8)
+        self.slots_head = nn.Linear(hidden_dim, num_slots)
 
     def forward(self, x):
         x = self.embedding(x)
         x = x.transpose(2, 1)
         features = self.convnet(x)
         features_pooled = self.pooling(features).squeeze(2)
-        return F.softmax(self.affine2(features_pooled), dim=1)
+        intent_probs = F.softmax(self.intent_head(features_pooled), dim=1)
+        slots_sigms = F.sigmoid(self.slots_head(features_pooled))
+        return intent_probs, slots_sigms
 
-    def step(self, state):
-        probs = self.calc_probs(state)
-        m = Categorical(probs)
-        action = m.sample()
-        return action.item(), m.log_prob(action)
+    def step(self, state, draw=sample_from_distr):
+        intent_probs, slot_sigms = self.forward(state)
+        intent_distr = Categorical(intent_probs)
+        slot_distr = Bernoulli(slot_sigms)
+        intent, slots = draw(intent_distr, slot_distr)
+        intent_log_probs = intent_distr.log_prob(intent)
+        slots_log_probs = slot_distr.log_prob(slots)
+        log_prob = torch.sum(torch.cat([intent_log_probs, slots_log_probs], dim=1))
+        return (intent.item(), slots.item()), log_prob
 
-    def calc_probs(self, state):
-        return self.forward(state)
-
-    def log_probs(self, state: torch.Tensor, action: torch.Tensor):
-        probs = self.calc_probs(state)
-        m = Categorical(probs)
-        return m.log_prob(action)
+    def log_probs(self, state: torch.Tensor, action: Tuple):
+        _, log_prob = self.step(state, lambda *_: action)
+        return log_prob
 
 
 import json
+
+
+class ActionEncoder:
+    def __init__(self, domain: Domain) -> None:
+        self.intent_enc = preprocessing.LabelEncoder()
+        intents = set(domain.acts_params + domain.dstc2_acts_sys)
+        self.intent_enc.fit([[x] for x in intents])
+
+        self.slot_enc = preprocessing.MultiLabelBinarizer()
+        slots = set(domain.requestable_slots + domain.system_requestable_slots)
+        self.slot_enc.fit([[x] for x in slots])
+
+    def encode(self, intent: str, slots: List[str]):
+        intent_enc = self.intent_enc.transform([intent])
+        slots_enc = self.slot_enc.transform([slots])[0]
+        return intent_enc, slots_enc
 
 
 class PyTorchReinforcePolicy(QPolicy):
@@ -118,11 +145,15 @@ class PyTorchReinforcePolicy(QPolicy):
         self.text_field = self._build_text_field(self.domain)
         self.vocab_size = len(self.text_field.vocab)
 
-        self.action_enc = self._build_action_encoder(self.domain)
-        self.NActions = self.action_enc.classes_.shape[0]
+        self.action_enc = ActionEncoder(self.domain)
+        self.NActions = None
 
         self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyAgent)
-        self.agent = self.PolicyAgentModelClass(self.vocab_size, self.NActions)
+        num_intents = len(self.domain.acts_params) + len(self.domain.dstc2_acts_sys)
+        num_slots = len(
+            set(self.domain.system_requestable_slots + self.domain.requestable_slots)
+        )
+        self.agent = self.PolicyAgentModelClass(self.vocab_size, num_intents, num_slots)
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
         self.losses = []
 
@@ -140,20 +171,6 @@ class PyTorchReinforcePolicy(QPolicy):
         text_field = Field(batch_first=True, tokenize=regex_tokenizer)
         text_field.build_vocab([tokens + special_tokens])
         return text_field
-
-    @staticmethod
-    def _build_action_encoder(domain: Domain):
-        action_enc = preprocessing.LabelEncoder()
-        informs = [json.dumps({"inform": [x]}) for x in domain.requestable_slots]
-        requests = [
-            json.dumps({"request": [x]}) for x in domain.system_requestable_slots
-        ]
-        actions = (
-            informs + requests + [json.dumps({s: []}) for s in domain.dstc2_acts_sys]
-        )
-
-        action_enc.fit([[x] for x in actions])
-        return action_enc
 
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
@@ -194,14 +211,16 @@ class PyTorchReinforcePolicy(QPolicy):
             slots = []
         return slots
 
-    def encode_action(self, acts: List[DialogueAct], system=True) -> numpy.ndarray:
+    def encode_action(
+        self, acts: List[DialogueAct], system=True
+    ) -> Tuple[numpy.ndarray, numpy.ndarray]:
         # TODO(tilo): DialogueManager makes offer with many informs, these should not be encoded here!
         if any([a.intent == "offer" for a in acts]):
             acts = acts[:1]
         assert len(acts) == 1
-        d = {act.intent: self._get_dialog_act_slots(act) for act in acts}
-        jsoned = json.dumps(d)
-        encoded_action = self.action_enc.transform([jsoned])
+        encoded_action = self.action_enc.encode(
+            acts[0].intent, [p.slot for p in acts[0].params]
+        )
         return encoded_action
 
     def decode_action(self, action_enc):
@@ -236,8 +255,10 @@ class PyTorchReinforcePolicy(QPolicy):
         exp = []
         for turn in dialogue:
             x = self.encode_state(turn["state"]).to(DEVICE)
-            action_enc = self.encode_action(turn["action"])
-            action = torch.from_numpy(action_enc).float().unsqueeze(0).to(DEVICE)
+            action_encs = self.encode_action(turn["action"])
+            action = [
+                torch.from_numpy(a).float().unsqueeze(0).to(DEVICE) for a in action_encs
+            ]
             log_probs = self.agent.log_probs(x, action)
             exp.append((log_probs, turn["reward"]))
         returns = self._calc_returns(exp, self.gamma)
