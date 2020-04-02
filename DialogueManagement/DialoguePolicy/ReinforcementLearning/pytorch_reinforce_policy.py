@@ -2,7 +2,7 @@ import os
 import re
 import shutil
 from os import chdir
-from typing import List
+from typing import List, Dict
 
 import numpy
 import random
@@ -121,7 +121,7 @@ class PyTorchReinforcePolicy(QPolicy):
         self.action_enc = self._build_action_encoder(self.domain)
         self.NActions = self.action_enc.classes_.shape[0]
 
-        self.PolicyAgentModelClass = kwargs.get('PolicyAgentModelClass',PolicyAgent)
+        self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyAgent)
         self.agent = self.PolicyAgentModelClass(self.vocab_size, self.NActions)
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
         self.losses = []
@@ -219,22 +219,9 @@ class PyTorchReinforcePolicy(QPolicy):
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
-        policy_losses = []
-        for k, dialogue in enumerate(batch):
-            exp = []
-            for turn in dialogue:
-                x = self.encode_state(turn["state"]).to(DEVICE)
-                action_enc = self.encode_action(turn["action"])
-                action = torch.from_numpy(action_enc).float().unsqueeze(0).to(DEVICE)
-                log_probs = self.agent.log_probs(x, action)
-                exp.append((log_probs, turn["reward"]))
-
-            returns = self._calc_returns(exp, self.gamma)
-            policy_losses.extend(
-                [-log_prob * R for (log_prob, _), R in zip(exp, returns)]
-            )
-
-        policy_loss = torch.cat(policy_losses).mean()
+        policy_loss = torch.cat(
+            [loss for d in batch for loss in self._calc_dialogue_losses(d)]
+        ).mean()
 
         self.optimizer.zero_grad()
         policy_loss.backward()
@@ -244,6 +231,18 @@ class PyTorchReinforcePolicy(QPolicy):
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+
+    def _calc_dialogue_losses(self, dialogue: List[Dict]):
+        exp = []
+        for turn in dialogue:
+            x = self.encode_state(turn["state"]).to(DEVICE)
+            action_enc = self.encode_action(turn["action"])
+            action = torch.from_numpy(action_enc).float().unsqueeze(0).to(DEVICE)
+            log_probs = self.agent.log_probs(x, action)
+            exp.append((log_probs, turn["reward"]))
+        returns = self._calc_returns(exp, self.gamma)
+        dialogue_losses = [-log_prob * R for (log_prob, _), R in zip(exp, returns)]
+        return dialogue_losses
 
     def save(self, path=None):
         torch.save(self.agent.state_dict(), path)
