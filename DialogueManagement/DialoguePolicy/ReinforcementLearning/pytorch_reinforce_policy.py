@@ -236,9 +236,19 @@ class PyTorchReinforcePolicy(QPolicy):
 
     def decode_action(self, action_enc: Tuple):
         intent, slots = self.action_enc.decode(*action_enc)
+        slots = self._filter_slots(intent, slots)
         return DialogueAct(
             intent, params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
         )
+
+    def _filter_slots(self, intent, slots):
+        if intent == "inform":
+            slots = filter(lambda s: s in self.domain.requestable_slots, slots)
+        elif intent == "request":
+            slots = filter(lambda s: s in self.domain.system_requestable_slots, slots)
+        else:
+            slots = []
+        return slots
 
     def train(self, batch: List):
         self.agent.train()
