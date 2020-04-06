@@ -71,7 +71,7 @@ class PolicyAgent(nn.Module):
         features = self.convnet(x)
         features_pooled = self.pooling(features).squeeze(2)
         intent_probs = F.softmax(self.intent_head(features_pooled), dim=1)
-        slots_sigms = F.sigmoid(self.slots_head(features_pooled))
+        slots_sigms = torch.sigmoid(self.slots_head(features_pooled))
         return intent_probs, slots_sigms
 
     def step(self, state, draw=sample_from_distr):
@@ -85,10 +85,6 @@ class PolicyAgent(nn.Module):
             torch.cat([cd.log_prob(intent), bd.log_prob(slots)], dim=1)
         )
         return (intent.item(), slots.numpy()), log_prob
-
-    def log_probs(self, state: torch.Tensor, action: Tuple):
-        _, log_prob = self.step(state, lambda *_: action)
-        return log_prob
 
 
 import json
@@ -271,10 +267,14 @@ class PyTorchReinforcePolicy(QPolicy):
         for turn in dialogue:
             x = self.encode_state(turn["state"]).to(DEVICE)
             action_encs = self.encode_action(turn["action"])
-            action = [
-                torch.from_numpy(a).float().unsqueeze(0).to(DEVICE) for a in action_encs
-            ]
-            log_probs = self.agent.log_probs(x, action)
+            action = tuple(
+                [
+                    torch.from_numpy(a).float().unsqueeze(0).to(DEVICE)
+                    for a in action_encs
+                ]
+            )
+            draw_method = lambda *_: action
+            _, log_probs = self.agent.step(x, draw_method)
             exp.append((log_probs, turn["reward"]))
         returns = self._calc_returns(exp, self.gamma)
         dialogue_losses = [-log_prob * R for (log_prob, _), R in zip(exp, returns)]
