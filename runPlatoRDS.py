@@ -335,7 +335,7 @@ def arg_parse(args=None):
     # Parse arguments
     if len(arg_vec) < 3:
         module_logger.warning('WARNING: No configuration file provided.')
-        arg_vec+=['-config','configs/train_dl_pytorch_reinforce.yaml']
+        arg_vec+=['-config','Examples/config/CamRest_MA_train_acts.yaml']
 
     test_mode = arg_vec[1] == '-t'
 
@@ -470,48 +470,37 @@ if __name__ == '__main__':
     
     Remember, Plato runs with Python 3.6
     """
-    base_path = '../alex-plato/experiments/exp_09'
-    chdir('%s' % base_path)
+    arguments = arg_parse()
 
-    clean_dir('logs')
-    clean_dir('policies')
-    if os.path.isfile('/tmp/agent'):
-        os.remove('/tmp/agent')
+    if 'test_mode' in arguments and arguments['test_mode']:
+        # Runs Plato with all configuration files in the config/tests/
+        # directory and prints a FAIL message upon any exception raised.
+        passed = []
+        failed = []
 
-    config_file = 'train_q_learning.yaml'
-    # config_file = 'train_dl_reinforce.yaml'
-    arguments = arg_parse(['','f', ('configs/%s' % config_file)])
-    arguments['dialogues']=100
-    run_controller(arguments)
+        for (dirpath, dirnames, filenames) in \
+                os.walk('Tests/'):
+            if not filenames or filenames[0] == '.DS_Store':
+                continue
+                
+            for config_file in filenames:
+                module_logger.info(f'\n\nRunning test with configuration {config_file}\n')
 
-    # config_file = 'eval_dl_reinforce.yaml'
-    config_file = 'eval_q_learning.yaml'
-    arguments = arg_parse(['','f', ('configs/%s' % config_file)])
-    arguments['dialogues']=100
-    # arguments['cfg_parser']['GENERAL']['print_level'] = 'debug'
-    run_controller(arguments)
+                args = arg_parse(['_', '-c', dirpath + config_file])
 
-    '''
-    ### q-learning ###
-    100it [00:15,  6.42it/s[{'dialogue': 99, 'success-rate': 0.84, 'eps': 0.7674635923780313}]]
-    ('Results:\n'
-     "{'AGENT_0': {'dialogue_success_percentage': 100.0, 'avg_cumulative_rewards': "
-     "19.531, 'avg_turns': 10.38, 'objective_task_completion_percentage': 100.0}}")
-     
-    1000it [02:18,  6.21it/s[{'dialogue': 999, 'success-rate': 0.84, 'eps': 0.7674635923780313}]]
-    ('Results:\n'
-     "{'AGENT_0': {'dialogue_success_percentage': 98.3, 'avg_cumulative_rewards': "
-     "19.136249999999983, 'avg_turns': 11.118, "
-     "'objective_task_completion_percentage': 98.3}}")
-     
-     ### pytorch REINFORCE ###
-         100it [00:17,  5.77it/s[{'dialogue': 99, 'success-rate': 0.84, 'eps': 0.0852575903343082}]]
-    ('Results:\n'
-     "{'AGENT_0': {'dialogue_success_percentage': 84.0, 'avg_cumulative_rewards': "
-     "16.078999999999994, 'avg_turns': 12.06, "
-     "'objective_task_completion_percentage': 80.0}}")
-    100it [00:15,  7.18it/s[{'dialogue': 99, 'success-rate': 0.84, 'eps': 0.95}]]
-    ('Results:\n'
-     "{'AGENT_0': {'dialogue_success_percentage': 96.0, 'avg_cumulative_rewards': "
-     "18.6035, 'avg_turns': 12.09, 'objective_task_completion_percentage': 49.0}}")
-    '''
+                if run_controller(args) < 0:
+                    module_logger.error(f'FAIL! With {config_file}')
+                    failed.append(config_file)
+
+                else:
+                    module_logger.info('PASS!')
+                    passed.append(config_file)
+
+        module_logger.info('\nTEST RESULTS:')
+        module_logger.info(f'Passed {len(passed)} out of {(len(passed) + len(failed))}')
+
+        module_logger.warning(f'Failed on: {failed}')
+
+    else:
+        # Normal Plato execution
+        run_controller(arguments)
