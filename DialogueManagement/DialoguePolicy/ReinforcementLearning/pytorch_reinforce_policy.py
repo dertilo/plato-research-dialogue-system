@@ -63,7 +63,6 @@ class PolicyAgent(nn.Module):
 
         self.intent_head = nn.Linear(hidden_dim, num_intents)
 
-        self.intent_embedding = nn.Embedding(num_intents, 8)
         self.slots_head = nn.Linear(hidden_dim, num_slots)
 
     def forward(self, x):
