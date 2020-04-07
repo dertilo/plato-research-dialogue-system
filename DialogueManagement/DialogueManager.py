@@ -170,14 +170,19 @@ class DialogueManager(ConversationalModule):
             return
 
         # collect all (potential) parameters
-        key_map = {'learning_rate':'alpha',
+        # read float number parameters from policy section in config
+        # Actually we not only read floats, but also translate between different namings of paramenters
+        #  in config files and code.
+        float_params_key_map = {'learning_rate':'alpha',
                    'discount_factor':'gamma',
                    'exploration_rate':'epsilon',
                    'learning_decay_rate':'alpha_decay',
                    'exploration_decay_rate':'epsilon_decay',
                    'min_exploration_rate':'epsilon_min'}
-        policy_params = {key_map[k]:float(v) for k,v in args['policy'].items() if k in key_map}
-        policy_params.update({k:v for k,v in args['policy'].items() if k not in key_map})
+        policy_params = {float_params_key_map[k]:float(v) for k,v in args['policy'].items() if k in float_params_key_map}
+
+        # Read parameters from policy section which have equal names in config files and code.
+        policy_params.update({k:v for k,v in args['policy'].items() if k not in float_params_key_map})
 
         # initialize the policy (depending on the configured policy type)
         if args['policy']['type'] == 'handcrafted':
