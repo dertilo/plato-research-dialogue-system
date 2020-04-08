@@ -98,7 +98,7 @@ class SlotFillingDialogueState(DialogueState):
                   'using default CamRest slots.')
             self.slots = ['area', 'food', 'pricerange']
 
-        self.requested_slot = ''
+        self.requested_slots = []
 
         self.user_acts = None
         self.system_made_offer = False
@@ -127,7 +127,7 @@ class SlotFillingDialogueState(DialogueState):
         ret = 'SlotFillingDialogueState\n'
         ret += 'Slots: ' + str(self.slots_filled) + '\n'
         ret += 'Slot Queries: ' + str(self.slot_queries) + '\n'
-        ret += 'Requested Slot: ' + self.requested_slot + '\n'
+        ret += 'Requested Slots: ' + str(self.requested_slots) + '\n'
         ret += 'Sys Made Offer: ' + str(self.system_made_offer) + '\n'
         ret += 'Turn: ' + str(self.turn) + '\n'
         return ret
@@ -144,7 +144,7 @@ class SlotFillingDialogueState(DialogueState):
         self.slots_filled = dict.fromkeys(self.slots)
         self.slot_queries = {}
         self.system_requestable_slot_entropies = {}
-        self.requested_slot = ''
+        self.requested_slots = []
 
         self.user_acts = None
         self.is_terminal_state = False

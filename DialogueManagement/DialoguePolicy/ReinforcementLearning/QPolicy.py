@@ -64,7 +64,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
     def __init__(self, ontology, database, agent_id=0, agent_role='system',
                  domain=None, alpha=0.95, epsilon=0.95,
                  gamma=0.15, alpha_decay=0.995, epsilon_decay=0.995, print_level='debug', epsilon_min=0.05,
-                 **kwargs
+                 warm_up_mode=False, **kwargs
                  ):
         """
         Initialize parameters and internal structures
@@ -81,7 +81,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         """
 
         self.logger = logging.getLogger(__name__)
-        self.warmup_mode = True
+        self.warm_up_mode = warm_up_mode
         self.print_level = print_level
 
         self.alpha = alpha
@@ -163,7 +163,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         assert self.IS_GREEDY_POLICY
         if self.is_training and (state_enc not in self.Q or random.random() < self.epsilon):
 
-            threshold = 1.0 if self.warmup_mode else 0.5
+            threshold = 1.0 if self.warm_up_mode else 0.5
             if random.random() < threshold:
                 # During exploration we may want to follow another policy,
                 # e.g. an expert policy.
@@ -249,7 +249,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                           (state, action, reward triplets).
         :return:
         """
-        self.warmup_mode = True
+        self.warm_up_mode = True
         self.logger.info('Train Q with {} dialogues'.format(len(dialogues)))
         for k,dialogue in enumerate(dialogues):
             # if k>50:

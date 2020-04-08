@@ -114,7 +114,8 @@ class CamRestLudwigDST(LudwigDST):
                 result['ds_pricerange_predictions'][0] \
                 if result['ds_pricerange_predictions'][0] != 'na' else ''
 
-            self.DState.requested_slot = \
+            # TODO: only the first requested slot is used.
+            self.DState.requested_slots[0] = \
                 result['ds_requested_predictions'][0] \
                 if result['ds_requested_predictions'][0] != 'na' else ''
 

@@ -461,7 +461,15 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                 return [DialogueAct('bye', [])]
 
         # Sample the number of acts to pop.
+        # pop_distributions defines the weighted probability for the number of items to be pushed
+        # the index in the list reflects the number, the value at this position the weight:
+        # e.g. pop_distribution = [3.0, 2.0, 1.0] means, that in mean, in 3 of 6 choices one item will be popped,
+        # in 2 of 6 choices two items, and in 1 of 6 choices three items.
+
         acts = []
+
+        # Use pop_distribution to determine the number of items (i.e. dialog acts) to be popped.
+        # However, we can pop only as many items as on the agenda.
         pops = min(
             random.choices(
                 range(1, len(self.pop_distribution)+1),

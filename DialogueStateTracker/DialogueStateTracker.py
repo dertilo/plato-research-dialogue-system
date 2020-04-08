@@ -182,7 +182,7 @@ class DummyStateTracker(DialogueStateTracker):
         self.DState.user_acts = deepcopy(dacts)
 
         # Reset past request
-        self.DState.requested_slot = ''
+        self.DState.requested_slots = []
 
         for dact in dacts:
             if dact.intent in ['inform', 'offer']:
@@ -211,15 +211,14 @@ class DummyStateTracker(DialogueStateTracker):
 
             elif dact.intent == 'request':
                 for dact_item in dact.params:
-                    # TODO: THIS WILL ONLY SAVE THE LAST DACT ITEM! --
                     # THIS APPLIES TO THE FOLLOWING RULES AS WELL
 
                     if dact_item.slot == 'slot' and dact_item.value:
                         # Case where we have request(slot = slot_name)
-                        self.DState.requested_slot = dact_item.value
+                        self.DState.requested_slots.append(dact_item.value)
                     else:
                         # Case where we have: request(slot_name)
-                        self.DState.requested_slot = dact_item.slot
+                        self.DState.requested_slots.append(dact_item.slot)
 
             elif dact.intent == 'bye':
                 self.DState.is_terminal_state = True

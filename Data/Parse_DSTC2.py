@@ -1395,7 +1395,7 @@ class Parser(DataParser):
                 temp.append(1) if value else temp.append(0)
 
             for r in self.requestable_slots:
-                temp.append(1) if r == state.requested_slot else temp.append(0)
+                temp.append(1) if r in state.requested_slots else temp.append(0)
 
         return temp
 
