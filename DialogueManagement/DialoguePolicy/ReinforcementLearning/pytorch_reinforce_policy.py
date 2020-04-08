@@ -87,9 +87,6 @@ class PolicyAgent(nn.Module):
         return (intent.item(), slots.numpy()), log_prob
 
 
-import json
-
-
 class ActionEncoder:
     def __init__(self, domain: Domain) -> None:
         self.intent_enc = preprocessing.LabelEncoder()

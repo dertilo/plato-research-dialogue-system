@@ -15,6 +15,7 @@ import os
 import pickle
 import random
 from copy import deepcopy
+from typing import List
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 from NLG.CamRestNLG import CamRestNLG
@@ -208,7 +209,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         self.offer_made = False
         self.prev_offer_name = None
 
-    def receive_input(self, inpt, goal=None):
+    def receive_input(self, inpt:List[DialogueAct], goal=None):
         """
         Receives and processes the input (i.e. the system's response) and
         updates the simulator's internal state.
@@ -326,7 +327,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                 self.agenda.remove(dact)
                 self.agenda.push(dact)
 
-    def receive_input_handcrafted(self, system_acts):
+    def receive_input_handcrafted(self, system_acts:List[DialogueAct]):
         """
         Handle the input according to probabilistic rules
 
