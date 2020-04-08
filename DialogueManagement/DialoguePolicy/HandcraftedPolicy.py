@@ -65,23 +65,27 @@ class HandcraftedPolicy(DialoguePolicy.DialoguePolicy):
             return [DialogueAct('bye', [DialogueActItem('', Operator.EQ, '')])]
 
         # Check if the user has made any requests
-        elif dialogue_state.requested_slot:
+        elif len(dialogue_state.requested_slots) > 0:
             if dialogue_state.item_in_focus and \
                     dialogue_state.system_made_offer:
-                requested_slot = dialogue_state.requested_slot
+                requested_slots = dialogue_state.requested_slots
 
                 # Reset request as we attempt to address it
-                dialogue_state.requested_slot = ''
+                dialogue_state.requested_slots = []
 
-                value = 'not available'
-                if requested_slot in dialogue_state.item_in_focus and \
-                        dialogue_state.item_in_focus[requested_slot]:
-                    value = dialogue_state.item_in_focus[requested_slot]
+                items = []
+                for rs in requested_slots:
+                    value = 'not available'
+                    if rs in dialogue_state.item_in_focus and \
+                            dialogue_state.item_in_focus[rs]:
+                        value = dialogue_state.item_in_focus[rs]
+
+                    items.append(DialogueActItem(rs, Operator.EQ, value))
 
                 return \
                     [DialogueAct(
                         'inform',
-                        [DialogueActItem(requested_slot, Operator.EQ, value)])]
+                        items)]
 
             # Else, if no item is in focus or no offer has been made,
             # ignore the user's request

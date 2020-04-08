@@ -390,7 +390,7 @@ class DialogueManager(ConversationalModule):
                         for slot in d_state.slots_filled:
                             if slot in d_state.item_in_focus:
                                 if slot not in ['id', 'name'] and \
-                                        slot != d_state.requested_slot:
+                                        slot not in d_state.requested_slots:
                                     new_sys_acts.append(
                                         DialogueAct(
                                             'inform',
@@ -415,7 +415,9 @@ class DialogueManager(ConversationalModule):
                     if sys_act.params:
                         slot = sys_act.params[0].slot
                     else:
-                        slot = d_state.requested_slot
+                        # use the first slot in requested slots
+                        if len(d_state.requested_slots) > 0:
+                            slot = d_state.requested_slots[0]
 
                     if not slot:
                         slot = random.choice(list(d_state.slots_filled.keys()))
