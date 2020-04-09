@@ -97,7 +97,13 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
         self.patience = 3
 
-        # Initialize probabilities
+        # Default values for probabilities
+        self.pop_distribution = [1.0]
+        self.slot_confuse_prob = 0.0
+        self.op_confuse_prob = 0.0
+        self.value_confuse_prob = 0.0
+
+        # Set probabilities from config, if given there
         if 'patience' in args:
             self.patience = args['patience']
         if 'pop_distribution' in args:
@@ -148,12 +154,6 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
             self.us_has_initiative = args['us_has_initiative']
 
         self.curr_patience = self.patience
-
-        # Default values for probabilities
-        self.pop_distribution = [1.0]
-        self.slot_confuse_prob = 0.0
-        self.op_confuse_prob = 0.0
-        self.value_confuse_prob = 0.0
 
         self.agenda = Agenda.Agenda()
         self.error_model = ErrorModel.ErrorModel(self.ontology,
