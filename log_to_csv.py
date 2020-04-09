@@ -41,15 +41,15 @@ def convert_on_turn_level(log, csv_p):
             turn['num_of_user_intents'] = len(user_acts)
 
             # collect slot names and related values for system's action
-            sys_act = t['action'][0]
-            turn['system_intent'] = sys_act.intent
-            system_slots = list()
-            system_values = list()
-            for p in sys_act.params:
-                system_slots.append(p.slot)
-                system_values.append(p.value)
-            turn['system_slots'] = ' '.join(system_slots)
-            turn['system_values'] = ' '.join(system_values)
+            sys_acts = list()
+            if t['action'] is not None:
+                for sys_act in t['action']:
+                    sys_acts.append(str(sys_act))
+
+            turn['sys_acts'] = ' '.join(sys_acts)
+
+            # collect number of system acts
+            turn['number_of_sys_acts'] = len(sys_acts)
 
             csv_data.append(turn)
 
