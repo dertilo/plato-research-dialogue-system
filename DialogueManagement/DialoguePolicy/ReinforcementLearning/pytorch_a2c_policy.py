@@ -80,7 +80,7 @@ class PolicyA2CAgent(AbstractA2CAgent):
 
 class DialogTurn(NamedTuple):
     act: ValueDialogAct
-    state: SlotFillingDialogueState
+    tokenized_state_json: List[str]
     reward: float
 
 
@@ -141,10 +141,11 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
-        tokenized_dstates = [[self.tokenize(turn['state']) for turn in b] for b in batch]
-        max_seq_len = max([len(seq) for seqs in tokenized_dstates for seq in seqs])
-        self.text_field.fix_length = max_seq_len
         dialogues = [self._build_dialogue_turns(dialogue) for dialogue in batch]
+
+        max_seq_len = max([len(turn.tokenized_state_json) for d in dialogues for turn in d])
+        self.text_field.fix_length = max_seq_len
+
         exps = [e for d in dialogues for e in self._dialogue_to_experience(d)]
         w = 5
         windows = [exps[i:(i+w)] for i in range(0,(len(exps)//w)*w,w)]
@@ -169,11 +170,11 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             rewards = [t["reward"] for t in dialogue]
             returns = calc_discounted_returns(rewards, self.gamma)
             turns = [
-                DialogTurn(ValueDialogAct(a[0].intent, a[0].params, v), s, r)
+                DialogTurn(ValueDialogAct(a[0].intent, a[0].params, v), self.tokenize(s), r)
                 for (a, s, r), v in zip(x, returns)
             ]
         else:
-            turns = [DialogTurn(a[0], s, r) for a, s, r in x]
+            turns = [DialogTurn(a[0], self.tokenize(s), r) for a, s, r in x]
         return turns
 
     # def encode_states(self, sequences:List[List[str]]) -> torch.LongTensor:
