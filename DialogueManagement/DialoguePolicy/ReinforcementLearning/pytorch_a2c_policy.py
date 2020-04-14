@@ -22,6 +22,9 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_ac
 )
 import numpy as np
 
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.experience_memory import \
+    fill_with_zeros, ExperienceMemory
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -130,7 +133,16 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.agent.train()
         self.agent.to(DEVICE)
         dialogues = [self._build_dialogue_turns(dialogue) for dialogue in batch]
-        exps = [self._dialogue_to_experience(d) for d in dialogues]
+        exps = [e for d in dialogues for e in self._dialogue_to_experience(d)]
+        w = 5
+        windows = [exps[i:(i+w)] for i in range(0,(len(exps)//w)*w,w)]
+
+        expmem = ExperienceMemory(w,exps[0])
+        for k in range(w):
+            d = fill_with_zeros(len(windows), exps[0])
+            for i,exp in enumerate(windows):
+                d[i]=exp[k]
+            expmem[k]=d
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
@@ -143,31 +155,33 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             rewards = [t["reward"] for t in dialogue]
             returns = calc_discounted_returns(rewards, self.gamma)
             turns = [
-                DialogTurn(ValueDialogAct(a.intent, a.params, v), s, r)
+                DialogTurn(ValueDialogAct(a[0].intent, a[0].params, v), s, r)
                 for (a, s, r), v in zip(x, returns)
             ]
         else:
-            turns = [DialogTurn(a, s, r) for a, s, r in x]
+            turns = [DialogTurn(a[0], s, r) for a, s, r in x]
         return turns
 
     def _dialogue_to_experience(
         self, dialogue: List[DialogTurn]
-    ) -> List[Tuple[EnvStep, AgentStep]]:
+    ) -> List[Dict]:
         exp = []
 
         for k, turn in enumerate(dialogue):
-            observation = self.encode_state(turn.state).to(DEVICE)
+            observation = self.encode_state(turn.state).squeeze().to(DEVICE)
             action_encs = self.encode_action([turn.act])
-            action = tuple(
-                [
-                    torch.from_numpy(a).float().unsqueeze(0).to(DEVICE)
-                    for a in action_encs
-                ]
+            action = {
+                n: torch.from_numpy(a).float().to(DEVICE)
+                for n, a in zip(["intent", "slots"], action_encs)
+            }
+            done = torch.from_numpy(
+                np.array([k == len(dialogue) - 1]).astype(np.int)
+            ).squeeze()
+            env_step = EnvStep(
+                observation, torch.from_numpy(np.array(turn.reward)), done
             )
-            done = torch.from_numpy(np.array([k == len(dialogue) - 1]).astype(np.int))
-            env_step = EnvStep(observation, turn.reward, done)
             agent_step = AgentStep(action, turn.act.value)
-            exp.append((env_step, agent_step))
+            exp.append({'env':env_step._asdict(),'agent':agent_step._asdict()})
         return exp
 
     def decode_action(self, action_enc: Tuple):
