@@ -1,48 +1,37 @@
-import os
-import re
-import shutil
-from os import chdir
-from typing import List, Dict, Tuple
-
-import numpy
-import random
-
-from sklearn import preprocessing
-from torchtext.data import Field, Example
-from torchtext.vocab import Vocab
+from typing import List, Dict, Tuple, NamedTuple
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
-from Dialogue.State import SlotFillingDialogueState
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.QPolicy import QPolicy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from torch.distributions import Categorical, Bernoulli
 
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import \
-    StateEncoder, sample_from_distr
+from Dialogue.State import SlotFillingDialogueState
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import (
+    StateEncoder,
+    CommonDistribution,
+)
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import (
-    ActionEncoder,
-    PolicyAgent,
     PyTorchReinforcePolicy,
 )
-from DialogueManagement.DialoguePolicy.dialogue_common import (
-    create_random_dialog_act,
-    Domain,
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_actor_critic import (
+    EnvStep,
+    AgentStep,
+    AgentStepper,
+    AbstractA2CAgent,
 )
+import numpy as np
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-class ValueDialogAct(DialogueAct):
 
-    def __init__(self, intent='', params=None,value:float=0.0):
+class ValueDialogAct(DialogueAct):
+    def __init__(self, intent="", params=None, value: float = 0.0):
         super().__init__(intent, params)
         self.value = value
 
-class Actor(nn.Module):
 
-    def __init__(self,hidden_dim,num_intents,num_slots) -> None:
+class Actor(nn.Module):
+    def __init__(self, hidden_dim, num_intents, num_slots) -> None:
         super().__init__()
         self.intent_head = nn.Linear(hidden_dim, num_intents)
         self.slots_head = nn.Linear(hidden_dim, num_slots)
@@ -50,16 +39,16 @@ class Actor(nn.Module):
     def forward(self, x):
         intent_probs = F.softmax(self.intent_head(x), dim=1)
         slots_sigms = torch.sigmoid(self.slots_head(x))
-        return intent_probs,slots_sigms
+        return intent_probs, slots_sigms
 
 
-class PolicyA2CAgent(nn.Module):
+class PolicyA2CAgent(AbstractA2CAgent):
     def __init__(
         self, vocab_size, num_intents, num_slots, hidden_dim=64, embed_dim=32,
     ) -> None:
         super().__init__()
-        self.encoder = StateEncoder(vocab_size,hidden_dim,embed_dim)
-        self.actor = Actor(hidden_dim,num_intents,num_slots)
+        self.encoder = StateEncoder(vocab_size, hidden_dim, embed_dim)
+        self.actor = Actor(hidden_dim, num_intents, num_slots)
         self.critic = nn.Linear(embed_dim, 1)
 
     def forward(self, x):
@@ -67,17 +56,25 @@ class PolicyA2CAgent(nn.Module):
         intent_probs, slots_sigms = self.actor(features_pooled)
         return intent_probs, slots_sigms
 
-    def step(self, state, draw=sample_from_distr):
+    def calc_distr_value(self,state):
         intent_probs, slot_sigms = self.forward(state)
-        cd = Categorical(intent_probs)
-        bd = Bernoulli(slot_sigms)
-        intent, slots = draw(cd, bd)
-        if len(intent.shape) == 1:  # cause its stupid!
-            intent = intent.unsqueeze(0)
-        log_prob = torch.sum(
-            torch.cat([cd.log_prob(intent), bd.log_prob(slots)], dim=1)
-        )
-        return (intent.item(), slots.numpy()), log_prob
+        distr = CommonDistribution(intent_probs, slot_sigms)
+        value = self.critic(state)
+        return distr,value
+
+    def step(self, env_step: EnvStep, draw=lambda distr: distr.sample()) -> AgentStep:
+        x = env_step.observation
+        intent_probs, slot_sigms = self.forward(x)
+        distr = CommonDistribution(intent_probs, slot_sigms)
+        intent, slots = draw(distr)
+        v_values = self.critic(x).data
+        return AgentStep((intent.item(), slots.numpy()),v_values)
+
+
+class DialogTurn(NamedTuple):
+    act: ValueDialogAct
+    state: SlotFillingDialogueState
+    reward: float
 
 
 class PyTorchA2CPolicy(PyTorchReinforcePolicy):
@@ -113,6 +110,11 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             **kwargs
         )
 
+        self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyA2CAgent)
+        self.agent: AbstractA2CAgent = self.PolicyAgentModelClass(
+            self.vocab_size, self.num_intents, self.num_slots
+        )
+
     @staticmethod
     def _calc_returns(exp, gamma):
         returns = []
@@ -126,34 +128,38 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
-        losses = [
-            loss.unsqueeze(0) for d in batch for loss in self._calc_dialogue_losses(d)
+        dialogues = [
+            [DialogTurn(d["action"], d["state"], d["reward"]) for d in dialogue]
+            for dialogue in batch
         ]
-        policy_loss = torch.cat(losses).mean()
-
-        self.optimizer.zero_grad()
-        policy_loss.backward()
-        self.optimizer.step()
-        self.losses.append(float(policy_loss.data.cpu().numpy()))
+        exps = [self._dialogue_to_experience(d) for d in dialogues]
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-    def _calc_dialogue_losses(self, dialogue: List[Dict]):
+    def _dialogue_to_experience(
+        self, dialogue: List[DialogTurn]
+    ) -> List[Tuple[EnvStep, AgentStep]]:
         exp = []
-        for turn in dialogue:
-            x = self.encode_state(turn["state"]).to(DEVICE)
-            action_encs = self.encode_action(turn["action"])
+        for k, turn in enumerate(dialogue):
+            observation = self.encode_state(turn.state).to(DEVICE)
+            action_encs = self.encode_action(turn.act)
             action = tuple(
                 [
                     torch.from_numpy(a).float().unsqueeze(0).to(DEVICE)
                     for a in action_encs
                 ]
             )
-            draw_method = lambda *_: action
-            _, log_probs = self.agent.step(x, draw_method)
-            exp.append((log_probs, turn["reward"]))
-        returns = self._calc_returns(exp, self.gamma)
-        dialogue_losses = [-log_prob * R for (log_prob, _), R in zip(exp, returns)]
-        return dialogue_losses
+            done = torch.from_numpy(np.array([k == len(dialogue) - 1]).astype(np.int))
+            env_step = EnvStep(observation, turn.reward, done)
+            agent_step = AgentStep(action, turn.act.value)
+            exp.append((env_step, agent_step))
+        return exp
+
+    def decode_action(self, action_enc: Tuple):
+        intent, slots = self.action_enc.decode(*action_enc)
+        slots = self._filter_slots(intent, slots)
+        return ValueDialogAct(
+            intent, params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
+        )
