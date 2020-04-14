@@ -1,4 +1,6 @@
+import torch
 from torch import nn as nn
+from torch.distributions import Categorical, Bernoulli
 
 
 class StateEncoder(nn.Module):
@@ -37,5 +39,18 @@ class StateEncoder(nn.Module):
         return features_pooled
 
 
-def sample_from_distr(*distrs):
-    return tuple([d.sample() for d in distrs])
+class CommonDistribution:
+    def __init__(self,intent_probs,slot_sigms):
+        self.cd = Categorical(intent_probs)
+        self.bd = Bernoulli(slot_sigms)
+
+    def sample(self):
+        return self.cd.sample(),self.bd.sample()
+
+    def log_prob(self,intent,slots):
+        if len(intent.shape) == 1:  # cause its stupid!
+            intent = intent.unsqueeze(0)
+        log_prob = torch.sum(
+            torch.cat([self.cd.log_prob(intent), self.bd.log_prob(slots)], dim=1)
+        )
+        return log_prob

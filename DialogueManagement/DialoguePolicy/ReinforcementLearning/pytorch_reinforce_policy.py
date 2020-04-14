@@ -15,10 +15,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.distributions import Categorical, Bernoulli
-
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import \
-    StateEncoder, sample_from_distr
+    StateEncoder, CommonDistribution
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
     Domain,
@@ -44,17 +42,11 @@ class PolicyAgent(nn.Module):
         slots_sigms = torch.sigmoid(self.slots_head(features_pooled))
         return intent_probs, slots_sigms
 
-    def step(self, state, draw=sample_from_distr):
+    def step(self, state, draw=lambda distr:distr.sample()):
         intent_probs, slot_sigms = self.forward(state)
-        cd = Categorical(intent_probs)
-        bd = Bernoulli(slot_sigms)
-        intent, slots = draw(cd, bd)
-        if len(intent.shape) == 1:  # cause its stupid!
-            intent = intent.unsqueeze(0)
-        log_prob = torch.sum(
-            torch.cat([cd.log_prob(intent), bd.log_prob(slots)], dim=1)
-        )
-        return (intent.item(), slots.numpy()), log_prob
+        distr = CommonDistribution(intent_probs, slot_sigms)
+        intent, slots = draw(distr)
+        return (intent.item(), slots.numpy()), distr.log_prob(intent,slots)
 
 
 class ActionEncoder:
