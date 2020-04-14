@@ -1,6 +1,6 @@
 import os
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, NamedTuple
 
 import numpy
 import random
@@ -24,6 +24,8 @@ from DialogueManagement.DialoguePolicy.dialogue_common import (
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+class AgentStep(NamedTuple):
+    action:Tuple[int,numpy.ndarray]
 
 class PolicyAgent(nn.Module):
     def __init__(
@@ -42,11 +44,15 @@ class PolicyAgent(nn.Module):
         slots_sigms = torch.sigmoid(self.slots_head(features_pooled))
         return intent_probs, slots_sigms
 
-    def step(self, state, draw=lambda distr:distr.sample()):
+    def calc_distr(self,state):
         intent_probs, slot_sigms = self.forward(state)
         distr = CommonDistribution(intent_probs, slot_sigms)
-        intent, slots = draw(distr)
-        return (intent.item(), slots.numpy()), distr.log_prob(intent,slots)
+        return distr
+
+    def step(self, state)->AgentStep:
+        distr=self.calc_distr(state)
+        intent, slots = distr.sample()
+        return AgentStep((intent.item(), slots.numpy()))
 
 
 class ActionEncoder:
@@ -110,13 +116,13 @@ class PyTorchReinforcePolicy(QPolicy):
         self.action_enc = ActionEncoder(self.domain)
         self.NActions = None
 
-        self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyAgent)
         self.num_intents = len(self.domain.acts_params) + len(
             self.domain.dstc2_acts_sys
         )
         self.num_slots = len(
             set(self.domain.system_requestable_slots + self.domain.requestable_slots)
         )
+        self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyAgent)
         self.agent = self.PolicyAgentModelClass(
             self.vocab_size, self.num_intents, self.num_slots
         )
@@ -150,8 +156,8 @@ class PyTorchReinforcePolicy(QPolicy):
         else:
             state_enc = self.encode_state(state)
             with torch.no_grad():
-                action, _ = self.agent.step(state_enc.to(DEVICE))
-            sys_acts = [self.decode_action(action)]
+                agent_step = self.agent.step(state_enc.to(DEVICE))
+            sys_acts = [self.decode_action(agent_step)]
 
         return sys_acts
 
@@ -189,8 +195,8 @@ class PyTorchReinforcePolicy(QPolicy):
         encoded_action = self.action_enc.encode(acts[0].intent, slots)
         return encoded_action
 
-    def decode_action(self, action_enc: Tuple):
-        intent, slots = self.action_enc.decode(*action_enc)
+    def decode_action(self, step:AgentStep)->DialogueAct:
+        intent, slots = self.action_enc.decode(*step.action)
         slots = self._filter_slots(intent, slots)
         return DialogueAct(
             intent, params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
@@ -233,8 +239,8 @@ class PyTorchReinforcePolicy(QPolicy):
                     for a in action_encs
                 ]
             )
-            draw_method = lambda *_: action
-            _, log_probs = self.agent.step(x, draw_method)
+            distr = self.agent.calc_distr(x)
+            log_probs = distr.log_prob(*action)
             exp.append((log_probs, turn["reward"]))
         returns = self._calc_returns(exp, self.gamma)
         dialogue_losses = [-log_prob * R for (log_prob, _), R in zip(exp, returns)]
