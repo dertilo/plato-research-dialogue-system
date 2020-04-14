@@ -1,7 +1,5 @@
 import os
 import re
-import shutil
-from os import chdir
 from typing import List, Dict, Tuple
 
 import numpy
@@ -9,7 +7,6 @@ import random
 
 from sklearn import preprocessing
 from torchtext.data import Field, Example
-from torchtext.vocab import Vocab
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 from Dialogue.State import SlotFillingDialogueState
@@ -20,6 +17,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical, Bernoulli
 
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import \
+    StateEncoder
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
     Domain,
@@ -37,39 +36,14 @@ class PolicyAgent(nn.Module):
         self, vocab_size, num_intents, num_slots, hidden_dim=64, embed_dim=32,
     ) -> None:
         super().__init__()
-
-        self.embedding = nn.Embedding(vocab_size, embed_dim)
-        self.convnet = nn.Sequential(
-            nn.Conv1d(in_channels=embed_dim, out_channels=hidden_dim, kernel_size=3),
-            nn.ELU(),
-            nn.Conv1d(
-                in_channels=hidden_dim,
-                out_channels=hidden_dim,
-                kernel_size=3,
-                stride=2,
-            ),
-            nn.ELU(),
-            nn.Conv1d(
-                in_channels=hidden_dim,
-                out_channels=hidden_dim,
-                kernel_size=3,
-                stride=2,
-            ),
-            nn.ELU(),
-            nn.Conv1d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3),
-            nn.ELU(),
-        )
-        self.pooling = nn.AdaptiveMaxPool1d(1)
+        self.encoder = StateEncoder(vocab_size,hidden_dim,embed_dim)
 
         self.intent_head = nn.Linear(hidden_dim, num_intents)
 
         self.slots_head = nn.Linear(hidden_dim, num_slots)
 
     def forward(self, x):
-        x = self.embedding(x)
-        x = x.transpose(2, 1)
-        features = self.convnet(x)
-        features_pooled = self.pooling(features).squeeze(2)
+        features_pooled = self.encoder(x)
         intent_probs = F.softmax(self.intent_head(features_pooled), dim=1)
         slots_sigms = torch.sigmoid(self.slots_head(features_pooled))
         return intent_probs, slots_sigms
