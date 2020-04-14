@@ -412,6 +412,7 @@ class DialogueManager(ConversationalModule):
                     if sys_act.params and sys_act.params[0].value:
                         continue
 
+                    slot = ''  # defualt value for slot, if it cannot be filled from state
                     if sys_act.params:
                         slot = sys_act.params[0].slot
                     else:
