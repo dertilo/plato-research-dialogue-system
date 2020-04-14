@@ -1,5 +1,4 @@
 from torch import nn as nn
-from torch.nn.modules.module import T_co
 
 
 class StateEncoder(nn.Module):
@@ -30,7 +29,7 @@ class StateEncoder(nn.Module):
         )
         self.pooling = nn.AdaptiveMaxPool1d(1)
 
-    def forward(self, x) -> T_co:
+    def forward(self, x):
         x = self.embedding(x)
         x = x.transpose(2, 1)
         features = self.convnet(x)
