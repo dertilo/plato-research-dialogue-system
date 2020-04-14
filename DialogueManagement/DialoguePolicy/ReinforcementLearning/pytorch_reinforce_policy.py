@@ -126,7 +126,7 @@ class PyTorchReinforcePolicy(QPolicy):
         epsilon_min=0.05,
         **kwargs
     ):
-        gamma = 0.99
+        assert gamma>0.9
         super().__init__(
             ontology,
             database,

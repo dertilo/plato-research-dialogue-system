@@ -8,6 +8,8 @@ You may obtain a copy of the License at the root directory of this project.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_a2c_policy import \
+    PyTorchA2CPolicy
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import \
     PyTorchReinforcePolicy
 
@@ -203,6 +205,17 @@ class DialogueManager(ConversationalModule):
 
             self.policy = \
                 PyTorchReinforcePolicy(self.ontology,
+                        self.database,
+                        self.agent_id,
+                        self.agent_role,
+                        self.domain,
+                        print_level=self.print_level,
+                        **policy_params)
+
+        elif args['policy']['type'] == 'pytorch_a2c':
+
+            self.policy = \
+                PyTorchA2CPolicy(self.ontology,
                         self.database,
                         self.agent_id,
                         self.agent_role,

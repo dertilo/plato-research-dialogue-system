@@ -47,11 +47,11 @@ def build_config(do_train=True):
             },
             "DM": {
                 "policy": {
-                    "type": "pytorch_reinforce",
+                    "type": "pytorch_a2c",
                     "train": do_train,
                     "learning_rate": 0.01,
                     "learning_decay_rate": 0.995,
-                    "discount_factor": 0.8,
+                    "discount_factor": 0.99,
                     "exploration_rate": 1.0,
                     "exploration_decay_rate": 1.0,
                     "min_exploration_rate": 0.01,
@@ -139,6 +139,6 @@ if __name__ == "__main__":
     clean_dir("policies")
 
     config = build_config(do_train=True)
-    run_it(config,100)
+    run_it(config,10)
     config = build_config(do_train=False)
     run_it(config)
