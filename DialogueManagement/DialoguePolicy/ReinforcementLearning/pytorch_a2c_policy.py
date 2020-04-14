@@ -66,25 +66,6 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             **kwargs
         )
 
-        self.text_field = self._build_text_field(self.domain)
-        self.vocab_size = len(self.text_field.vocab)
-
-        self.action_enc = ActionEncoder(self.domain)
-        self.NActions = None
-
-        self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyAgent)
-        self.num_intents = len(self.domain.acts_params) + len(
-            self.domain.dstc2_acts_sys
-        )
-        self.num_slots = len(
-            set(self.domain.system_requestable_slots + self.domain.requestable_slots)
-        )
-        self.agent = self.PolicyAgentModelClass(
-            self.vocab_size, self.num_intents, self.num_slots
-        )
-        self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
-        self.losses = []
-
     @staticmethod
     def _calc_returns(exp, gamma):
         returns = []
