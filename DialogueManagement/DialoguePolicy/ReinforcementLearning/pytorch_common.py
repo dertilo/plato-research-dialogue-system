@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 from torch import nn as nn
 from torch.distributions import Categorical, Bernoulli
@@ -54,3 +56,12 @@ class CommonDistribution:
             torch.cat([self.cd.log_prob(intent), self.bd.log_prob(slots)], dim=1)
         )
         return log_prob
+
+def calc_discounted_returns(rewards:List[float], gamma:float):
+    returns = []
+    R = 0
+    for r in reversed(rewards):
+        R = r + gamma * R
+        returns.insert(0, R)
+    returns = torch.tensor(returns)
+    return returns

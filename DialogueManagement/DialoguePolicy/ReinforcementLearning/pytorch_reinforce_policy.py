@@ -16,7 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import \
-    StateEncoder, CommonDistribution
+    StateEncoder, CommonDistribution, calc_discounted_returns
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
     Domain,
@@ -161,16 +161,6 @@ class PyTorchReinforcePolicy(QPolicy):
 
         return sys_acts
 
-    @staticmethod
-    def _calc_returns(exp, gamma):
-        returns = []
-        R = 0
-        for log_prob, r in reversed(exp):
-            R = r + gamma * R
-            returns.insert(0, R)
-        returns = torch.tensor(returns)
-        return returns
-
     def encode_state(self, state: SlotFillingDialogueState) -> torch.LongTensor:
         state_string = super().encode_state(state)
         example = Example.fromlist([state_string], [("dialog_state", self.text_field)])
@@ -242,7 +232,7 @@ class PyTorchReinforcePolicy(QPolicy):
             distr = self.agent.calc_distr(x)
             log_probs = distr.log_prob(*action)
             exp.append((log_probs, turn["reward"]))
-        returns = self._calc_returns(exp, self.gamma)
+        returns = calc_discounted_returns([r for _,r in exp], self.gamma)
         dialogue_losses = [-log_prob * R for (log_prob, _), R in zip(exp, returns)]
         return dialogue_losses
 
