@@ -20,6 +20,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical, Bernoulli
 
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import \
+    StateEncoder, sample_from_distr
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import (
     ActionEncoder,
     PolicyAgent,
@@ -31,6 +33,51 @@ from DialogueManagement.DialoguePolicy.dialogue_common import (
 )
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+class ValueDialogAct(DialogueAct):
+
+    def __init__(self, intent='', params=None,value:float=0.0):
+        super().__init__(intent, params)
+        self.value = value
+
+class Actor(nn.Module):
+
+    def __init__(self,hidden_dim,num_intents,num_slots) -> None:
+        super().__init__()
+        self.intent_head = nn.Linear(hidden_dim, num_intents)
+        self.slots_head = nn.Linear(hidden_dim, num_slots)
+
+    def forward(self, x):
+        intent_probs = F.softmax(self.intent_head(x), dim=1)
+        slots_sigms = torch.sigmoid(self.slots_head(x))
+        return intent_probs,slots_sigms
+
+
+class PolicyA2CAgent(nn.Module):
+    def __init__(
+        self, vocab_size, num_intents, num_slots, hidden_dim=64, embed_dim=32,
+    ) -> None:
+        super().__init__()
+        self.encoder = StateEncoder(vocab_size,hidden_dim,embed_dim)
+        self.actor = Actor(hidden_dim,num_intents,num_slots)
+        self.critic = nn.Linear(embed_dim, 1)
+
+    def forward(self, x):
+        features_pooled = self.encoder(x)
+        intent_probs, slots_sigms = self.actor(features_pooled)
+        return intent_probs, slots_sigms
+
+    def step(self, state, draw=sample_from_distr):
+        intent_probs, slot_sigms = self.forward(state)
+        cd = Categorical(intent_probs)
+        bd = Bernoulli(slot_sigms)
+        intent, slots = draw(cd, bd)
+        if len(intent.shape) == 1:  # cause its stupid!
+            intent = intent.unsqueeze(0)
+        log_prob = torch.sum(
+            torch.cat([cd.log_prob(intent), bd.log_prob(slots)], dim=1)
+        )
+        return (intent.item(), slots.numpy()), log_prob
 
 
 class PyTorchA2CPolicy(PyTorchReinforcePolicy):
