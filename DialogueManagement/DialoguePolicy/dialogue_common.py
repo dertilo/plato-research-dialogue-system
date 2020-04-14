@@ -1,3 +1,4 @@
+import json
 import random
 from copy import deepcopy
 from typing import NamedTuple, List
@@ -77,3 +78,14 @@ def create_random_dialog_act(domain:Domain,is_system=True):
     #     intens_w = pick_some(domain.dstc2_acts_usr,0,3)
     # acts.extend([DialogueAct(i) for i in intens_w])
     return acts
+
+
+def action_to_string(acts:List[DialogueAct], system):
+    sys_usr = 'sys' if system else 'usr'
+
+    def extract_features_from_act(act: DialogueAct):
+        return (act.intent, [p.slot for p in act.params])
+
+    strings = [json.dumps(extract_features_from_act(a)) for a in acts]
+    s = sys_usr + ';'.join(strings)
+    return s

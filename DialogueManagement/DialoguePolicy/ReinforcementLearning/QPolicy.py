@@ -10,29 +10,26 @@ limitations under the License.
 """
 import json
 
-from sklearn import preprocessing
 from typing import List
 
 from Dialogue.State import SlotFillingDialogueState
-from DialogueManagement.DialoguePolicy.dialogue_common import Domain, setup_domain, \
-    create_random_dialog_act
+from DialogueManagement.DialoguePolicy.dialogue_common import setup_domain, \
+    create_random_dialog_act, action_to_string
 
 __author__ = "Alexandros Papangelis"
 
 from .. import DialoguePolicy, HandcraftedPolicy
-from Dialogue.Action import DialogueAct, DialogueActItem, Operator
-from UserSimulator.AgendaBasedUserSimulator.AgendaBasedUS import AgendaBasedUS
+from Dialogue.Action import DialogueAct
 from Domain.Ontology import Ontology
 from Domain.DataBase import DataBase
 from copy import deepcopy
-from itertools import compress
 
 import pickle
 import random
 import pprint
 import os.path
 import logging
-import hashlib
+
 """
 Q_Policy implements a simple Q-Learning dialogue policy.
 """
@@ -212,8 +209,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         temp.db_matches_ratio = int(round(temp.db_matches_ratio, 2) * 100)
         temp.slots_filled = [s for s,v in temp.slots_filled.items() if v is not None]
         if temp.last_sys_acts is not None:
-            temp.last_sys_acts = self._action_to_string(temp.last_sys_acts,system=True)
-            temp.user_acts = self._action_to_string(temp.user_acts,system=False)
+            temp.last_sys_acts = action_to_string(temp.last_sys_acts, system=True)
+            temp.user_acts = action_to_string(temp.user_acts, system=False)
 
         d = todict(temp)
         assert d is not None
@@ -223,19 +220,9 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         return s
 
     def encode_action(self, acts:List[DialogueAct], system=True)->str:
-        s = self._action_to_string(acts, system)
+        s = action_to_string(acts, system)
         # enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
         self.hash2actions[s]=acts
-        return s
-
-    def _action_to_string(self, acts:List[DialogueAct], system):
-        sys_usr = 'sys' if system else 'usr'
-
-        def extract_features_from_act(act: DialogueAct):
-            return (act.intent, [p.slot for p in act.params])
-
-        strings = [json.dumps(extract_features_from_act(a)) for a in acts]
-        s = sys_usr + ';'.join(strings)
         return s
 
     def decode_action(self, action_enc):
