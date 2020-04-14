@@ -24,8 +24,10 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_ac
 )
 import numpy as np
 
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.experience_memory import \
-    fill_with_zeros, ExperienceMemory
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.experience_memory import (
+    fill_with_zeros,
+    ExperienceMemory,
+)
 from DialogueManagement.DialoguePolicy.dialogue_common import state_to_json
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -132,7 +134,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         returns = torch.tensor(returns)
         return returns
 
-    def tokenize(self,state:SlotFillingDialogueState):
+    def tokenize(self, state: SlotFillingDialogueState):
         state_string = state_to_json(state)
         example = Example.fromlist([state_string], [("dialog_state", self.text_field)])
         tokens = [t for t in example.dialog_state if t in self.text_field.vocab.stoi]
@@ -143,21 +145,23 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.agent.to(DEVICE)
         dialogues = [self._build_dialogue_turns(dialogue) for dialogue in batch]
 
-        max_seq_len = max([len(turn.tokenized_state_json) for d in dialogues for turn in d])
+        max_seq_len = max(
+            [len(turn.tokenized_state_json) for d in dialogues for turn in d]
+        )
         self.text_field.fix_length = max_seq_len
 
         exps = [e for d in dialogues for e in self._dialogue_to_experience(d)]
         w = 5
-        windows = [exps[i:(i+w)] for i in range(0,(len(exps)//w)*w,w)]
+        windows = [exps[i : (i + w)] for i in range(0, (len(exps) // w) * w, w)]
 
-        max_seq_len_idx = np.argmax([e['env']['observation'].shape for e in exps])
+        max_seq_len_idx = np.argmax([e["env"]["observation"].shape for e in exps])
         template_datum = exps[max_seq_len_idx]
         expmem = ExperienceMemory(w, template_datum)
         for k in range(w):
             d = fill_with_zeros(len(windows), template_datum)
-            for i,exp in enumerate(windows):
-                d[i]=exp[k]
-            expmem[k]=d
+            for i, exp in enumerate(windows):
+                d[i] = exp[k]
+            expmem[k] = d
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
@@ -170,7 +174,9 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             rewards = [t["reward"] for t in dialogue]
             returns = calc_discounted_returns(rewards, self.gamma)
             turns = [
-                DialogTurn(ValueDialogAct(a[0].intent, a[0].params, v), self.tokenize(s), r)
+                DialogTurn(
+                    ValueDialogAct(a[0].intent, a[0].params, v), self.tokenize(s), r
+                )
                 for (a, s, r), v in zip(x, returns)
             ]
         else:
@@ -180,9 +186,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
     # def encode_states(self, sequences:List[List[str]]) -> torch.LongTensor:
     #     return self.text_field.process(sequences)
 
-    def _dialogue_to_experience(
-        self, dialogue: List[DialogTurn]
-    ) -> List[Dict]:
+    def _dialogue_to_experience(self, dialogue: List[DialogTurn]) -> List[Dict]:
         exp = []
 
         for k, turn in enumerate(dialogue):
@@ -199,7 +203,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
                 observation, torch.from_numpy(np.array(turn.reward)), done
             )
             agent_step = AgentStep(action, turn.act.value)
-            exp.append({'env':env_step._asdict(),'agent':agent_step._asdict()})
+            exp.append({"env": env_step._asdict(), "agent": agent_step._asdict()})
         return exp
 
     def decode_action(self, action_enc: Tuple):
