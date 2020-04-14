@@ -187,7 +187,8 @@ class PyTorchReinforcePolicy(QPolicy):
 
         else:
             state_enc = self.encode_state(state)
-            action, _ = self.agent.step(state_enc.to(DEVICE))
+            with torch.no_grad():
+                action, _ = self.agent.step(state_enc.to(DEVICE))
             sys_acts = [self.decode_action(action)]
 
         return sys_acts
