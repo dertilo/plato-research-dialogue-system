@@ -89,3 +89,46 @@ def action_to_string(acts:List[DialogueAct], system):
     strings = [json.dumps(extract_features_from_act(a)) for a in acts]
     s = sys_usr + ';'.join(strings)
     return s
+
+def state_to_json(state:SlotFillingDialogueState)->str:
+    temp = deepcopy(state)
+    del temp.context
+    del temp.system_requestable_slot_entropies
+    del temp.db_result
+    del temp.dialogStateUuid
+    del temp.user_goal
+    del temp.slots
+    del temp.item_in_focus
+    temp.db_matches_ratio = int(round(temp.db_matches_ratio, 2) * 100)
+    temp.slots_filled = [s for s,v in temp.slots_filled.items() if v is not None]
+    if temp.last_sys_acts is not None:
+        temp.last_sys_acts = action_to_string(temp.last_sys_acts, system=True)
+        temp.user_acts = action_to_string(temp.user_acts, system=False)
+
+    d = todict(temp)
+    assert d is not None
+    # d['item_in_focus'] = [(k,d['item_in_focus'] is not None and d['item_in_focus'].get(k,None) is not None) for k in self.domain.requestable_slots]
+    s = json.dumps(d)
+    # state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
+    return s
+
+
+def todict(obj, classkey=None):
+    if isinstance(obj, dict):
+        data = {}
+        for (k, v) in obj.items():
+            data[k] = todict(v, classkey)
+        return data
+    elif hasattr(obj, "_ast"):
+        return todict(obj._ast())
+    elif hasattr(obj, "__iter__") and not isinstance(obj, str):
+        return [todict(v, classkey) for v in obj]
+    elif hasattr(obj, "__dict__"):
+        data = dict([(key, todict(value, classkey))
+            for key, value in obj.__dict__.items()
+            if not callable(value) and not key.startswith('_')])
+        if classkey is not None and hasattr(obj, "__class__"):
+            data[classkey] = obj.__class__.__name__
+        return data
+    else:
+        return obj

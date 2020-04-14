@@ -8,13 +8,11 @@ You may obtain a copy of the License at the root directory of this project.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import json
 
 from typing import List
 
-from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.dialogue_common import setup_domain, \
-    create_random_dialog_act, action_to_string
+    create_random_dialog_act, action_to_string, state_to_json
 
 __author__ = "Alexandros Papangelis"
 
@@ -22,7 +20,6 @@ from .. import DialoguePolicy, HandcraftedPolicy
 from Dialogue.Action import DialogueAct
 from Domain.Ontology import Ontology
 from Domain.DataBase import DataBase
-from copy import deepcopy
 
 import pickle
 import random
@@ -37,25 +34,6 @@ Q_Policy implements a simple Q-Learning dialogue policy.
 # create logger
 module_logger = logging.getLogger(__name__)
 
-def todict(obj, classkey=None):
-    if isinstance(obj, dict):
-        data = {}
-        for (k, v) in obj.items():
-            data[k] = todict(v, classkey)
-        return data
-    elif hasattr(obj, "_ast"):
-        return todict(obj._ast())
-    elif hasattr(obj, "__iter__") and not isinstance(obj, str):
-        return [todict(v, classkey) for v in obj]
-    elif hasattr(obj, "__dict__"):
-        data = dict([(key, todict(value, classkey))
-            for key, value in obj.__dict__.items()
-            if not callable(value) and not key.startswith('_')])
-        if classkey is not None and hasattr(obj, "__class__"):
-            data[classkey] = obj.__class__.__name__
-        return data
-    else:
-        return obj
 
 class QPolicy(DialoguePolicy.DialoguePolicy):
     def __init__(self, ontology, database, agent_id=0, agent_role='system',
@@ -156,7 +134,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         :return: a list of dialogue acts, representing the agent's response
         """
 
-        state_enc = self.encode_state(state)
+        state_enc = state_to_json(state)
         assert self.IS_GREEDY_POLICY
         if self.is_training and (state_enc not in self.Q or random.random() < self.epsilon):
 
@@ -197,28 +175,6 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         return sys_acts
 
 
-    def encode_state(self, state:SlotFillingDialogueState)->str:
-        temp = deepcopy(state)
-        del temp.context
-        del temp.system_requestable_slot_entropies
-        del temp.db_result
-        del temp.dialogStateUuid
-        del temp.user_goal
-        del temp.slots
-        del temp.item_in_focus
-        temp.db_matches_ratio = int(round(temp.db_matches_ratio, 2) * 100)
-        temp.slots_filled = [s for s,v in temp.slots_filled.items() if v is not None]
-        if temp.last_sys_acts is not None:
-            temp.last_sys_acts = action_to_string(temp.last_sys_acts, system=True)
-            temp.user_acts = action_to_string(temp.user_acts, system=False)
-
-        d = todict(temp)
-        assert d is not None
-        # d['item_in_focus'] = [(k,d['item_in_focus'] is not None and d['item_in_focus'].get(k,None) is not None) for k in self.domain.requestable_slots]
-        s = json.dumps(d)
-        # state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
-        return s
-
     def encode_action(self, acts:List[DialogueAct], system=True)->str:
         s = action_to_string(acts, system)
         # enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
@@ -245,8 +201,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                 dialogue[-2]['reward'] = dialogue[-1]['reward']
 
             for turn in dialogue:
-                state_enc = self.encode_state(turn['state'])
-                new_state_enc = self.encode_state(turn['new_state'])
+                state_enc = state_to_json(turn['state'])
+                new_state_enc = state_to_json(turn['new_state'])
                 action_enc = self.encode_action(turn['action'])
 
                 if state_enc not in self.Q:
