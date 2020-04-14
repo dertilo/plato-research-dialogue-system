@@ -9,6 +9,7 @@ from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import (
     StateEncoder,
     CommonDistribution,
+    calc_discounted_returns,
 )
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import (
     PyTorchReinforcePolicy,
@@ -56,11 +57,11 @@ class PolicyA2CAgent(AbstractA2CAgent):
         intent_probs, slots_sigms = self.actor(features_pooled)
         return intent_probs, slots_sigms
 
-    def calc_distr_value(self,state):
+    def calc_distr_value(self, state):
         intent_probs, slot_sigms = self.forward(state)
         distr = CommonDistribution(intent_probs, slot_sigms)
         value = self.critic(state)
-        return distr,value
+        return distr, value
 
     def step(self, env_step: EnvStep, draw=lambda distr: distr.sample()) -> AgentStep:
         x = env_step.observation
@@ -68,7 +69,7 @@ class PolicyA2CAgent(AbstractA2CAgent):
         distr = CommonDistribution(intent_probs, slot_sigms)
         intent, slots = draw(distr)
         v_values = self.critic(x).data
-        return AgentStep((intent.item(), slots.numpy()),v_values)
+        return AgentStep((intent.item(), slots.numpy()), v_values)
 
 
 class DialogTurn(NamedTuple):
@@ -128,23 +129,35 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
-        dialogues = [
-            [DialogTurn(d["action"], d["state"], d["reward"]) for d in dialogue]
-            for dialogue in batch
-        ]
+        dialogues = [self._build_dialogue_turns(dialogue) for dialogue in batch]
         exps = [self._dialogue_to_experience(d) for d in dialogues]
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
+    def _build_dialogue_turns(self, dialogue: List[Dict]):
+        x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
+
+        if any([not isinstance(d["action"], ValueDialogAct) for d in dialogue]):
+            rewards = [t["reward"] for t in dialogue]
+            returns = calc_discounted_returns(rewards, self.gamma)
+            turns = [
+                DialogTurn(ValueDialogAct(a.intent, a.params, v), s, r)
+                for (a, s, r), v in zip(x, returns)
+            ]
+        else:
+            turns = [DialogTurn(a, s, r) for a, s, r in x]
+        return turns
+
     def _dialogue_to_experience(
         self, dialogue: List[DialogTurn]
     ) -> List[Tuple[EnvStep, AgentStep]]:
         exp = []
+
         for k, turn in enumerate(dialogue):
             observation = self.encode_state(turn.state).to(DEVICE)
-            action_encs = self.encode_action(turn.act)
+            action_encs = self.encode_action([turn.act])
             action = tuple(
                 [
                     torch.from_numpy(a).float().unsqueeze(0).to(DEVICE)
