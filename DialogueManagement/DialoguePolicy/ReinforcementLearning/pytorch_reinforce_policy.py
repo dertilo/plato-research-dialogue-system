@@ -18,17 +18,13 @@ import torch.optim as optim
 from torch.distributions import Categorical, Bernoulli
 
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import \
-    StateEncoder
+    StateEncoder, sample_from_distr
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
     Domain,
 )
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def sample_from_distr(*distrs):
-    return tuple([d.sample() for d in distrs])
 
 
 class PolicyAgent(nn.Module):

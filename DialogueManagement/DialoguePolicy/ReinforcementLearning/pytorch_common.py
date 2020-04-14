@@ -35,3 +35,7 @@ class StateEncoder(nn.Module):
         features = self.convnet(x)
         features_pooled = self.pooling(features).squeeze(2)
         return features_pooled
+
+
+def sample_from_distr(*distrs):
+    return tuple([d.sample() for d in distrs])
