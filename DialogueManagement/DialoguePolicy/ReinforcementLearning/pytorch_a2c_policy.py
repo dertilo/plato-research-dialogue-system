@@ -1,5 +1,7 @@
 from typing import List, Dict, Tuple, NamedTuple
 
+from torchtext.data import Example
+
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 import torch
 import torch.nn as nn
@@ -24,6 +26,7 @@ import numpy as np
 
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.experience_memory import \
     fill_with_zeros, ExperienceMemory
+from DialogueManagement.DialoguePolicy.dialogue_common import state_to_json
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -129,17 +132,28 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         returns = torch.tensor(returns)
         return returns
 
+    def tokenize(self,state:SlotFillingDialogueState):
+        state_string = state_to_json(state)
+        example = Example.fromlist([state_string], [("dialog_state", self.text_field)])
+        tokens = [t for t in example.dialog_state if t in self.text_field.vocab.stoi]
+        return tokens
+
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
+        tokenized_dstates = [[self.tokenize(turn['state']) for turn in b] for b in batch]
+        max_seq_len = max([len(seq) for seqs in tokenized_dstates for seq in seqs])
+        self.text_field.fix_length = max_seq_len
         dialogues = [self._build_dialogue_turns(dialogue) for dialogue in batch]
         exps = [e for d in dialogues for e in self._dialogue_to_experience(d)]
         w = 5
         windows = [exps[i:(i+w)] for i in range(0,(len(exps)//w)*w,w)]
 
-        expmem = ExperienceMemory(w,exps[0])
+        max_seq_len_idx = np.argmax([e['env']['observation'].shape for e in exps])
+        template_datum = exps[max_seq_len_idx]
+        expmem = ExperienceMemory(w, template_datum)
         for k in range(w):
-            d = fill_with_zeros(len(windows), exps[0])
+            d = fill_with_zeros(len(windows), template_datum)
             for i,exp in enumerate(windows):
                 d[i]=exp[k]
             expmem[k]=d
@@ -161,6 +175,9 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         else:
             turns = [DialogTurn(a[0], s, r) for a, s, r in x]
         return turns
+
+    # def encode_states(self, sequences:List[List[str]]) -> torch.LongTensor:
+    #     return self.text_field.process(sequences)
 
     def _dialogue_to_experience(
         self, dialogue: List[DialogTurn]

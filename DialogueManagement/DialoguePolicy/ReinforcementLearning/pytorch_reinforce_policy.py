@@ -20,7 +20,7 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
     Domain,
-)
+    state_to_json)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -130,7 +130,7 @@ class PyTorchReinforcePolicy(QPolicy):
         self.losses = []
 
     def _build_text_field(self, domain: Domain):
-        dings = super().encode_state(SlotFillingDialogueState([]))
+        dings = state_to_json(SlotFillingDialogueState([]))
         tokens = [
             v for vv in domain._asdict().values() if isinstance(vv, list) for v in vv
         ]
@@ -162,7 +162,7 @@ class PyTorchReinforcePolicy(QPolicy):
         return sys_acts
 
     def encode_state(self, state: SlotFillingDialogueState) -> torch.LongTensor:
-        state_string = super().encode_state(state)
+        state_string = state_to_json(state)
         example = Example.fromlist([state_string], [("dialog_state", self.text_field)])
         tokens = [t for t in example.dialog_state if t in self.text_field.vocab.stoi]
         return self.text_field.numericalize([tokens])
