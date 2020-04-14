@@ -1,6 +1,7 @@
 import torch
 
-from rlutil.dictlist import DictList
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.dictlist import \
+    DictList
 
 
 class ExperienceMemory(object):

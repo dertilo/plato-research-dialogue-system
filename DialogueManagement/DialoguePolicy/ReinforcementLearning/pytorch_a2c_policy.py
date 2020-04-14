@@ -144,24 +144,24 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.agent.train()
         self.agent.to(DEVICE)
         dialogues = [self._build_dialogue_turns(dialogue) for dialogue in batch]
-
-        max_seq_len = max(
-            [len(turn.tokenized_state_json) for d in dialogues for turn in d]
-        )
+        seq_lenghts = [len(turn.tokenized_state_json) for d in dialogues for turn in d]
+        max_seq_len_idx = np.argmax(seq_lenghts)
+        max_seq_len = seq_lenghts[max_seq_len_idx]
         self.text_field.fix_length = max_seq_len
 
         exps = [e for d in dialogues for e in self._dialogue_to_experience(d)]
         w = 5
         windows = [exps[i : (i + w)] for i in range(0, (len(exps) // w) * w, w)]
 
-        max_seq_len_idx = np.argmax([e["env"]["observation"].shape for e in exps])
-        template_datum = exps[max_seq_len_idx]
-        expmem = ExperienceMemory(w, template_datum)
+        expmem = None
         for k in range(w):
-            d = fill_with_zeros(len(windows), template_datum)
+            d = fill_with_zeros(len(windows), exps[0])
             for i, exp in enumerate(windows):
                 d[i] = exp[k]
-            expmem[k] = d
+            if expmem is None:
+                expmem = ExperienceMemory(w, d)
+            else:
+                expmem.store_single(d)
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
@@ -183,14 +183,11 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             turns = [DialogTurn(a[0], self.tokenize(s), r) for a, s, r in x]
         return turns
 
-    # def encode_states(self, sequences:List[List[str]]) -> torch.LongTensor:
-    #     return self.text_field.process(sequences)
-
     def _dialogue_to_experience(self, dialogue: List[DialogTurn]) -> List[Dict]:
         exp = []
 
         for k, turn in enumerate(dialogue):
-            observation = self.encode_state(turn.state).squeeze().to(DEVICE)
+            observation = self.text_field.process([turn.tokenized_state_json]).squeeze().to(DEVICE)
             action_encs = self.encode_action([turn.act])
             action = {
                 n: torch.from_numpy(a).float().to(DEVICE)
@@ -202,7 +199,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             env_step = EnvStep(
                 observation, torch.from_numpy(np.array(turn.reward)), done
             )
-            agent_step = AgentStep(action, turn.act.value)
+            agent_step = AgentStep(action, torch.from_numpy(np.array(turn.act.value)))
             exp.append({"env": env_step._asdict(), "agent": agent_step._asdict()})
         return exp
 
