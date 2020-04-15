@@ -6,9 +6,7 @@ from torch.distributions import Categorical, Bernoulli
 
 
 class StateEncoder(nn.Module):
-
-    def __init__(self, vocab_size, encode_dim=64, embed_dim=32,
-                 ) -> None:
+    def __init__(self, vocab_size, encode_dim=64, embed_dim=32,) -> None:
         super().__init__()
         hidden_dim = encode_dim
         self.embedding = nn.Embedding(vocab_size, embed_dim)
@@ -43,19 +41,18 @@ class StateEncoder(nn.Module):
 
 
 class CommonDistribution:
-    def __init__(self,intent_probs,slot_sigms):
+    def __init__(self, intent_probs, slot_sigms):
         self.cd = Categorical(intent_probs)
         self.bd = Bernoulli(slot_sigms)
 
     def sample(self):
-        return self.cd.sample(),self.bd.sample()
+        return self.cd.sample(), self.bd.sample()
 
-    def log_prob(self,intent, slots):
-        if len(intent.shape) == 1:  # cause its stupid!
-            intent = intent.unsqueeze(0)
-        log_prob = torch.sum(
-            torch.cat([self.cd.log_prob(intent), self.bd.log_prob(slots)], dim=1)
-        )
+    def log_prob(self, intent, slots):
+        intent = intent.squeeze()
+        cd_log_prob = self.cd.log_prob(intent).unsqueeze(1)
+        bd_log_prob = self.bd.log_prob(slots)
+        log_prob = torch.sum(torch.cat([cd_log_prob, bd_log_prob], dim=1), dim=1,)
         return log_prob
 
     def entropy(self):
@@ -63,7 +60,8 @@ class CommonDistribution:
         cd_entr = self.cd.entropy()
         return bd_entr + cd_entr
 
-def calc_discounted_returns(rewards:List[float], gamma:float):
+
+def calc_discounted_returns(rewards: List[float], gamma: float):
     returns = []
     R = 0
     for r in reversed(rewards):
