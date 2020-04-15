@@ -60,7 +60,7 @@ class Rollout(NamedTuple):
 class AbstractA2CAgent(nn.Module, AgentStepper):
 
     @abc.abstractmethod
-    def calc_dist_value(self,obs):
+    def calc_distr_value(self,obs):
         raise NotImplementedError
 
 
@@ -91,7 +91,7 @@ class A2CParams(NamedTuple):
 
 
 def calc_loss(exps: Rollout, agent: AbstractA2CAgent, p: A2CParams):
-    dist, value = agent.calc_dist_value(exps.env_steps.observation)
+    dist, value = agent.calc_distr_value(exps.env_steps.observation)
     entropy = dist.entropy().mean()
     policy_loss = -(dist.log_prob(exps.agent_steps.actions) * exps.advantages).mean()
     value_loss = (value - exps.returnn).pow(2).mean()
@@ -125,17 +125,18 @@ def collect_experiences_calc_advantage(
 
 
 def build_experience_memory(steps: List[Dict], rollout_len=5) -> ExperienceMemory:
+    num_steps = rollout_len +1 #+1 cause the very first is the "initial-step"
     windows = [
-        steps[i : (i + rollout_len)]
-        for i in range(0, (len(steps) // rollout_len) * rollout_len, rollout_len)
+        steps[i : (i + num_steps)]
+        for i in range(0, (len(steps) // num_steps) * num_steps, num_steps)
     ]
     expmem = None
-    for k in range(rollout_len):
+    for k in range(num_steps):
         dictlist = fill_with_zeros(len(windows), steps[0])
         for i, exp in enumerate(windows):
             dictlist[i] = exp[k]
         if expmem is None:
-            expmem = ExperienceMemory(rollout_len, dictlist)
+            expmem = ExperienceMemory(num_steps, dictlist)
         else:
             expmem.store_single(dictlist)
     return expmem

@@ -52,30 +52,30 @@ class Actor(nn.Module):
 
 class PolicyA2CAgent(AbstractA2CAgent):
     def __init__(
-        self, vocab_size, num_intents, num_slots, hidden_dim=64, embed_dim=32,
+        self, vocab_size, num_intents, num_slots, encode_dim=64, embed_dim=32,
     ) -> None:
         super().__init__()
-        self.encoder = StateEncoder(vocab_size, hidden_dim, embed_dim)
-        self.actor = Actor(hidden_dim, num_intents, num_slots)
-        self.critic = nn.Linear(embed_dim, 1)
+        self.encoder = StateEncoder(vocab_size, encode_dim, embed_dim)
+        self.actor = Actor(encode_dim, num_intents, num_slots)
+        self.critic = nn.Linear(encode_dim, 1)
 
     def forward(self, x):
         features_pooled = self.encoder(x)
         intent_probs, slots_sigms = self.actor(features_pooled)
-        return intent_probs, slots_sigms
+        value = self.critic(features_pooled)
+        return (intent_probs, slots_sigms),value
 
     def calc_distr_value(self, state):
-        intent_probs, slot_sigms = self.forward(state)
+        (intent_probs, slot_sigms),value = self.forward(state)
         distr = CommonDistribution(intent_probs, slot_sigms)
-        value = self.critic(state)
         return distr, value
 
-    def step(self, env_step: EnvStep, draw=lambda distr: distr.sample()) -> AgentStep:
+    def step(self, env_step: EnvStep) -> AgentStep:
         x = env_step.observation
-        intent_probs, slot_sigms = self.forward(x)
+        (intent_probs, slot_sigms),value = self.forward(x)
         distr = CommonDistribution(intent_probs, slot_sigms)
-        intent, slots = draw(distr)
-        v_values = self.critic(x).data
+        intent, slots = distr.sample()
+        v_values = value.data
         return AgentStep((intent.item(), slots.numpy()), v_values)
 
 

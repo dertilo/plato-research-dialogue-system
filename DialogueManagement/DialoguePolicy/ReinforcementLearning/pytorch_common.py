@@ -7,9 +7,10 @@ from torch.distributions import Categorical, Bernoulli
 
 class StateEncoder(nn.Module):
 
-    def __init__(self, vocab_size, hidden_dim=64, embed_dim=32,
+    def __init__(self, vocab_size, encode_dim=64, embed_dim=32,
                  ) -> None:
         super().__init__()
+        hidden_dim = encode_dim
         self.embedding = nn.Embedding(vocab_size, embed_dim)
         self.convnet = nn.Sequential(
             nn.Conv1d(in_channels=embed_dim, out_channels=hidden_dim, kernel_size=3),
@@ -56,6 +57,9 @@ class CommonDistribution:
             torch.cat([self.cd.log_prob(intent), self.bd.log_prob(slots)], dim=1)
         )
         return log_prob
+
+    def entropy(self):
+        return self.bd.entropy()+self.cd.entropy()
 
 def calc_discounted_returns(rewards:List[float], gamma:float):
     returns = []
