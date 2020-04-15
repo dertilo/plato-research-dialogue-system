@@ -3,6 +3,7 @@ from typing import List, Tuple, Dict, NamedTuple
 import torch
 from torch import nn as nn
 from torch.distributions import Categorical, Bernoulli
+from torch.nn import functional as F
 from torchtext.data import Example
 
 from Dialogue.Action import DialogueAct
@@ -103,3 +104,15 @@ def process_dialogue_to_turns(
         for (a, s, r), ret in zip(x, returns)
     ]
     return turns
+
+
+class Actor(nn.Module):
+    def __init__(self, hidden_dim, num_intents, num_slots) -> None:
+        super().__init__()
+        self.intent_head = nn.Linear(hidden_dim, num_intents)
+        self.slots_head = nn.Linear(hidden_dim, num_slots)
+
+    def forward(self, x):
+        intent_probs = F.softmax(self.intent_head(x), dim=1)
+        slots_sigms = torch.sigmoid(self.slots_head(x))
+        return intent_probs, slots_sigms

@@ -1,12 +1,9 @@
 import random
-from typing import List, Dict, Tuple, NamedTuple
-
-from torchtext.data import Example
+from typing import List, Dict, NamedTuple
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import (
@@ -14,7 +11,7 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
     CommonDistribution,
     calc_discounted_returns,
     tokenize,
-)
+    Actor)
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import (
     PyTorchReinforcePolicy,
 )
@@ -22,10 +19,7 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_ac
     EnvStep,
     AgentStep,
     AbstractA2CAgent,
-    build_experience_memory,
-    collect_experiences_calc_advantage,
     A2CParams,
-    calc_loss,
 )
 import numpy as np
 
@@ -36,18 +30,6 @@ class ValueDialogAct(DialogueAct):
     def __init__(self, intent="", params=None, value: float = 0.0):
         super().__init__(intent, params)
         self.value = value  # is the Value of the state, not rating this act
-
-
-class Actor(nn.Module):
-    def __init__(self, hidden_dim, num_intents, num_slots) -> None:
-        super().__init__()
-        self.intent_head = nn.Linear(hidden_dim, num_intents)
-        self.slots_head = nn.Linear(hidden_dim, num_slots)
-
-    def forward(self, x):
-        intent_probs = F.softmax(self.intent_head(x), dim=1)
-        slots_sigms = torch.sigmoid(self.slots_head(x))
-        return intent_probs, slots_sigms
 
 
 class PolicyA2CAgent(AbstractA2CAgent):
@@ -79,6 +61,10 @@ class PolicyA2CAgent(AbstractA2CAgent):
         (intent_probs, slot_sigms), value = self.forward(state)
         distr = CommonDistribution(intent_probs, slot_sigms)
         return distr, value
+
+    def calc_distr(self,state):
+        distr,value = self.calc_distr_value(state)
+        return distr
 
     def step(self, x) -> AgentStep:
         (intent_probs, slot_sigms), value = self.forward(x)
@@ -159,32 +145,32 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
     def tokenize(self, state: SlotFillingDialogueState):
         return tokenize(self.text_field, state)
 
-    def train(self, batch: List):
-        self.agent.train()
-        self.agent.to(DEVICE)
-        dialogues = [self.process_dialogue_to_turns(dialogue) for dialogue in batch]
-        seq_lenghts = [len(turn.tokenized_state_json) for d in dialogues for turn in d]
-        max_seq_len_idx = np.argmax(seq_lenghts)
-        max_seq_len = seq_lenghts[max_seq_len_idx]
-        self.text_field.fix_length = max_seq_len
-
-        steps = [e for d in dialogues for e in self._dialogue_to_steps(d)]
-        expmem = build_experience_memory(steps, self.a2c_params.num_rollout_steps)
-        rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
-
-        loss = calc_loss(rollout, self.agent, self.a2c_params)
-
-        self.optimizer.zero_grad()
-        loss.backward()
-        # torch.nn.utils.clip_grad_norm_(
-        #     self.agent.parameters(), self.a2c_params.max_grad_norm
-        # )
-        self.optimizer.step()
-        self.losses.append(float(loss.data.cpu().numpy()))
-
-        # Decay exploration rate
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+    # def train(self, batch: List):
+    #     self.agent.train()
+    #     self.agent.to(DEVICE)
+    #     dialogues = [self.process_dialogue_to_turns(dialogue) for dialogue in batch]
+    #     seq_lenghts = [len(turn.tokenized_state_json) for d in dialogues for turn in d]
+    #     max_seq_len_idx = np.argmax(seq_lenghts)
+    #     max_seq_len = seq_lenghts[max_seq_len_idx]
+    #     self.text_field.fix_length = max_seq_len
+    #
+    #     steps = [e for d in dialogues for e in self._dialogue_to_steps(d)]
+    #     expmem = build_experience_memory(steps, self.a2c_params.num_rollout_steps)
+    #     rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
+    #
+    #     loss = calc_loss(rollout, self.agent, self.a2c_params)
+    #
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #     # torch.nn.utils.clip_grad_norm_(
+    #     #     self.agent.parameters(), self.a2c_params.max_grad_norm
+    #     # )
+    #     self.optimizer.step()
+    #     self.losses.append(float(loss.data.cpu().numpy()))
+    #
+    #     # Decay exploration rate
+    #     if self.epsilon > self.epsilon_min:
+    #         self.epsilon *= self.epsilon_decay
 
     def process_dialogue_to_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
         x = [(d["action"], d["state"], d["reward"]) for d in dialogue]

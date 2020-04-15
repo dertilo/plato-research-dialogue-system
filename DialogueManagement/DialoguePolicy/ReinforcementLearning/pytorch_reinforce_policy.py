@@ -21,7 +21,7 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
     calc_discounted_returns,
     tokenize,
     process_dialogue_to_turns,
-)
+    Actor)
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
     Domain,
@@ -41,15 +41,11 @@ class PolicyAgent(nn.Module):
     ) -> None:
         super().__init__()
         self.encoder = StateEncoder(vocab_size, hidden_dim, embed_dim)
-
-        self.intent_head = nn.Linear(hidden_dim, num_intents)
-
-        self.slots_head = nn.Linear(hidden_dim, num_slots)
+        self.actor = Actor(hidden_dim, num_intents, num_slots)
 
     def forward(self, x):
         features_pooled = self.encoder(x)
-        intent_probs = F.softmax(self.intent_head(features_pooled), dim=1)
-        slots_sigms = torch.sigmoid(self.slots_head(features_pooled))
+        intent_probs, slots_sigms = self.actor(features_pooled)
         return intent_probs, slots_sigms
 
     def calc_distr(self, state):
