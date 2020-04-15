@@ -149,45 +149,53 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         max_seq_len = seq_lenghts[max_seq_len_idx]
         self.text_field.fix_length = max_seq_len
 
-        exps = [e for d in dialogues for e in self._dialogue_to_experience(d)]
-        w = 5
-        windows = [exps[i : (i + w)] for i in range(0, (len(exps) // w) * w, w)]
-
-        expmem = None
-        for k in range(w):
-            d = fill_with_zeros(len(windows), exps[0])
-            for i, exp in enumerate(windows):
-                d[i] = exp[k]
-            if expmem is None:
-                expmem = ExperienceMemory(w, d)
-            else:
-                expmem.store_single(d)
+        steps = [e for d in dialogues for e in self._dialogue_to_steps(d)]
+        expmem = self.build_experience_memory(steps)
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-    def _build_dialogue_turns(self, dialogue: List[Dict]):
+    def build_experience_memory(self, steps, rollout_len=5):
+        windows = [
+            steps[i : (i + rollout_len)]
+            for i in range(0, (len(steps) // rollout_len) * rollout_len, rollout_len)
+        ]
+        expmem = None
+        for k in range(rollout_len):
+            d = fill_with_zeros(len(windows), steps[0])
+            for i, exp in enumerate(windows):
+                d[i] = exp[k]
+            if expmem is None:
+                expmem = ExperienceMemory(rollout_len, d)
+            else:
+                expmem.store_single(d)
+        return expmem
+
+    def _build_dialogue_turns(self, dialogue: List[Dict])->List[DialogTurn]:
         x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
 
         if any([not isinstance(d["action"], ValueDialogAct) for d in dialogue]):
             rewards = [t["reward"] for t in dialogue]
             returns = calc_discounted_returns(rewards, self.gamma)
-            turns = [
-                DialogTurn(
-                    ValueDialogAct(a[0].intent, a[0].params, v), self.tokenize(s), r
-                )
+            acts = [
+                ValueDialogAct(a[0].intent, a[0].params, v)
                 for (a, s, r), v in zip(x, returns)
             ]
         else:
-            turns = [DialogTurn(a[0], self.tokenize(s), r) for a, s, r in x]
-        return turns
+            acts = [a for a, s, r in x]
 
-    def _dialogue_to_experience(self, dialogue: List[DialogTurn]) -> List[Dict]:
-        exp = []
+        return [DialogTurn(a, self.tokenize(s), r) for a, (_, s, r) in zip(acts, x)]
+
+    def _dialogue_to_steps(self, dialogue: List[DialogTurn]) -> List[Dict]:
+        steps = []
 
         for k, turn in enumerate(dialogue):
-            observation = self.text_field.process([turn.tokenized_state_json]).squeeze().to(DEVICE)
+            observation = (
+                self.text_field.process([turn.tokenized_state_json])
+                .squeeze()
+                .to(DEVICE)
+            )
             action_encs = self.encode_action([turn.act])
             action = {
                 n: torch.from_numpy(a).float().to(DEVICE)
@@ -200,8 +208,8 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
                 observation, torch.from_numpy(np.array(turn.reward)), done
             )
             agent_step = AgentStep(action, torch.from_numpy(np.array(turn.act.value)))
-            exp.append({"env": env_step._asdict(), "agent": agent_step._asdict()})
-        return exp
+            steps.append({"env": env_step._asdict(), "agent": agent_step._asdict()})
+        return steps
 
     def decode_action(self, action_enc: Tuple):
         intent, slots = self.action_enc.decode(*action_enc)
