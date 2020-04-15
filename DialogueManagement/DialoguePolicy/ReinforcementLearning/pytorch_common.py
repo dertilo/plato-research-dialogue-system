@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 
 import torch
 from torch import nn as nn
@@ -50,7 +50,8 @@ class CommonDistribution:
     def sample(self):
         return self.cd.sample(),self.bd.sample()
 
-    def log_prob(self,intent,slots):
+    def log_prob(self,x:Tuple):
+        intent, slots = x
         if len(intent.shape) == 1:  # cause its stupid!
             intent = intent.unsqueeze(0)
         log_prob = torch.sum(
@@ -59,7 +60,9 @@ class CommonDistribution:
         return log_prob
 
     def entropy(self):
-        return self.bd.entropy()+self.cd.entropy()
+        bd_entr = self.bd.entropy().mean(dim=1)
+        cd_entr = self.cd.entropy()
+        return bd_entr + cd_entr
 
 def calc_discounted_returns(rewards:List[float], gamma:float):
     returns = []
