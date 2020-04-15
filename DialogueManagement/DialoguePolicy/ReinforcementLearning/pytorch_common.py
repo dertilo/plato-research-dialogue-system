@@ -1,10 +1,11 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict, NamedTuple
 
 import torch
 from torch import nn as nn
 from torch.distributions import Categorical, Bernoulli
 from torchtext.data import Example
 
+from Dialogue.Action import DialogueAct
 from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.dialogue_common import state_to_json
 
@@ -81,3 +82,24 @@ def tokenize(text_field, state: SlotFillingDialogueState):
     example = Example.fromlist([state_string], [("dialog_state", text_field)])
     tokens = [t for t in example.dialog_state if t in text_field.vocab.stoi]
     return tokens
+
+
+class DialogTurn(NamedTuple):
+    act: DialogueAct
+    tokens: List[str]
+    reward: float
+    returnn: float
+
+
+def process_dialogue_to_turns(
+    text_field, dialogue: List[Dict], gamma=0.99
+) -> List[DialogTurn]:
+    x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
+
+    rewards = [t["reward"] for t in dialogue]
+    returns = calc_discounted_returns(rewards, gamma)
+    turns = [
+        DialogTurn(a[0], tokenize(text_field, s), r, ret)
+        for (a, s, r), ret in zip(x, returns)
+    ]
+    return turns

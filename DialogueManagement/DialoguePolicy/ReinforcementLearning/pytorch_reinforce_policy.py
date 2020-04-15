@@ -20,6 +20,7 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
     CommonDistribution,
     calc_discounted_returns,
     tokenize,
+    process_dialogue_to_turns,
 )
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
@@ -82,12 +83,6 @@ class ActionEncoder:
             self.intent_enc.inverse_transform([intent_enc])[0],
             self.slot_enc.inverse_transform(slots_enc)[0],
         )
-
-
-class DialogTurn(NamedTuple):
-    act: DialogueAct
-    tokens: List[str]
-    returnn: float
 
 
 class PyTorchReinforcePolicy(QPolicy):
@@ -213,21 +208,14 @@ class PyTorchReinforcePolicy(QPolicy):
             slots = []
         return slots
 
-    def _build_dialogue_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
-        x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
-
-        rewards = [t["reward"] for t in dialogue]
-        returns = calc_discounted_returns(rewards, self.gamma)
-        turns = [
-            DialogTurn(a[0], tokenize(self.text_field, s), ret)
-            for (a, s, r), ret in zip(x, returns)
-        ]
-        return turns
-
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
-        turns = [t for dialogue in batch for t in self._build_dialogue_turns(dialogue)]
+        turns = [
+            t
+            for dialogue in batch
+            for t in process_dialogue_to_turns(self.text_field, dialogue, self.gamma)
+        ]
         sequences = [turn.tokens for turn in turns]
         max_seq_len = max([len(s) for s in sequences])
         self.text_field.fix_length = max_seq_len
