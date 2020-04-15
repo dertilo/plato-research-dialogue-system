@@ -63,16 +63,15 @@ class PolicyA2CAgent(AbstractA2CAgent):
         features_pooled = self.encoder(x)
         intent_probs, slots_sigms = self.actor(features_pooled)
         value = self.critic(features_pooled)
-        return (intent_probs, slots_sigms),value
+        return (intent_probs, slots_sigms), value
 
     def calc_distr_value(self, state):
-        (intent_probs, slot_sigms),value = self.forward(state)
+        (intent_probs, slot_sigms), value = self.forward(state)
         distr = CommonDistribution(intent_probs, slot_sigms)
         return distr, value
 
-    def step(self, env_step: EnvStep) -> AgentStep:
-        x = env_step.observation
-        (intent_probs, slot_sigms),value = self.forward(x)
+    def step(self, x) -> AgentStep:
+        (intent_probs, slot_sigms), value = self.forward(x)
         distr = CommonDistribution(intent_probs, slot_sigms)
         intent, slots = distr.sample()
         v_values = value.data
@@ -206,9 +205,11 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             steps.append({"env": env_step._asdict(), "agent": agent_step._asdict()})
         return steps
 
-    def decode_action(self, action_enc: Tuple):
-        intent, slots = self.action_enc.decode(*action_enc)
+    def decode_action(self, step: AgentStep):
+        intent, slots = self.action_enc.decode(*step.actions)
         slots = self._filter_slots(intent, slots)
         return ValueDialogAct(
-            intent, params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
+            intent,
+            params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
+            value=step.v_values.item(),
         )
