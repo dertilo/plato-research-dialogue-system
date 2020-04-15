@@ -15,24 +15,31 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import \
-    StateEncoder, CommonDistribution, calc_discounted_returns
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import (
+    StateEncoder,
+    CommonDistribution,
+    calc_discounted_returns,
+    tokenize,
+)
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
     Domain,
-    state_to_json)
+    state_to_json,
+)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 class AgentStep(NamedTuple):
-    action:Tuple[int,numpy.ndarray]
+    action: Tuple[int, numpy.ndarray]
+
 
 class PolicyAgent(nn.Module):
     def __init__(
         self, vocab_size, num_intents, num_slots, hidden_dim=64, embed_dim=32,
     ) -> None:
         super().__init__()
-        self.encoder = StateEncoder(vocab_size,hidden_dim,embed_dim)
+        self.encoder = StateEncoder(vocab_size, hidden_dim, embed_dim)
 
         self.intent_head = nn.Linear(hidden_dim, num_intents)
 
@@ -44,13 +51,13 @@ class PolicyAgent(nn.Module):
         slots_sigms = torch.sigmoid(self.slots_head(features_pooled))
         return intent_probs, slots_sigms
 
-    def calc_distr(self,state):
+    def calc_distr(self, state):
         intent_probs, slot_sigms = self.forward(state)
         distr = CommonDistribution(intent_probs, slot_sigms)
         return distr
 
-    def step(self, state)->AgentStep:
-        distr=self.calc_distr(state)
+    def step(self, state) -> AgentStep:
+        distr = self.calc_distr(state)
         intent, slots = distr.sample()
         return AgentStep((intent.item(), slots.numpy()))
 
@@ -77,6 +84,12 @@ class ActionEncoder:
         )
 
 
+class DialogTurn(NamedTuple):
+    act: DialogueAct
+    tokens: List[str]
+    returnn: float
+
+
 class PyTorchReinforcePolicy(QPolicy):
     def __init__(
         self,
@@ -94,7 +107,7 @@ class PyTorchReinforcePolicy(QPolicy):
         epsilon_min=0.05,
         **kwargs
     ):
-        assert gamma>0.9
+        assert gamma > 0.9
         super().__init__(
             ontology,
             database,
@@ -182,10 +195,9 @@ class PyTorchReinforcePolicy(QPolicy):
             acts = acts[:1]
         assert len(acts) == 1
         slots = [p.slot for p in acts[0].params]
-        encoded_action = self.action_enc.encode(acts[0].intent, slots)
-        return encoded_action
+        return self.action_enc.encode(acts[0].intent, slots)
 
-    def decode_action(self, step:AgentStep)->DialogueAct:
+    def decode_action(self, step: AgentStep) -> DialogueAct:
         intent, slots = self.action_enc.decode(*step.action)
         slots = self._filter_slots(intent, slots)
         return DialogueAct(
@@ -201,13 +213,37 @@ class PyTorchReinforcePolicy(QPolicy):
             slots = []
         return slots
 
+    def _build_dialogue_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
+        x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
+
+        rewards = [t["reward"] for t in dialogue]
+        returns = calc_discounted_returns(rewards, self.gamma)
+        turns = [
+            DialogTurn(a[0], tokenize(self.text_field, s), ret)
+            for (a, s, r), ret in zip(x, returns)
+        ]
+        return turns
+
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
-        losses = [
-            loss.unsqueeze(0) for d in batch for loss in self._calc_dialogue_losses(d)
-        ]
-        policy_loss = torch.cat(losses).mean()
+        turns = [t for dialogue in batch for t in self._build_dialogue_turns(dialogue)]
+        sequences = [turn.tokens for turn in turns]
+        max_seq_len = max([len(s) for s in sequences])
+        self.text_field.fix_length = max_seq_len
+
+        x = self.text_field.process(sequences).squeeze().to(DEVICE)
+
+        action_encs = [self.encode_action([turn.act]) for turn in turns]
+        action = tuple(
+            torch.from_numpy(numpy.array(a)).float().to(DEVICE)
+            for a in zip(*action_encs)
+        )
+        distr = self.agent.calc_distr(x)
+        log_probs = distr.log_prob(*action)
+        returns = torch.from_numpy(numpy.array([t.returnn for t in turns]))
+        losses = -log_probs * returns
+        policy_loss = losses.mean()
 
         self.optimizer.zero_grad()
         policy_loss.backward()
@@ -217,24 +253,6 @@ class PyTorchReinforcePolicy(QPolicy):
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
-
-    def _calc_dialogue_losses(self, dialogue: List[Dict]):
-        exp = []
-        for turn in dialogue:
-            x = self.encode_state(turn["state"]).to(DEVICE)
-            action_encs = self.encode_action(turn["action"])
-            action = tuple(
-                [
-                    torch.from_numpy(a).float().unsqueeze(0).to(DEVICE)
-                    for a in action_encs
-                ]
-            )
-            distr = self.agent.calc_distr(x)
-            log_probs = distr.log_prob(*action)
-            exp.append((log_probs, turn["reward"]))
-        returns = calc_discounted_returns([r for _,r in exp], self.gamma)
-        dialogue_losses = [-log_prob * R for (log_prob, _), R in zip(exp, returns)]
-        return dialogue_losses
 
     def save(self, path=None):
         torch.save(self.agent.state_dict(), path)

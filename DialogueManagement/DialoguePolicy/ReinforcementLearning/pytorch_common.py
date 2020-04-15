@@ -3,13 +3,19 @@ from typing import List, Tuple
 import torch
 from torch import nn as nn
 from torch.distributions import Categorical, Bernoulli
+from torchtext.data import Example
+
+from Dialogue.State import SlotFillingDialogueState
+from DialogueManagement.DialoguePolicy.dialogue_common import state_to_json
 
 
 class StateEncoder(nn.Module):
-    def __init__(self, vocab_size, encode_dim=64, embed_dim=32,) -> None:
+    def __init__(
+        self, vocab_size, encode_dim=64, embed_dim=32, padding_idx=None
+    ) -> None:
         super().__init__()
         hidden_dim = encode_dim
-        self.embedding = nn.Embedding(vocab_size, embed_dim)
+        self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx)
         self.convnet = nn.Sequential(
             nn.Conv1d(in_channels=embed_dim, out_channels=hidden_dim, kernel_size=3),
             nn.ELU(),
@@ -67,5 +73,11 @@ def calc_discounted_returns(rewards: List[float], gamma: float):
     for r in reversed(rewards):
         R = r + gamma * R
         returns.insert(0, R)
-    returns = torch.tensor(returns)
     return returns
+
+
+def tokenize(text_field, state: SlotFillingDialogueState):
+    state_string = state_to_json(state)
+    example = Example.fromlist([state_string], [("dialog_state", text_field)])
+    tokens = [t for t in example.dialog_state if t in text_field.vocab.stoi]
+    return tokens
