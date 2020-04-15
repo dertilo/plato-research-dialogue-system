@@ -223,9 +223,18 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         return s
 
     def encode_action(self, acts:List[DialogueAct], system=True)->str:
-        s = self._action_to_string(acts, system)
+
+        # we encode the acts without concrete slot values
+        acts_copy = deepcopy(acts)
+        for act in acts_copy:
+            if act.params:
+                for item in act.params:
+                    if item.slot and item.value:
+                        item.value = None
+
+        s = self._action_to_string(acts_copy, system)
         # enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
-        self.hash2actions[s]=acts
+        self.hash2actions[s] = acts_copy
         return s
 
     def _action_to_string(self, acts:List[DialogueAct], system):
