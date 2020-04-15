@@ -50,8 +50,7 @@ class CommonDistribution:
     def sample(self):
         return self.cd.sample(),self.bd.sample()
 
-    def log_prob(self,x:Tuple):
-        intent, slots = x
+    def log_prob(self,intent, slots):
         if len(intent.shape) == 1:  # cause its stupid!
             intent = intent.unsqueeze(0)
         log_prob = torch.sum(

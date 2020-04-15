@@ -93,8 +93,7 @@ class A2CParams(NamedTuple):
 def calc_loss(exps: Rollout, agent: AbstractA2CAgent, p: A2CParams):
     dist, value = agent.calc_distr_value(exps.env_steps.observation)
     entropy = dist.entropy().mean()
-    actions = tuple([exps.agent_steps.actions[n] for n in ['intent','slots']])
-    policy_loss = -(dist.log_prob(actions) * exps.advantages).mean()
+    policy_loss = -(dist.log_prob(**exps.agent_steps.actions) * exps.advantages).mean()
     value_loss = (value - exps.returnn).pow(2).mean()
     loss = policy_loss - p.entropy_coef * entropy + p.value_loss_coef * value_loss
     return loss
