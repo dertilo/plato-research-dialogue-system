@@ -13,6 +13,7 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
     StateEncoder,
     CommonDistribution,
     calc_discounted_returns,
+    tokenize,
 )
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import (
     PyTorchReinforcePolicy,
@@ -27,8 +28,6 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_ac
     calc_loss,
 )
 import numpy as np
-
-from DialogueManagement.DialoguePolicy.dialogue_common import state_to_json
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -53,10 +52,16 @@ class Actor(nn.Module):
 
 class PolicyA2CAgent(AbstractA2CAgent):
     def __init__(
-        self, vocab_size, num_intents, num_slots, encode_dim=64, embed_dim=32,
+        self,
+        vocab_size,
+        num_intents,
+        num_slots,
+        encode_dim=64,
+        embed_dim=32,
+        padding_idx=None,
     ) -> None:
         super().__init__()
-        self.encoder = StateEncoder(vocab_size, encode_dim, embed_dim)
+        self.encoder = StateEncoder(vocab_size, encode_dim, embed_dim, padding_idx)
         self.actor = Actor(encode_dim, num_intents, num_slots)
         self.critic = nn.Linear(encode_dim, 1)
 
@@ -124,7 +129,10 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
 
         self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyA2CAgent)
         self.agent: AbstractA2CAgent = self.PolicyAgentModelClass(
-            self.vocab_size, self.num_intents, self.num_slots
+            self.vocab_size,
+            self.num_intents,
+            self.num_slots,
+            padding_idx=self.text_field.vocab.stoi["<pad>"],
         )
         self.a2c_params = A2CParams()
 
@@ -149,15 +157,12 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         return sys_acts
 
     def tokenize(self, state: SlotFillingDialogueState):
-        state_string = state_to_json(state)
-        example = Example.fromlist([state_string], [("dialog_state", self.text_field)])
-        tokens = [t for t in example.dialog_state if t in self.text_field.vocab.stoi]
-        return tokens
+        return tokenize(self.text_field, state)
 
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
-        dialogues = [self._build_dialogue_turns(dialogue) for dialogue in batch]
+        dialogues = [self.process_dialogue_to_turns(dialogue) for dialogue in batch]
         seq_lenghts = [len(turn.tokenized_state_json) for d in dialogues for turn in d]
         max_seq_len_idx = np.argmax(seq_lenghts)
         max_seq_len = seq_lenghts[max_seq_len_idx]
@@ -171,9 +176,9 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
 
         self.optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(
-            self.agent.parameters(), self.a2c_params.max_grad_norm
-        )
+        # torch.nn.utils.clip_grad_norm_(
+        #     self.agent.parameters(), self.a2c_params.max_grad_norm
+        # )
         self.optimizer.step()
         self.losses.append(float(loss.data.cpu().numpy()))
 
@@ -181,7 +186,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-    def _build_dialogue_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
+    def process_dialogue_to_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
         x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
 
         rewards = [t["reward"] for t in dialogue]

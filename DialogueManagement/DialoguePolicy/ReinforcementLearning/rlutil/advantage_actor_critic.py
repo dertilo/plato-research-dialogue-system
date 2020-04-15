@@ -131,7 +131,7 @@ def build_experience_memory(steps: List[Dict], rollout_len=5) -> ExperienceMemor
     num_steps = rollout_len + 1  # +1 cause the very first is the "initial-step"
     windows = [
         steps[i : (i + num_steps)]
-        for i in range(0, (len(steps) // num_steps) * num_steps, num_steps)
+        for i in range(0, max((len(steps) // num_steps) * num_steps,1), num_steps)
     ]
     expmem = None
     for k in range(num_steps):
