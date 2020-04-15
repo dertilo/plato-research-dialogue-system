@@ -30,7 +30,7 @@ class EnvStep(NamedTuple):
 
 
 class AgentStep(NamedTuple):
-    actions: Union[Dict,Tuple]
+    actions: Union[Dict, Tuple]
     v_values: torch.Tensor
 
 
@@ -58,9 +58,12 @@ class Rollout(NamedTuple):
 
 
 class AbstractA2CAgent(nn.Module, AgentStepper):
+    @abc.abstractmethod
+    def calc_distr_value(self, obs):
+        raise NotImplementedError
 
     @abc.abstractmethod
-    def calc_distr_value(self,obs):
+    def calc_value(self, x):
         raise NotImplementedError
 
 
@@ -83,10 +86,9 @@ def generalized_advantage_estimation(
 class A2CParams(NamedTuple):
     entropy_coef: float = 0.01
     value_loss_coef: float = 0.5
-    max_grad_norm: float = 0.5
+    max_grad_norm: float = 1.5
     num_rollout_steps: int = 4
     discount: float = 0.99
-    lr: float = 1e-2
     gae_lambda: float = 0.95
 
 
@@ -106,6 +108,7 @@ def collect_experiences_calc_advantage(
 
     env_steps = exp_mem.buffer.env
     agent_steps = exp_mem.buffer.agent
+
     advantages = generalized_advantage_estimation(
         rewards=env_steps.reward,
         values=agent_steps.v_values,
@@ -125,7 +128,7 @@ def collect_experiences_calc_advantage(
 
 
 def build_experience_memory(steps: List[Dict], rollout_len=5) -> ExperienceMemory:
-    num_steps = rollout_len +1 #+1 cause the very first is the "initial-step"
+    num_steps = rollout_len + 1  # +1 cause the very first is the "initial-step"
     windows = [
         steps[i : (i + num_steps)]
         for i in range(0, (len(steps) // num_steps) * num_steps, num_steps)

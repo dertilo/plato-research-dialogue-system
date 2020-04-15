@@ -1,3 +1,4 @@
+import random
 from typing import List, Dict, Tuple, NamedTuple
 
 from torchtext.data import Example
@@ -35,7 +36,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class ValueDialogAct(DialogueAct):
     def __init__(self, intent="", params=None, value: float = 0.0):
         super().__init__(intent, params)
-        self.value = value
+        self.value = value  # is the Value of the state, not rating this act
 
 
 class Actor(nn.Module):
@@ -64,6 +65,10 @@ class PolicyA2CAgent(AbstractA2CAgent):
         intent_probs, slots_sigms = self.actor(features_pooled)
         value = self.critic(features_pooled)
         return (intent_probs, slots_sigms), value
+
+    def calc_value(self, x):
+        value = self.critic(self.encoder(x))
+        return value
 
     def calc_distr_value(self, state):
         (intent_probs, slot_sigms), value = self.forward(state)
@@ -123,15 +128,25 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         )
         self.a2c_params = A2CParams()
 
-    @staticmethod
-    def _calc_returns(exp, gamma):
-        returns = []
-        R = 0
-        for log_prob, r in reversed(exp):
-            R = r + gamma * R
-            returns.insert(0, R)
-        returns = torch.tensor(returns)
-        return returns
+    def next_action(self, state: SlotFillingDialogueState):
+        self.agent.eval()
+        self.agent.to(DEVICE)
+
+        if self.is_training and random.random() < self.epsilon:
+            warmup_acts = self.warmup_policy.next_action(state)
+            state_enc = self.encode_state(state)
+            with torch.no_grad():
+                value = self.agent.calc_value(state_enc)
+            sys_acts = [
+                ValueDialogAct(a.intent, a.params, value.item()) for a in warmup_acts
+            ]
+        else:
+            state_enc = self.encode_state(state)
+            with torch.no_grad():
+                agent_step = self.agent.step(state_enc.to(DEVICE))
+            sys_acts = [self.decode_action(agent_step)]
+
+        return sys_acts
 
     def tokenize(self, state: SlotFillingDialogueState):
         state_string = state_to_json(state)
@@ -169,17 +184,15 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
     def _build_dialogue_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
         x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
 
-        if any([not isinstance(d["action"], ValueDialogAct) for d in dialogue]):
-            rewards = [t["reward"] for t in dialogue]
-            returns = calc_discounted_returns(rewards, self.gamma)
-            acts = [
-                ValueDialogAct(a[0].intent, a[0].params, v)
-                for (a, s, r), v in zip(x, returns)
-            ]
-        else:
-            acts = [a for a, s, r in x]
-
-        return [DialogTurn(a, self.tokenize(s), r) for a, (_, s, r) in zip(acts, x)]
+        rewards = [t["reward"] for t in dialogue]
+        returns = calc_discounted_returns(rewards, self.gamma)
+        turns = [
+            DialogTurn(a[0], self.tokenize(s), ret)
+            for (a, s, r), ret in zip(x, returns)
+            if a[0].intent != "welcomemsg" and a[0].intent != "bye"
+        ]
+        assert all([isinstance(t.act, ValueDialogAct) for t in turns])
+        return turns
 
     def _dialogue_to_steps(self, dialogue: List[DialogTurn]) -> List[Dict]:
         steps = []
