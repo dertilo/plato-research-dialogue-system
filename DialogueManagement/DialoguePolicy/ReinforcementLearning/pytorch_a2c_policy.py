@@ -19,15 +19,13 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_p
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_actor_critic import (
     EnvStep,
     AgentStep,
-    AgentStepper,
     AbstractA2CAgent,
+    build_experience_memory,
+    collect_experiences_calc_advantage,
+    A2CParams,
 )
 import numpy as np
 
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.experience_memory import (
-    fill_with_zeros,
-    ExperienceMemory,
-)
 from DialogueManagement.DialoguePolicy.dialogue_common import state_to_json
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -123,6 +121,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.agent: AbstractA2CAgent = self.PolicyAgentModelClass(
             self.vocab_size, self.num_intents, self.num_slots
         )
+        self.a2c_params = A2CParams()
 
     @staticmethod
     def _calc_returns(exp, gamma):
@@ -150,29 +149,14 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.text_field.fix_length = max_seq_len
 
         steps = [e for d in dialogues for e in self._dialogue_to_steps(d)]
-        expmem = self.build_experience_memory(steps)
+        expmem = build_experience_memory(steps,self.a2c_params.num_rollout_steps)
+        rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-    def build_experience_memory(self, steps, rollout_len=5):
-        windows = [
-            steps[i : (i + rollout_len)]
-            for i in range(0, (len(steps) // rollout_len) * rollout_len, rollout_len)
-        ]
-        expmem = None
-        for k in range(rollout_len):
-            d = fill_with_zeros(len(windows), steps[0])
-            for i, exp in enumerate(windows):
-                d[i] = exp[k]
-            if expmem is None:
-                expmem = ExperienceMemory(rollout_len, d)
-            else:
-                expmem.store_single(d)
-        return expmem
-
-    def _build_dialogue_turns(self, dialogue: List[Dict])->List[DialogTurn]:
+    def _build_dialogue_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
         x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
 
         if any([not isinstance(d["action"], ValueDialogAct) for d in dialogue]):

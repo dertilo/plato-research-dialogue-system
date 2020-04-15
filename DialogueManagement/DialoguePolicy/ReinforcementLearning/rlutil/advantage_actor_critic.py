@@ -1,12 +1,15 @@
 import abc
-from typing import Dict, Any, NamedTuple
-
+from typing import Dict, Any, NamedTuple, Tuple, List
 import torch
+import torch.nn as nn
 
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.dictlist import \
-    DictList
-from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.experience_memory import \
-    ExperienceMemory
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.dictlist import (
+    DictList,
+)
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.experience_memory import (
+    ExperienceMemory,
+    fill_with_zeros,
+)
 
 
 def flatten_parallel_rollout(d):
@@ -21,14 +24,14 @@ def flatten_array(v):
 
 
 class EnvStep(NamedTuple):
-    observation: torch.FloatTensor
-    reward: torch.FloatTensor
-    done: torch.LongTensor
+    observation: torch.Tensor
+    reward: torch.Tensor
+    done: torch.Tensor
 
 
 class AgentStep(NamedTuple):
-    actions: torch.LongTensor
-    v_values: torch.FloatTensor
+    actions: Dict
+    v_values: torch.Tensor
 
 
 class EnvStepper:
@@ -45,6 +48,21 @@ class AgentStepper:
     @abc.abstractmethod
     def step(self, env_step: EnvStep) -> AgentStep:
         raise NotImplementedError
+
+
+class Rollout(NamedTuple):
+    env_steps: EnvStep
+    agent_steps: AgentStep
+    advantages: torch.FloatTensor
+    returnn: torch.FloatTensor
+
+
+class AbstractA2CAgent(nn.Module, AgentStepper):
+    pass
+
+
+class World:
+    pass
 
 
 class Experience(NamedTuple):
@@ -89,26 +107,13 @@ def calc_loss(exps: Experience, w: World, p: A2CParams):
     return loss
 
 
-def gather_exp_via_rollout(
-    env: EnvStepper, agent: AgentStepper, exp_mem: ExperienceMemory, num_rollout_steps
-):
-    for _ in range(num_rollout_steps):
-        env_step = env.step(AgentStep(**exp_mem[exp_mem.last_written_idx].agent))
-        agent_step = agent.step(env_step)
-        exp_mem.store_single(
-            DictList.build({"env": env_step._asdict(), "agent": agent_step._asdict()})
-        )
+def collect_experiences_calc_advantage(
+    exp_mem: ExperienceMemory, params: A2CParams
+) -> Rollout:
+    assert exp_mem.last_written_idx == params.num_rollout_steps
 
-
-def collect_experiences_calc_advantage(w: World, params: A2CParams) -> Experience:
-    assert w.exp_mem.current_idx == 0
-    w.exp_mem.last_becomes_first()
-
-    gather_exp_via_rollout(w.env, w.agent, w.exp_mem, params.num_rollout_steps)
-    assert w.exp_mem.last_written_idx == params.num_rollout_steps
-
-    env_steps = w.exp_mem.buffer.env
-    agent_steps = w.exp_mem.buffer.agent
+    env_steps = exp_mem.buffer.env
+    agent_steps = exp_mem.buffer.agent
     advantages = generalized_advantage_estimation(
         rewards=env_steps.reward,
         values=agent_steps.v_values,
@@ -117,7 +122,7 @@ def collect_experiences_calc_advantage(w: World, params: A2CParams) -> Experienc
         discount=params.discount,
         gae_lambda=params.gae_lambda,
     )
-    return Experience(
+    return Rollout(
         **{
             "env_steps": DictList(**flatten_parallel_rollout(env_steps[:-1])),
             "agent_steps": DictList(**flatten_parallel_rollout(agent_steps[:-1])),
@@ -125,3 +130,20 @@ def collect_experiences_calc_advantage(w: World, params: A2CParams) -> Experienc
             "returnn": flatten_array(agent_steps[:-1].v_values + advantages),
         }
     )
+
+
+def build_experience_memory(steps: List[Dict], rollout_len=5) -> ExperienceMemory:
+    windows = [
+        steps[i : (i + rollout_len)]
+        for i in range(0, (len(steps) // rollout_len) * rollout_len, rollout_len)
+    ]
+    expmem = None
+    for k in range(rollout_len):
+        dictlist = fill_with_zeros(len(windows), steps[0])
+        for i, exp in enumerate(windows):
+            dictlist[i] = exp[k]
+        if expmem is None:
+            expmem = ExperienceMemory(rollout_len, dictlist)
+        else:
+            expmem.store_single(dictlist)
+    return expmem
