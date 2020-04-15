@@ -58,18 +58,10 @@ class Rollout(NamedTuple):
 
 
 class AbstractA2CAgent(nn.Module, AgentStepper):
-    pass
 
-
-class World:
-    pass
-
-
-class Experience(NamedTuple):
-    env_steps: EnvStep
-    agent_steps: AgentStep
-    advantages: torch.FloatTensor
-    returnn: torch.FloatTensor
+    @abc.abstractmethod
+    def calc_dist_value(self,obs):
+        raise NotImplementedError
 
 
 def generalized_advantage_estimation(
@@ -98,8 +90,8 @@ class A2CParams(NamedTuple):
     gae_lambda: float = 0.95
 
 
-def calc_loss(exps: Experience, w: World, p: A2CParams):
-    dist, value = w.agent.calc_dist_value(exps.env_steps.observation)
+def calc_loss(exps: Rollout, agent: AbstractA2CAgent, p: A2CParams):
+    dist, value = agent.calc_dist_value(exps.env_steps.observation)
     entropy = dist.entropy().mean()
     policy_loss = -(dist.log_prob(exps.agent_steps.actions) * exps.advantages).mean()
     value_loss = (value - exps.returnn).pow(2).mean()

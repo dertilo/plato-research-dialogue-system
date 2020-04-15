@@ -23,6 +23,7 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_ac
     build_experience_memory,
     collect_experiences_calc_advantage,
     A2CParams,
+    calc_loss,
 )
 import numpy as np
 
@@ -149,8 +150,18 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.text_field.fix_length = max_seq_len
 
         steps = [e for d in dialogues for e in self._dialogue_to_steps(d)]
-        expmem = build_experience_memory(steps,self.a2c_params.num_rollout_steps)
+        expmem = build_experience_memory(steps, self.a2c_params.num_rollout_steps)
         rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
+
+        loss = calc_loss(rollout, self.agent, self.a2c_params)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            self.agent.parameters(), self.a2c_params.max_grad_norm
+        )
+        self.optimizer.step()
+        self.losses.append(float(loss.data.cpu().numpy()))
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min:
