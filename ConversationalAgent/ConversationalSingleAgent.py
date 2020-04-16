@@ -29,13 +29,13 @@ from Domain import Ontology, DataBase
 # from NLG.CamRestNLG import CamRestNLG
 from Dialogue.Action import DialogueAct
 
-from gtts import gTTS
+# from gtts import gTTS
 from copy import deepcopy
 
 import os
 import random
 import logging
-import speech_recognition as speech_rec
+# import speech_recognition as speech_rec
 
 """
 The ConversationalSingleAgent implements the standard architecture of a 
