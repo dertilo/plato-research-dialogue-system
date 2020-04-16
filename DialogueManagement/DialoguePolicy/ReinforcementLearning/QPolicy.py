@@ -183,6 +183,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                 if self.print_level in ['debug']:
                     print('---: Selecting random action')
                 sys_acts = create_random_dialog_act(self.domain,is_system=True)
+                self.counter['random'] += 1
 
         elif self.IS_GREEDY_POLICY and state_enc in self.Q:
             # Return action with maximum Q value from the given state
