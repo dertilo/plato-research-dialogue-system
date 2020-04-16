@@ -99,6 +99,15 @@ class DialogueAct(Action):
         else:
             return 'None (DialogueAct)'
 
+    def __deepcopy__(self, memodict={}):
+        copied_items = list()
+        for item in self.params:
+            copy_item = DialogueActItem(item.slot, item.op, item.value)
+            copied_items.append(copy_item)
+
+        copy_act = DialogueAct(self.intent, copied_items)
+
+        return copy_act
 
 """
 The DialogueActItem models a parameter of a DialogueAct. It is essentially a 

@@ -271,7 +271,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         else:
             self.curr_patience = self.patience
 
-        self.prev_system_acts = deepcopy(system_acts)
+        self.prev_system_acts = [deepcopy(x) for x in system_acts]
 
         for system_act in system_acts:
             # 'bye' doesn't seem to appear in the CamRest data
@@ -341,7 +341,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         else:
             self.curr_patience = self.patience
 
-        self.prev_system_acts = deepcopy(system_acts)
+        self.prev_system_acts = [deepcopy(x) for x in system_acts]
 
         for system_act in system_acts:
             # Update user goal (in ABUS the state is factored into the goal
@@ -366,13 +366,10 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                         dact = \
                             DialogueAct(
                                 'inform',
-                                [DialogueActItem(
-                                    deepcopy(item.slot),
-                                    deepcopy(
-                                        self.goal.constraints[item.slot].op),
-                                    deepcopy(
-                                        self.goal.constraints[
-                                            item.slot].value))])
+                                [DialogueActItem(item.slot,
+                                                 self.goal.constraints[item.slot].op,
+                                                 self.goal.constraints[item.slot].value)
+                                 ])
 
                         # Remove and push to make sure the act is on top -
                         # if it already exists
@@ -427,21 +424,14 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                             self.agenda.push(
                                 DialogueAct(
                                     'inform',
-                                    [DialogueActItem(
-                                        deepcopy(item.slot),
-                                        deepcopy(
-                                            self.goal.constraints[
-                                                item.slot].op),
-                                        deepcopy(
-                                            self.goal.constraints[
-                                                item.slot].value))]))
+                                    [DialogueActItem(item.slot,
+                                                     self.goal.constraints[item.slot].op,
+                                                     self.goal.constraints[item.slot].value)]))
                         else:
                             self.agenda.push(
                                 DialogueAct(
                                     'inform',
-                                    [DialogueActItem(
-                                        deepcopy(item.slot),
-                                        Operator.EQ, 'dontcare')]))
+                                    [DialogueActItem(item.slot, Operator.EQ, 'dontcare')]))
 
             # TODO Relax goals if system returns no info for name
 

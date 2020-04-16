@@ -226,7 +226,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
     def encode_action(self, acts:List[DialogueAct], system=True)->str:
 
         # we encode the acts without concrete slot values
-        acts_copy = deepcopy(acts)
+        acts_copy = [deepcopy(x) for x in acts]
         for act in acts_copy:
             if act.params:
                 for item in act.params:
