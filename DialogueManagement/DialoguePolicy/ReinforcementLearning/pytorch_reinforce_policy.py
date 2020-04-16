@@ -18,10 +18,9 @@ import torch.optim as optim
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import (
     StateEncoder,
     CommonDistribution,
-    calc_discounted_returns,
-    tokenize,
     process_dialogue_to_turns,
-    Actor)
+    Actor,
+)
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
     Domain,
@@ -37,10 +36,16 @@ class AgentStep(NamedTuple):
 
 class PolicyAgent(nn.Module):
     def __init__(
-        self, vocab_size, num_intents, num_slots, hidden_dim=64, embed_dim=32,
+        self,
+        vocab_size,
+        num_intents,
+        num_slots,
+        hidden_dim=64,
+        embed_dim=32,
+        padding_idx=None,
     ) -> None:
         super().__init__()
-        self.encoder = StateEncoder(vocab_size, hidden_dim, embed_dim)
+        self.encoder = StateEncoder(vocab_size, hidden_dim, embed_dim, padding_idx)
         self.actor = Actor(hidden_dim, num_intents, num_slots)
 
     def forward(self, x):
@@ -126,12 +131,18 @@ class PyTorchReinforcePolicy(QPolicy):
         self.num_slots = len(
             set(self.domain.system_requestable_slots + self.domain.requestable_slots)
         )
-        self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyAgent)
+        self.PolicyAgentModelClass = self.get_policy_agent_model_class(kwargs)
         self.agent = self.PolicyAgentModelClass(
-            self.vocab_size, self.num_intents, self.num_slots
+            self.vocab_size,
+            self.num_intents,
+            self.num_slots,
+            padding_idx=self.text_field.vocab.stoi["<pad>"],
         )
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
         self.losses = []
+
+    def get_policy_agent_model_class(self,kwargs):
+        return kwargs.get("PolicyAgentModelClass", PolicyAgent)
 
     def _build_text_field(self, domain: Domain):
         dings = state_to_json(SlotFillingDialogueState([]))
@@ -152,11 +163,7 @@ class PyTorchReinforcePolicy(QPolicy):
         self.agent.eval()
         self.agent.to(DEVICE)
         if self.is_training and random.random() < self.epsilon:
-            if random.random() < 1.0:
-                sys_acts = self.warmup_policy.next_action(state)
-            else:
-                sys_acts = create_random_dialog_act(self.domain, is_system=True)
-
+            sys_acts = self.warmup_policy.next_action(state)
         else:
             state_enc = self.encode_state(state)
             with torch.no_grad():
@@ -207,6 +214,28 @@ class PyTorchReinforcePolicy(QPolicy):
     def train(self, batch: List):
         self.agent.train()
         self.agent.to(DEVICE)
+
+        action, turns, x = self.prepare_batch(batch)
+        loss = self._calc_loss(action, turns, x)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        self.losses.append(float(loss.data.cpu().numpy()))
+
+        # Decay exploration rate
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
+    def _calc_loss(self, action, turns, x):
+        distr = self.agent.calc_distr(x)
+        log_probs = distr.log_prob(*action)
+        returns = torch.from_numpy(numpy.array([t.returnn for t in turns]))
+        losses = -log_probs * returns
+        policy_loss = losses.mean()
+        return policy_loss
+
+    def prepare_batch(self, batch):
         turns = [
             t
             for dialogue in batch
@@ -215,28 +244,13 @@ class PyTorchReinforcePolicy(QPolicy):
         sequences = [turn.tokens for turn in turns]
         max_seq_len = max([len(s) for s in sequences])
         self.text_field.fix_length = max_seq_len
-
-        x = self.text_field.process(sequences).squeeze().to(DEVICE)
-
+        state_enc = self.text_field.process(sequences).squeeze().to(DEVICE)
         action_encs = [self.encode_action([turn.act]) for turn in turns]
         action = tuple(
             torch.from_numpy(numpy.array(a)).float().to(DEVICE)
             for a in zip(*action_encs)
         )
-        distr = self.agent.calc_distr(x)
-        log_probs = distr.log_prob(*action)
-        returns = torch.from_numpy(numpy.array([t.returnn for t in turns]))
-        losses = -log_probs * returns
-        policy_loss = losses.mean()
-
-        self.optimizer.zero_grad()
-        policy_loss.backward()
-        self.optimizer.step()
-        self.losses.append(float(policy_loss.data.cpu().numpy()))
-
-        # Decay exploration rate
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        return action, turns, state_enc
 
     def save(self, path=None):
         torch.save(self.agent.state_dict(), path)
