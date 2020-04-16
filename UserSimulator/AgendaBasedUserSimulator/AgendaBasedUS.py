@@ -445,6 +445,32 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
             # TODO Relax goals if system returns no info for name
 
+    def _get_number_of_pop_items(self):
+        """
+        Determines the number of items to be popped from the agenda.
+
+        :return: int representing number of items to be popped.
+        """
+
+        # determine number of items from distribution
+        sampled_num_of_items = random.choices(
+            range(1, len(self.pop_distribution) + 1),
+            weights=self.pop_distribution)[0]
+
+        # we cannot push more items than available on the agenda
+        num_of_items_on_agenda = self.agenda.size()
+        num_of_items = min(sampled_num_of_items, num_of_items_on_agenda)
+
+        # if num_of_items is greater than 1, check that we don not pop a bye-intent together with other intents
+        # bye is the last item on the agenda
+        if num_of_items > 1 and num_of_items == self.agenda.size():
+            # if more than one item will be popped, and the set of times to be popped contains
+            # the last item on the agenda (bye), then reduce the num_of_items by 1 to keep the bye-intent as single
+            # item on the agenda
+            num_of_items -= 1
+
+        return num_of_items
+
     def respond(self):
         """
         Creates the response of the simulated user.
@@ -469,11 +495,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
         # Use pop_distribution to determine the number of items (i.e. dialog acts) to be popped.
         # However, we can pop only as many items as on the agenda.
-        pops = min(
-            random.choices(
-                range(1, len(self.pop_distribution)+1),
-                weights=self.pop_distribution)[0],
-            self.agenda.size())
+        pops = self._get_number_of_pop_items()
 
         for pop in range(pops):
             act = self.error_model.semantic_noise(self.agenda.pop())
