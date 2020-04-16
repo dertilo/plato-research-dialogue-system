@@ -17,7 +17,7 @@ __author__ = "Alexandros Papangelis"
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 from DialogueStateTracker.DialogueStateTracker import DummyStateTracker
-from DialogueStateTracker.CamRestLudwigDST import CamRestLudwigDST
+# from DialogueStateTracker.CamRestLudwigDST import CamRestLudwigDST
 
 from DialogueManagement.DialoguePolicy.HandcraftedPolicy import \
     HandcraftedPolicy

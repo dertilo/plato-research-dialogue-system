@@ -23,10 +23,10 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.RewardFunction \
     import SlotFillingReward
 from Utilities.DialogueEpisodeRecorder import DialogueEpisodeRecorder
 from Domain import Ontology, DataBase
-from NLU.DummyNLU import DummyNLU
-from NLU.CamRestNLU import CamRestNLU
-from NLG.DummyNLG import DummyNLG
-from NLG.CamRestNLG import CamRestNLG
+# from NLU.DummyNLU import DummyNLU
+# from NLU.CamRestNLU import CamRestNLU
+# from NLG.DummyNLG import DummyNLG
+# from NLG.CamRestNLG import CamRestNLG
 from Dialogue.Action import DialogueAct
 
 from gtts import gTTS
