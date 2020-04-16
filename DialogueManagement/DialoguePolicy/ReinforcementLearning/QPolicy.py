@@ -233,7 +233,6 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                         item.value = None
 
         s = self._action_to_string(acts_copy, system)
-        # enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
         self.hash2actions[s] = acts_copy
         return s
 
