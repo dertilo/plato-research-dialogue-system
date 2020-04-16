@@ -14,13 +14,13 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
     Actor)
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import (
     PyTorchReinforcePolicy,
-)
+    PolicyAgent)
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_actor_critic import (
     EnvStep,
     AgentStep,
     AbstractA2CAgent,
     A2CParams,
-)
+    calc_loss, build_experience_memory, collect_experiences_calc_advantage)
 import numpy as np
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,7 +76,7 @@ class PolicyA2CAgent(AbstractA2CAgent):
 
 class DialogTurn(NamedTuple):
     act: ValueDialogAct
-    tokenized_state_json: List[str]
+    tokens: List[str]
     reward: float
 
 
@@ -113,14 +113,10 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             **kwargs
         )
 
-        self.PolicyAgentModelClass = kwargs.get("PolicyAgentModelClass", PolicyA2CAgent)
-        self.agent: AbstractA2CAgent = self.PolicyAgentModelClass(
-            self.vocab_size,
-            self.num_intents,
-            self.num_slots,
-            padding_idx=self.text_field.vocab.stoi["<pad>"],
-        )
         self.a2c_params = A2CParams()
+
+    def get_policy_agent_model_class(self,kwargs):
+        return kwargs.get("PolicyAgentModelClass", PolicyA2CAgent)
 
     def next_action(self, state: SlotFillingDialogueState):
         self.agent.eval()
@@ -142,45 +138,30 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
 
         return sys_acts
 
-    def tokenize(self, state: SlotFillingDialogueState):
-        return tokenize(self.text_field, state)
+    def _calc_loss(self, batch:List[List[Dict]]):
+        turns = [self.process_dialogue_to_turns(dialogue=d) for d in batch]
 
-    # def train(self, batch: List):
-    #     self.agent.train()
-    #     self.agent.to(DEVICE)
-    #     dialogues = [self.process_dialogue_to_turns(dialogue) for dialogue in batch]
-    #     seq_lenghts = [len(turn.tokenized_state_json) for d in dialogues for turn in d]
-    #     max_seq_len_idx = np.argmax(seq_lenghts)
-    #     max_seq_len = seq_lenghts[max_seq_len_idx]
-    #     self.text_field.fix_length = max_seq_len
-    #
-    #     steps = [e for d in dialogues for e in self._dialogue_to_steps(d)]
-    #     expmem = build_experience_memory(steps, self.a2c_params.num_rollout_steps)
-    #     rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
-    #
-    #     loss = calc_loss(rollout, self.agent, self.a2c_params)
-    #
-    #     self.optimizer.zero_grad()
-    #     loss.backward()
-    #     # torch.nn.utils.clip_grad_norm_(
-    #     #     self.agent.parameters(), self.a2c_params.max_grad_norm
-    #     # )
-    #     self.optimizer.step()
-    #     self.losses.append(float(loss.data.cpu().numpy()))
-    #
-    #     # Decay exploration rate
-    #     if self.epsilon > self.epsilon_min:
-    #         self.epsilon *= self.epsilon_decay
+        sequences = [t.tokens for turn in turns for t in turn]
+        max_seq_len = max([len(s) for s in sequences])
+        self.text_field.fix_length = max_seq_len
+
+        steps = [e for d in turns for e in self._dialogue_to_steps(d)]
+        expmem = build_experience_memory(steps, self.a2c_params.num_rollout_steps)
+        rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
+
+        loss = calc_loss(rollout, self.agent, self.a2c_params)
+        return loss
 
     def process_dialogue_to_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
-        x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
-
+        assert dialogue[0]['action'][0].intent == "welcomemsg"
+        assert dialogue[-1]['action'][0].intent == "bye"
+        dialogue[-2]['reward'] = dialogue[-1]['reward']
+        dialogue = dialogue[1:-1]
         rewards = [t["reward"] for t in dialogue]
         returns = calc_discounted_returns(rewards, self.gamma)
         turns = [
-            DialogTurn(a[0], self.tokenize(s), ret)
-            for (a, s, r), ret in zip(x, returns)
-            if a[0].intent != "welcomemsg" and a[0].intent != "bye"
+            DialogTurn(d['action'][0], tokenize(self.text_field,d['state']), d['reward'])
+            for d, ret in zip(dialogue, returns)
         ]
         assert all([isinstance(t.act, ValueDialogAct) for t in turns])
         return turns
@@ -190,7 +171,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
 
         for k, turn in enumerate(dialogue):
             observation = (
-                self.text_field.process([turn.tokenized_state_json])
+                self.text_field.process([turn.tokens])
                 .squeeze()
                 .to(DEVICE)
             )

@@ -211,7 +211,7 @@ class PyTorchReinforcePolicy(QPolicy):
             slots = []
         return slots
 
-    def train(self, batch: List):
+    def train(self, batch: List[List[Dict]]):
         self.agent.train()
         self.agent.to(DEVICE)
 
@@ -226,7 +226,7 @@ class PyTorchReinforcePolicy(QPolicy):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-    def _calc_loss(self, batch):
+    def _calc_loss(self, batch:List[List[Dict]]):
         action, turns, x = self.prepare_batch(batch)
         distr = self.agent.calc_distr(x)
         log_probs = distr.log_prob(*action)
