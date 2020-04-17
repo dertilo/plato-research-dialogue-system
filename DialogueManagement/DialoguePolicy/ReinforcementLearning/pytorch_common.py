@@ -66,7 +66,8 @@ class CommonDistribution:
     def entropy(self):
         bd_entr = self.bd.entropy().mean(dim=1)
         cd_entr = self.cd.entropy()
-        return bd_entr + cd_entr
+        entr = bd_entr + cd_entr
+        return entr.type(torch.FloatTensor)
 
 
 def calc_discounted_returns(rewards: List[float], gamma: float):
