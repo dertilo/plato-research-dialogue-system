@@ -233,7 +233,7 @@ class PyTorchReinforcePolicy(QPolicy):
         log_probs = distr.log_prob(*action)
         returns = torch.from_numpy(
             numpy.array([t.returnn for t in turns], dtype=numpy.float32)
-        )
+        ).to(DEVICE)
         losses = -log_probs * returns
         policy_loss = losses.mean()
         return policy_loss
