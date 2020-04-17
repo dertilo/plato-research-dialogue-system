@@ -29,8 +29,8 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.MinimaxQPolicy \
     import MinimaxQPolicy
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.WoLFPHCPolicy \
     import WoLFPHCPolicy
-from DialogueManagement.DialoguePolicy.DeepLearning.SupervisedPolicy import \
-    SupervisedPolicy
+# from DialogueManagement.DialoguePolicy.DeepLearning.SupervisedPolicy import \
+#     SupervisedPolicy
 from DialogueManagement.DialoguePolicy.DeepLearning.ReinforcePolicy import \
     ReinforcePolicy
 
