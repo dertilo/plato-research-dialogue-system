@@ -62,7 +62,7 @@ class PolicyAgent(nn.Module):
     def step(self, state) -> AgentStep:
         distr = self.calc_distr(state)
         intent, slots = distr.sample()
-        return AgentStep((intent.item(), slots.numpy()))
+        return AgentStep((intent.cpu().item(), slots.cpu().numpy()))
 
 
 class ActionEncoder:
