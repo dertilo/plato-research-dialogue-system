@@ -20,7 +20,8 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
     CommonDistribution,
     process_dialogue_to_turns,
     Actor,
-    DialogTurn)
+    DialogTurn,
+)
 from DialogueManagement.DialoguePolicy.dialogue_common import (
     create_random_dialog_act,
     Domain,
@@ -141,7 +142,7 @@ class PyTorchReinforcePolicy(QPolicy):
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
         self.losses = []
 
-    def get_policy_agent_model_class(self,kwargs):
+    def get_policy_agent_model_class(self, kwargs):
         return kwargs.get("PolicyAgentModelClass", PolicyAgent)
 
     def _build_text_field(self, domain: Domain):
@@ -226,11 +227,13 @@ class PyTorchReinforcePolicy(QPolicy):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-    def _calc_loss(self, batch:List[List[Dict]]):
+    def _calc_loss(self, batch: List[List[Dict]]):
         action, turns, x = self.prepare_batch(batch)
         distr = self.agent.calc_distr(x)
         log_probs = distr.log_prob(*action)
-        returns = torch.from_numpy(numpy.array([t.returnn for t in turns]))
+        returns = torch.from_numpy(
+            numpy.array([t.returnn for t in turns], dtype=numpy.float32)
+        )
         losses = -log_probs * returns
         policy_loss = losses.mean()
         return policy_loss
