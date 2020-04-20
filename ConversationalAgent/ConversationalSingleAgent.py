@@ -442,6 +442,8 @@ class ConversationalSingleAgent(ConversationalAgent):
                         'goal without ontology and database.'
                     )
 
+            self._set_agent_0_dm_config()
+
         dm_args = dict(
             zip(
                 ['settings', 'ontology', 'database', 'domain', 'agent_id',
@@ -457,6 +459,19 @@ class ConversationalSingleAgent(ConversationalAgent):
         )
         dm_args.update(self.configuration['AGENT_0']['DM'])
         self.dialogue_manager = DialogueManager.DialogueManager(dm_args)
+
+    def _set_agent_0_dm_config(self):
+        if 'DM' in self.configuration['AGENT_0'] and 'policy' in self.configuration['AGENT_0']['DM']:
+            policy_conf = self.configuration['AGENT_0']['DM']['policy']
+
+            if 'minibatch_length' in policy_conf:
+                self.minibatch_length = policy_conf['minibatch_length']
+
+            if 'train_interval' in policy_conf:
+                self.train_interval = policy_conf['train_interval']
+
+            if 'train_epochs' in policy_conf:
+                self.train_epochs = policy_conf['train_epochs']
 
     def __del__(self):
         """

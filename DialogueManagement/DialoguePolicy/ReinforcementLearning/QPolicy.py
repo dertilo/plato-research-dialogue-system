@@ -20,6 +20,7 @@ from .. import DialoguePolicy, HandcraftedPolicy
 from Dialogue.Action import DialogueAct
 from Domain.Ontology import Ontology
 from Domain.DataBase import DataBase
+from copy import deepcopy
 
 import pickle
 import random
@@ -158,6 +159,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                 if self.print_level in ['debug']:
                     print('---: Selecting random action')
                 sys_acts = create_random_dialog_act(self.domain,is_system=True)
+                self.counter['random'] += 1
 
         elif self.IS_GREEDY_POLICY and state_enc in self.Q:
             # Return action with maximum Q value from the given state
@@ -176,9 +178,16 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
 
 
     def encode_action(self, acts:List[DialogueAct], system=True)->str:
-        s = action_to_string(acts, system)
+        acts_copy = [deepcopy(x) for x in acts]
+        for act in acts_copy:
+            if act.params:
+                for item in act.params:
+                    if item.slot and item.value:
+                        item.value = None
+
+        s = action_to_string(acts_copy, system)
         # enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
-        self.hash2actions[s]=acts
+        self.hash2actions[s]=acts_copy
         return s
 
     def decode_action(self, action_enc):

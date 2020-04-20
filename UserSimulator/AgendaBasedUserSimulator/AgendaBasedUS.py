@@ -98,7 +98,13 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
         self.patience = 3
 
-        # Initialize probabilities
+        # Default values for probabilities
+        self.pop_distribution = [1.0]
+        self.slot_confuse_prob = 0.0
+        self.op_confuse_prob = 0.0
+        self.value_confuse_prob = 0.0
+
+        # Set probabilities from config, if given there
         if 'patience' in args:
             self.patience = args['patience']
         if 'pop_distribution' in args:
@@ -149,12 +155,6 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
             self.us_has_initiative = args['us_has_initiative']
 
         self.curr_patience = self.patience
-
-        # Default values for probabilities
-        self.pop_distribution = [1.0]
-        self.slot_confuse_prob = 0.0
-        self.op_confuse_prob = 0.0
-        self.value_confuse_prob = 0.0
 
         self.agenda = Agenda.Agenda()
         self.error_model = ErrorModel.ErrorModel(self.ontology,
@@ -272,7 +272,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         else:
             self.curr_patience = self.patience
 
-        self.prev_system_acts = deepcopy(system_acts)
+        self.prev_system_acts = [deepcopy(x) for x in system_acts]
 
         for system_act in system_acts:
             # 'bye' doesn't seem to appear in the CamRest data
@@ -342,7 +342,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         else:
             self.curr_patience = self.patience
 
-        self.prev_system_acts = deepcopy(system_acts)
+        self.prev_system_acts = [deepcopy(x) for x in system_acts]
 
         for system_act in system_acts:
             # Update user goal (in ABUS the state is factored into the goal
@@ -367,13 +367,10 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                         dact = \
                             DialogueAct(
                                 'inform',
-                                [DialogueActItem(
-                                    deepcopy(item.slot),
-                                    deepcopy(
-                                        self.goal.constraints[item.slot].op),
-                                    deepcopy(
-                                        self.goal.constraints[
-                                            item.slot].value))])
+                                [DialogueActItem(item.slot,
+                                                 self.goal.constraints[item.slot].op,
+                                                 self.goal.constraints[item.slot].value)
+                                 ])
 
                         # Remove and push to make sure the act is on top -
                         # if it already exists
@@ -428,23 +425,42 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                             self.agenda.push(
                                 DialogueAct(
                                     'inform',
-                                    [DialogueActItem(
-                                        deepcopy(item.slot),
-                                        deepcopy(
-                                            self.goal.constraints[
-                                                item.slot].op),
-                                        deepcopy(
-                                            self.goal.constraints[
-                                                item.slot].value))]))
+                                    [DialogueActItem(item.slot,
+                                                     self.goal.constraints[item.slot].op,
+                                                     self.goal.constraints[item.slot].value)]))
                         else:
                             self.agenda.push(
                                 DialogueAct(
                                     'inform',
-                                    [DialogueActItem(
-                                        deepcopy(item.slot),
-                                        Operator.EQ, 'dontcare')]))
+                                    [DialogueActItem(item.slot, Operator.EQ, 'dontcare')]))
 
             # TODO Relax goals if system returns no info for name
+
+    def _get_number_of_pop_items(self):
+        """
+        Determines the number of items to be popped from the agenda.
+
+        :return: int representing number of items to be popped.
+        """
+
+        # determine number of items from distribution
+        sampled_num_of_items = random.choices(
+            range(1, len(self.pop_distribution) + 1),
+            weights=self.pop_distribution)[0]
+
+        # we cannot push more items than available on the agenda
+        num_of_items_on_agenda = self.agenda.size()
+        num_of_items = min(sampled_num_of_items, num_of_items_on_agenda)
+
+        # if num_of_items is greater than 1, check that we don not pop a bye-intent together with other intents
+        # bye is the last item on the agenda
+        if num_of_items > 1 and num_of_items == self.agenda.size():
+            # if more than one item will be popped, and the set of times to be popped contains
+            # the last item on the agenda (bye), then reduce the num_of_items by 1 to keep the bye-intent as single
+            # item on the agenda
+            num_of_items -= 1
+
+        return num_of_items
 
     def respond(self):
         """
@@ -470,11 +486,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
         # Use pop_distribution to determine the number of items (i.e. dialog acts) to be popped.
         # However, we can pop only as many items as on the agenda.
-        pops = min(
-            random.choices(
-                range(1, len(self.pop_distribution)+1),
-                weights=self.pop_distribution)[0],
-            self.agenda.size())
+        pops = self._get_number_of_pop_items()
 
         for pop in range(pops):
             act = self.error_model.semantic_noise(self.agenda.pop())

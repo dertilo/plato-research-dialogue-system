@@ -31,29 +31,25 @@ def convert_on_turn_level(log, csv_p):
             user_slots = list()
             user_values = list()
             user_intent = 'EMPTY'
+            user_acts = list()
             if t['state'].user_acts is not None:
-                user_act = t['state'].user_acts[0]
-                user_intent = user_act.intent
-                for p in user_act.params:
-                    user_slots.append(p.slot)
-                    user_values.append(p.value)
-            turn['user_intent'] = user_intent
-            turn['user_slots'] = ' '.join(user_slots)
-            if len(user_values) > 0 and isinstance(user_values[0], list):
-                turn['user_values'] = 'EMPTY_LIST'
-            else:
-                turn['user_values'] = ' '.join(user_values)
+                for user_act in t['state'].user_acts:
+                    user_acts.append(str(user_act))
+            turn['user_acts'] = ' '.join(user_acts)
+
+            # collect number of user intents
+            turn['num_of_user_intents'] = len(user_acts)
 
             # collect slot names and related values for system's action
-            sys_act = t['action'][0]
-            turn['system_intent'] = sys_act.intent
-            system_slots = list()
-            system_values = list()
-            for p in sys_act.params:
-                system_slots.append(p.slot)
-                system_values.append(p.value)
-            turn['system_slots'] = ' '.join(system_slots)
-            turn['system_values'] = ' '.join(system_values)
+            sys_acts = list()
+            if t['action'] is not None:
+                for sys_act in t['action']:
+                    sys_acts.append(str(sys_act))
+
+            turn['sys_acts'] = ' '.join(sys_acts)
+
+            # collect number of system acts
+            turn['number_of_sys_acts'] = len(sys_acts)
 
             csv_data.append(turn)
 
