@@ -26,12 +26,6 @@ import numpy as np
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class ValueDialogAct(DialogueAct):
-    def __init__(self, intent="", params=None, value: float = 0.0):
-        super().__init__(intent, params)
-        self.value = value  # is the Value of the state, not rating this act
-
-
 class PolicyA2CAgent(AbstractA2CAgent):
     def __init__(
         self,
@@ -75,9 +69,10 @@ class PolicyA2CAgent(AbstractA2CAgent):
 
 
 class DialogTurn(NamedTuple):
-    act: ValueDialogAct
+    act: DialogueAct
     tokens: List[str]
     reward: float
+    state_value:float
 
 
 class PyTorchA2CPolicy(PyTorchReinforcePolicy):
@@ -122,19 +117,17 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.agent.eval()
         self.agent.to(DEVICE)
 
-        if self.is_training and random.random() < self.epsilon:
-            warmup_acts = self.warmup_policy.next_action(state)
-            state_enc = self.encode_state(state)
-            with torch.no_grad():
-                value = self.agent.calc_value(state_enc)
-            sys_acts = [
-                ValueDialogAct(a.intent, a.params, value.item()) for a in warmup_acts
-            ]
-        else:
-            state_enc = self.encode_state(state)
-            with torch.no_grad():
+        state_enc = self.encode_state(state)
+        with torch.no_grad():
+            if self.is_training and random.random() < self.epsilon:
+                warmup_acts = self.warmup_policy.next_action(state)
+                sys_acts = warmup_acts
+                value = self.agent.calc_value(state_enc).cpu().item()
+            else:
                 agent_step = self.agent.step(state_enc.to(DEVICE))
-            sys_acts = [self.decode_action(agent_step)]
+                value = agent_step.v_values.cpu().item()
+                sys_acts = [self.decode_action(agent_step)]
+            state.value = value
 
         return sys_acts
 
@@ -160,10 +153,9 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         rewards = [t["reward"] for t in dialogue]
         returns = calc_discounted_returns(rewards, self.gamma)
         turns = [
-            DialogTurn(d['action'][0], tokenize(self.text_field,d['state']), d['reward'])
-            for d, ret in zip(dialogue, returns)
+            DialogTurn(d['action'][0], tokenize(self.text_field,d['state']), d['reward'],d['state'].value)
+            for d, ret in zip(dialogue, returns) if hasattr(d['state'],'value')
         ]
-        assert all([isinstance(t.act, ValueDialogAct) for t in turns])
         return turns
 
     def _dialogue_to_steps(self, dialogue: List[DialogTurn]) -> List[Dict]:
@@ -186,15 +178,14 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
             env_step = EnvStep(
                 observation, torch.from_numpy(np.array(turn.reward)), done
             )
-            agent_step = AgentStep(action, torch.from_numpy(np.array(turn.act.value)))
+            agent_step = AgentStep(action, torch.from_numpy(np.array(turn.state_value)))
             steps.append({"env": env_step._asdict(), "agent": agent_step._asdict()})
         return steps
 
     def decode_action(self, step: AgentStep):
         intent, slots = self.action_enc.decode(*step.actions)
         slots = self._filter_slots(intent, slots)
-        return ValueDialogAct(
+        return DialogueAct(
             intent,
             params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
-            value=step.v_values.item(),
         )
