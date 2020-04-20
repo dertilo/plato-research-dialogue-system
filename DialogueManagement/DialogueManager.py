@@ -106,6 +106,10 @@ class DialogueManager(ConversationalModule):
         self.dialogue_counter = 0
         self.CALCULATE_SLOT_ENTROPIES = True
 
+        # True: use an inform act to answer the request for the name of an item
+        # False: use an offer act to answer the request for the name of an item
+        self.inform_requested_name = True
+
         if isinstance(ontology, Ontology):
             self.ontology = ontology
         elif isinstance(ontology, str):
@@ -412,20 +416,50 @@ class DialogueManager(ConversationalModule):
                     if sys_act.params and sys_act.params[0].value:
                         continue
 
-                    slot = ''  # defualt value for slot, if it cannot be filled from state
+                    slots = []
+
                     if sys_act.params:
-                        slot = sys_act.params[0].slot
+                        # use the slots addressed by the inform act (slots selected by the policy)
+                        slots = [x.slot for x in sys_act.params]
                     else:
-                        # use the first slot in requested slots
-                        if len(d_state.requested_slots) > 0:
-                            slot = d_state.requested_slots[0]
+                        # use the requested slots, if any available
+                        if d_state.requested_slots:
+                            slots = [x for x in d_state.requested_slots]
 
-                    if not slot:
-                        slot = random.choice(list(d_state.slots_filled.keys()))
+                    if not slots:
+                        # if we still have no slot(s) use one from the filled slots
+                        slots = [random.choice(list(d_state.slots_filled.keys()))]
 
-                    if d_state.item_in_focus:
-                        if slot not in d_state.item_in_focus or \
-                                not d_state.item_in_focus[slot]:
+                    for slot in slots:
+                        if d_state.item_in_focus:
+                            if slot not in d_state.item_in_focus or \
+                                    not d_state.item_in_focus[slot]:
+                                new_sys_acts.append(
+                                    DialogueAct(
+                                        'inform',
+                                        [DialogueActItem(
+                                            slot,
+                                            Operator.EQ,
+                                            'no info')]))
+                            else:
+                                if not self.inform_requested_name and slot == 'name':
+                                    new_sys_acts.append(
+                                        DialogueAct(
+                                            'offer',
+                                            [DialogueActItem(
+                                                slot,
+                                                Operator.EQ,
+                                                d_state.item_in_focus[slot])]))
+                                else:
+                                    new_sys_acts.append(
+                                        DialogueAct(
+                                            'inform',
+                                            [DialogueActItem(
+                                                slot,
+                                                Operator.EQ,
+                                                d_state.item_in_focus[slot])]))
+
+                        else:
                             new_sys_acts.append(
                                 DialogueAct(
                                     'inform',
@@ -433,32 +467,6 @@ class DialogueManager(ConversationalModule):
                                         slot,
                                         Operator.EQ,
                                         'no info')]))
-                        else:
-                            if slot == 'name':
-                                new_sys_acts.append(
-                                    DialogueAct(
-                                        'offer',
-                                        [DialogueActItem(
-                                            slot,
-                                            Operator.EQ,
-                                            d_state.item_in_focus[slot])]))
-                            else:
-                                new_sys_acts.append(
-                                    DialogueAct(
-                                        'inform',
-                                        [DialogueActItem(
-                                            slot,
-                                            Operator.EQ,
-                                            d_state.item_in_focus[slot])]))
-
-                    else:
-                        new_sys_acts.append(
-                            DialogueAct(
-                                'inform',
-                                [DialogueActItem(
-                                    slot,
-                                    Operator.EQ,
-                                    'no info')]))
 
                 elif self.agent_role == 'user':
                     if sys_act.params:
