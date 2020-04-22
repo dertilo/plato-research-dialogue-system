@@ -11,16 +11,20 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
     CommonDistribution,
     calc_discounted_returns,
     tokenize,
-    Actor)
+    Actor,
+)
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import (
     PyTorchReinforcePolicy,
-    PolicyAgent)
+)
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_actor_critic import (
     EnvStep,
     AgentStep,
     AbstractA2CAgent,
     A2CParams,
-    calc_loss, build_experience_memory, collect_experiences_calc_advantage)
+    calc_loss,
+    build_experience_memory,
+    collect_experiences_calc_advantage,
+)
 import numpy as np
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -56,8 +60,8 @@ class PolicyA2CAgent(AbstractA2CAgent):
         distr = CommonDistribution(intent_probs, slot_sigms)
         return distr, value
 
-    def calc_distr(self,state):
-        distr,value = self.calc_distr_value(state)
+    def calc_distr(self, state):
+        distr, value = self.calc_distr_value(state)
         return distr
 
     def step(self, x) -> AgentStep:
@@ -72,7 +76,7 @@ class DialogTurn(NamedTuple):
     act: DialogueAct
     tokens: List[str]
     reward: float
-    state_value:float
+    state_value: float
 
 
 class PyTorchA2CPolicy(PyTorchReinforcePolicy):
@@ -110,7 +114,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
 
         self.a2c_params = A2CParams()
 
-    def get_policy_agent_model_class(self,kwargs):
+    def get_policy_agent_model_class(self, kwargs):
         return kwargs.get("PolicyAgentModelClass", PolicyA2CAgent)
 
     def next_action(self, state: SlotFillingDialogueState):
@@ -131,7 +135,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
 
         return sys_acts
 
-    def _calc_loss(self, batch:List[List[Dict]]):
+    def _calc_loss(self, batch: List[List[Dict]]):
         turns = [self.process_dialogue_to_turns(dialogue=d) for d in batch]
 
         sequences = [t.tokens for turn in turns for t in turn]
@@ -146,15 +150,21 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         return loss
 
     def process_dialogue_to_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
-        assert dialogue[0]['action'][0].intent == "welcomemsg"
-        assert dialogue[-1]['action'][0].intent == "bye"
-        dialogue[-2]['reward'] = dialogue[-1]['reward']
+        assert dialogue[0]["action"][0].intent == "welcomemsg"
+        assert dialogue[-1]["action"][0].intent == "bye"
+        dialogue[-2]["reward"] = dialogue[-1]["reward"]
         dialogue = dialogue[1:-1]
         rewards = [t["reward"] for t in dialogue]
         returns = calc_discounted_returns(rewards, self.gamma)
         turns = [
-            DialogTurn(d['action'][0], tokenize(self.text_field,d['state']), d['reward'],d['state'].value)
-            for d, ret in zip(dialogue, returns) if hasattr(d['state'],'value')
+            DialogTurn(
+                d["action"][0],
+                tokenize(self.text_field, d["state"]),
+                d["reward"],
+                d["state"].value,
+            )
+            for d, ret in zip(dialogue, returns)
+            if hasattr(d["state"], "value")
         ]
         return turns
 
@@ -162,11 +172,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         steps = []
 
         for k, turn in enumerate(dialogue):
-            observation = (
-                self.text_field.process([turn.tokens])
-                .squeeze()
-                .to(DEVICE)
-            )
+            observation = self.text_field.process([turn.tokens]).squeeze().to(DEVICE)
             action_encs = self.encode_action([turn.act])
             action = {
                 n: torch.from_numpy(a).float().to(DEVICE)
@@ -186,6 +192,5 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         intent, slots = self.action_enc.decode(*step.actions)
         slots = self._filter_slots(intent, slots)
         return DialogueAct(
-            intent,
-            params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
+            intent, params=[DialogueActItem(slot, Operator.EQ, "") for slot in slots],
         )
