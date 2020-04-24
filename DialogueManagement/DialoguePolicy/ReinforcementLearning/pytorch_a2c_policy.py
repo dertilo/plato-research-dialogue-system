@@ -121,14 +121,14 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.agent.eval()
         self.agent.to(DEVICE)
 
-        state_enc = self.encode_state(state)
+        state_enc = self.encode_state(state).to(DEVICE)
         with torch.no_grad():
             if self.is_training and random.random() < self.epsilon:
                 warmup_acts = self.warmup_policy.next_action(state)
                 sys_acts = warmup_acts
                 value = self.agent.calc_value(state_enc).cpu().item()
             else:
-                agent_step = self.agent.step(state_enc.to(DEVICE))
+                agent_step = self.agent.step(state_enc)
                 value = agent_step.v_values.cpu().item()
                 sys_acts = [self.decode_action(agent_step)]
             state.value = value
@@ -136,13 +136,13 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         return sys_acts
 
     def _calc_loss(self, batch: List[List[Dict]]):
-        turns = [self.process_dialogue_to_turns(dialogue=d) for d in batch]
+        batch_of_turns = [self.process_dialogue_to_turns(dialogue=d) for d in batch]
 
-        sequences = [t.tokens for turn in turns for t in turn]
+        sequences = [t.tokens for turns in batch_of_turns for t in turns]
         max_seq_len = max([len(s) for s in sequences])
         self.text_field.fix_length = max_seq_len
 
-        steps = [e for d in turns for e in self._dialogue_to_steps(d)]
+        steps = [e for d in batch_of_turns for e in self._dialogue_to_steps(d)]
         expmem = build_experience_memory(steps, self.a2c_params.num_rollout_steps)
         rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
 
