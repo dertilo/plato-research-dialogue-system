@@ -137,6 +137,11 @@ class DialogueActItem:
         # TODO: Check for all acceptable value types here?
         self.value = value
 
+    def __deepcopy__(self, memodict={}):
+        item_copy = DialogueActItem(self.slot, self.op, self.value)
+
+        return item_copy
+
     def __eq__(self, other):
         """
         Equality operator

@@ -9,7 +9,7 @@ from Dialogue.State import SlotFillingDialogueState
 STATE_DIM = 45
 
 class Domain(NamedTuple):
-    acts_params:List[str]=['inform','request']
+    acts_params:List[str]=['inform','request','expl-conf']
     dstc2_acts_sys:List[str] = None
     dstc2_acts_usr:List[str] = None
     system_requestable_slots:List[str] = None
@@ -44,7 +44,7 @@ def setup_domain(ontology):
         system_requestable_slots)  # system request with certain slots
     NActions += len(requestable_slots)  # system inform with certain slot
 
-    return Domain(['inform','request'],dstc2_acts_sys, dstc2_acts_usr,
+    return Domain(['inform', 'request', 'expl-conf'],dstc2_acts_sys, dstc2_acts_usr,
                          system_requestable_slots, requestable_slots,NActions)
 
 def pick_some(x,num_min,num_max):
@@ -66,6 +66,8 @@ def create_random_dialog_act(domain:Domain,is_system=True):
         if intent_p == 'inform':
             slots = pick_some(inform_slots,1,1)
         elif intent_p == 'request':
+            slots = pick_some(request_slots,1,1)
+        elif intent_p == 'expl-conf':
             slots = pick_some(request_slots,1,1)
         else:
             assert False

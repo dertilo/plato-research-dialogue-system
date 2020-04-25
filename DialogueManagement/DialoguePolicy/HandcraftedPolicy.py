@@ -17,6 +17,8 @@ from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 
 from copy import deepcopy
 
+from typing import List
+
 import random
 
 """
@@ -63,6 +65,24 @@ class HandcraftedPolicy(DialoguePolicy.DialoguePolicy):
         # Check for terminal state
         if dialogue_state.is_terminal_state:
             return [DialogueAct('bye', [DialogueActItem('', Operator.EQ, '')])]
+
+        # Check if the user denies and the system has sent an expl-conf in the previous turn
+        elif dialogue_state.user_denied_last_sys_acts and \
+                dialogue_state.last_sys_acts and \
+                'expl-conf' in [x.intent for x in dialogue_state.last_sys_acts]:
+            # If the user denies an explicit confirmation, request the slots to be confirmed again
+            act: DialogueAct
+            request_act = DialogueAct('request', [])
+            for act in dialogue_state.last_sys_acts:
+                # search the explicit confirmation act in the system acts from the previous turn
+                item: DialogueActItem
+                if act.intent == 'expl-conf' and act.params:
+                    for item in act.params:
+                        new_item = DialogueActItem(slot=item.slot, op=Operator.EQ, value=None)
+                        request_act.params.append(new_item)
+
+            return [request_act]
+
 
         # Check if the user has made any requests
         elif len(dialogue_state.requested_slots) > 0:

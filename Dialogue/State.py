@@ -103,6 +103,10 @@ class SlotFillingDialogueState(DialogueState):
         self.user_acts = None
         self.system_made_offer = False
 
+        # tracking of user replies to explicit confirmation
+        self.user_affirmed_last_sys_acts = False
+        self.user_denied_last_sys_acts = False
+
         # TODO: Have a list of past items in focus - e.g. current and 2 past
         #  items
         # If the agent is a user, then this structure will store information

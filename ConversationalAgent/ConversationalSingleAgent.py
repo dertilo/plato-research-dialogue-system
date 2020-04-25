@@ -106,7 +106,7 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         # The dialogue will terminate after MAX_TURNS (this agent will issue
         # a bye() dialogue act.
-        self.MAX_TURNS = 15
+        self.MAX_TURNS = 30
 
         self.dialogue_turn = -1
         self.ontology = None

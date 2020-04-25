@@ -277,7 +277,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         for system_act in system_acts:
             # 'bye' doesn't seem to appear in the CamRest data
             if system_act.intent == 'bye' or self.curr_patience == 0 or \
-                    self.dialogue_turn > 15:
+                    self.dialogue_turn > 30:
                 self.agenda.push(DialogueAct('bye', []))
                 return
 
@@ -344,7 +344,12 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
         self.prev_system_acts = [deepcopy(x) for x in system_acts]
 
+        # deny and affirm flags are set according to the evaluation of the system input in the following
+        deny_system_acts = False
+        affirm_system_acts = False
+
         for system_act in system_acts:
+
             # Update user goal (in ABUS the state is factored into the goal
             # and the agenda)
             # If the user receives a 'bye' this is ignored, as the user should decide about the end of the dialogue
@@ -352,7 +357,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                 self.agenda.clear()
                 self.agenda.push(DialogueAct('bye', []))
 
-            elif system_act.intent in ['inform', 'offer']:
+            elif system_act.intent in ['inform', 'offer', 'expl-conf']:
                 # Check that the venue provided meets the constraints
                 meets_constraints = True
                 for item in system_act.params:
@@ -386,6 +391,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
 
                             self.agenda.push(dact)
 
+
                 # If it meets the constraints, update the requests
                 if meets_constraints:
                     for item in system_act.params:
@@ -406,6 +412,14 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                                 DialogueAct('request',
                                             [DialogueActItem(
                                                 item.slot, Operator.EQ, '')]))
+
+                # check if deny or affirm in case of expl_conf
+                if system_act.intent == 'expl-conf':
+                    if meets_constraints:
+                        affirm_system_acts = True
+                    else:
+                        deny_system_acts = True
+
 
                 # When the system makes a new offer, replace all requests in
                 # the agenda
@@ -434,7 +448,17 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                                     'inform',
                                     [DialogueActItem(item.slot, Operator.EQ, 'dontcare')]))
 
+
+
             # TODO Relax goals if system returns no info for name
+
+        if deny_system_acts:
+            deny_act = DialogueAct('deny', [])
+            self.agenda.push(deny_act)
+        elif affirm_system_acts:
+            affirm_act = DialogueAct('affirm', [])
+            self.agenda.push(affirm_act)
+
 
     def _get_number_of_pop_items(self):
         """

@@ -185,6 +185,14 @@ class DummyStateTracker(DialogueStateTracker):
         self.DState.requested_slots = []
 
         for dact in dacts:
+            if dact.intent == 'affirm':
+                # The user affirms a explicit confirmation
+                self.DState.user_affirmed_last_sys_acts = True
+
+            if dact.intent == 'deny':
+                # The user denies an explicit confirmation
+                self.DState.user_denied_last_sys_acts = True
+
             if dact.intent in ['inform', 'offer']:
                 # The user provided new information so the system hasn't made
                 # any offers taking that into account yet.
