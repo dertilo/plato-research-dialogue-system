@@ -48,6 +48,7 @@ def build_config(do_train=True):
             "DM": {
                 "policy": {
                     "type": "pytorch_a2c",
+                    # "type": "pytorch_reinforce",
                     "train": do_train,
                     "learning_rate": 0.01,
                     "learning_decay_rate": 0.995,
@@ -58,9 +59,6 @@ def build_config(do_train=True):
                     "policy_path": "policies/agent",
                 }
             },
-            "NLU": None,
-            "DST": {"dst": "dummy"},
-            "NLG": None,
         },
     }
 
@@ -89,14 +87,8 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
     pbar.update()
 
 
-def run_it(config,num_dialogues=100):
-    ca = ConversationalSingleAgent(config)
-    ca.initialize()
-    if config["AGENT_0"]["DM"]["policy"]["train"]:
-        print(ca.dialogue_manager.policy.agent)
-    ca.minibatch_length = 8
-    ca.train_epochs = 10
-    ca.train_interval = 8
+def run_it(ca:ConversationalSingleAgent,num_dialogues=100):
+
     params_to_monitor = {"dialogue": 0, "success-rate": 0.0,'loss':0.0}
     running_factor = np.exp(np.log(0.05) / 100)  # after 100 steps sunk to 0.05
     with tqdm(postfix=[params_to_monitor]) as pbar:
@@ -125,6 +117,17 @@ def run_it(config,num_dialogues=100):
     )
 
 
+def build_convagent(config):
+    ca = ConversationalSingleAgent(config)
+    ca.initialize()
+    if config["AGENT_0"]["DM"]["policy"]["train"]:
+        print(ca.dialogue_manager.policy.agent)
+    ca.minibatch_length = 8
+    ca.train_epochs = 10
+    ca.train_interval = 8
+    return ca
+
+
 if __name__ == "__main__":
 
     def clean_dir(dir):
@@ -139,6 +142,9 @@ if __name__ == "__main__":
     clean_dir("policies")
 
     config = build_config(do_train=True)
-    run_it(config,10)
+    ca = build_convagent(config)
+    run_it(ca,250)
+
     config = build_config(do_train=False)
-    run_it(config)
+    ca = build_convagent(config)
+    run_it(ca)
