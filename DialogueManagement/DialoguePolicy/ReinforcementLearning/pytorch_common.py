@@ -10,6 +10,7 @@ from Dialogue.Action import DialogueAct
 from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.dialogue_common import state_to_json
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class StateEncoder(nn.Module):
     def __init__(

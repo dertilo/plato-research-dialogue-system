@@ -3,6 +3,8 @@ from typing import Dict, Any, NamedTuple, Tuple, List, Union
 import torch
 import torch.nn as nn
 
+from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import \
+    DEVICE
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.dictlist import (
     DictList,
 )
@@ -18,7 +20,6 @@ def flatten_parallel_rollout(d):
         for k, v in d.items()
     }
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def flatten_array(v):
     return v.transpose(0, 1).reshape(v.shape[0] * v.shape[1], *v.shape[2:]).to(DEVICE)
@@ -93,11 +94,11 @@ class A2CParams(NamedTuple):
     gae_lambda: float = 0.95
 
 
-def calc_loss(exps: Rollout, agent: AbstractA2CAgent, p: A2CParams):
-    dist, value = agent.calc_distr_value(exps.env_steps.observation)
+def calc_loss(rollout: Rollout, agent: AbstractA2CAgent, p: A2CParams):
+    dist, value = agent.calc_distr_value(rollout.env_steps.observation)
     entropy = dist.entropy().mean()
-    policy_loss = -(dist.log_prob(**exps.agent_steps.actions) * exps.advantages).mean()
-    value_loss = (value - exps.returnn).pow(2).mean()
+    policy_loss = -(dist.log_prob(**rollout.agent_steps.actions) * rollout.advantages).mean()
+    value_loss = (value - rollout.returnn).pow(2).mean()
     loss = policy_loss - p.entropy_coef * entropy + p.value_loss_coef * value_loss
     return loss
 

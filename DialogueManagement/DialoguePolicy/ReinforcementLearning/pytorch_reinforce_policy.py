@@ -13,22 +13,17 @@ from Dialogue.State import SlotFillingDialogueState
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.QPolicy import QPolicy
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import (
     StateEncoder,
     CommonDistribution,
     process_dialogue_to_turns,
     Actor,
-    DialogTurn,
-)
+    DEVICE)
 from DialogueManagement.DialoguePolicy.dialogue_common import (
-    create_random_dialog_act,
     Domain,
     state_to_json,
 )
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class AgentStep(NamedTuple):

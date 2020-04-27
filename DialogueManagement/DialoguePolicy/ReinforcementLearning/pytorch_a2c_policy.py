@@ -12,7 +12,7 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
     calc_discounted_returns,
     tokenize,
     Actor,
-)
+    DEVICE)
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import (
     PyTorchReinforcePolicy,
 )
@@ -26,8 +26,6 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.advantage_ac
     collect_experiences_calc_advantage,
 )
 import numpy as np
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class PolicyA2CAgent(AbstractA2CAgent):
@@ -171,10 +169,10 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         steps = []
 
         for k, turn in enumerate(dialogue):
-            observation = self.text_field.process([turn.tokens]).squeeze().to(DEVICE)
+            observation = self.text_field.process([turn.tokens]).squeeze()
             action_encs = self.encode_action([turn.act])
             action = {
-                n: torch.from_numpy(a).float().to(DEVICE)
+                n: torch.from_numpy(a).float()
                 for n, a in zip(["intent", "slots"], action_encs)
             }
             done = torch.from_numpy(
