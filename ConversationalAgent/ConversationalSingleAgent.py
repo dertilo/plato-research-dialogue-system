@@ -23,19 +23,19 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.RewardFunction \
     import SlotFillingReward
 from Utilities.DialogueEpisodeRecorder import DialogueEpisodeRecorder
 from Domain import Ontology, DataBase
-from NLU.DummyNLU import DummyNLU
-from NLU.CamRestNLU import CamRestNLU
-from NLG.DummyNLG import DummyNLG
-from NLG.CamRestNLG import CamRestNLG
+# from NLU.DummyNLU import DummyNLU
+# from NLU.CamRestNLU import CamRestNLU
+# from NLG.DummyNLG import DummyNLG
+# from NLG.CamRestNLG import CamRestNLG
 from Dialogue.Action import DialogueAct
 
-from gtts import gTTS
+# from gtts import gTTS
 from copy import deepcopy
 
 import os
 import random
 import logging
-import speech_recognition as speech_rec
+# import speech_recognition as speech_rec
 
 """
 The ConversationalSingleAgent implements the standard architecture of a 

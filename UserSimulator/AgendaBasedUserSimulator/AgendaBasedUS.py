@@ -18,10 +18,10 @@ from copy import deepcopy
 from typing import List
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
-from NLG.CamRestNLG import CamRestNLG
-from NLG.DummyNLG import DummyNLG
-from NLU.CamRestNLU import CamRestNLU
-from NLU.DummyNLU import DummyNLU
+# from NLG.CamRestNLG import CamRestNLG
+# from NLG.DummyNLG import DummyNLG
+# from NLU.CamRestNLU import CamRestNLU
+# from NLU.DummyNLU import DummyNLU
 from Domain.DataBase import DataBase, SQLDataBase, JSONDataBase
 from Domain.Ontology import Ontology
 from UserSimulator.AgendaBasedUserSimulator import Agenda, Goal, ErrorModel
