@@ -67,7 +67,7 @@ class PolicyA2CAgent(AbstractA2CAgent):
         distr = CommonDistribution(intent_probs, slot_sigms)
         intent, slots = distr.sample()
         v_values = value.data
-        return AgentStep((intent.item(), slots.numpy()), v_values)
+        return AgentStep((intent.item(), slots.cpu().numpy()), v_values)
 
 
 class DialogTurn(NamedTuple):

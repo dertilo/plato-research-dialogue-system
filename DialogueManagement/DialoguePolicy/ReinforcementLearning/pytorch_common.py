@@ -12,6 +12,9 @@ from DialogueManagement.DialoguePolicy.dialogue_common import state_to_json
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def to_torch(x:float):
+    return torch.tensor(x).type(torch.float32).to(DEVICE)
+
 class StateEncoder(nn.Module):
     def __init__(
         self, vocab_size, encode_dim=64, embed_dim=32, padding_idx=None
@@ -68,7 +71,7 @@ class CommonDistribution:
         bd_entr = self.bd.entropy().mean(dim=1)
         cd_entr = self.cd.entropy()
         entr = bd_entr + cd_entr
-        return entr.type(torch.FloatTensor)
+        return entr
 
 
 def calc_discounted_returns(rewards: List[float], gamma: float):

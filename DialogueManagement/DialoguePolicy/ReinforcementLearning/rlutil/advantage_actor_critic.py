@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common import \
-    DEVICE
+    DEVICE, to_torch
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.rlutil.dictlist import (
     DictList,
 )
@@ -99,7 +99,7 @@ def calc_loss(rollout: Rollout, agent: AbstractA2CAgent, p: A2CParams):
     entropy = dist.entropy().mean()
     policy_loss = -(dist.log_prob(**rollout.agent_steps.actions) * rollout.advantages).mean()
     value_loss = (value - rollout.returnn).pow(2).mean()
-    loss = policy_loss - p.entropy_coef * entropy + p.value_loss_coef * value_loss
+    loss = policy_loss - to_torch(p.entropy_coef) * entropy + to_torch(p.value_loss_coef) * value_loss
     return loss
 
 
