@@ -164,7 +164,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
                 d["state"].value,
             )
             for d, ret in zip(dialogue, returns)
-            if hasattr(d["state"], "value")
+            if d["state"].value is not None
         ]
         return turns
 

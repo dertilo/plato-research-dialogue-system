@@ -90,6 +90,7 @@ class SlotFillingDialogueState(DialogueState):
         self.system_requestable_slot_entropies = {}
 
         self.slots = None
+        self.value = None # used for actor-critic
 
         if 'slots' in args:
             self.slots = deepcopy(args['slots'])
