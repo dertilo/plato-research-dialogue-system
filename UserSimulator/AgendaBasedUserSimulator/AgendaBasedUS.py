@@ -18,10 +18,10 @@ from copy import deepcopy
 from typing import List
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
-# from NLG.CamRestNLG import CamRestNLG
-# from NLG.DummyNLG import DummyNLG
-# from NLU.CamRestNLU import CamRestNLU
-# from NLU.DummyNLU import DummyNLU
+from NLG.CamRestNLG import CamRestNLG
+from NLG.DummyNLG import DummyNLG
+from NLU.CamRestNLU import CamRestNLU
+from NLU.DummyNLU import DummyNLU
 from Domain.DataBase import DataBase, SQLDataBase, JSONDataBase
 from Domain.Ontology import Ontology
 from UserSimulator.AgendaBasedUserSimulator import Agenda, Goal, ErrorModel
@@ -277,7 +277,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
         for system_act in system_acts:
             # 'bye' doesn't seem to appear in the CamRest data
             if system_act.intent == 'bye' or self.curr_patience == 0 or \
-                    self.dialogue_turn > 30:
+                    self.dialogue_turn > 20:
                 self.agenda.push(DialogueAct('bye', []))
                 return
 
@@ -353,7 +353,7 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
             # Update user goal (in ABUS the state is factored into the goal
             # and the agenda)
             # If the user receives a 'bye' this is ignored, as the user should decide about the end of the dialogue
-            if self.dialogue_turn > 15:
+            if self.dialogue_turn > 20:
                 self.agenda.clear()
                 self.agenda.push(DialogueAct('bye', []))
 

@@ -23,19 +23,19 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.RewardFunction \
     import SlotFillingReward
 from Utilities.DialogueEpisodeRecorder import DialogueEpisodeRecorder
 from Domain import Ontology, DataBase
-# from NLU.DummyNLU import DummyNLU
-# from NLU.CamRestNLU import CamRestNLU
-# from NLG.DummyNLG import DummyNLG
-# from NLG.CamRestNLG import CamRestNLG
+from NLU.DummyNLU import DummyNLU
+from NLU.CamRestNLU import CamRestNLU
+from NLG.DummyNLG import DummyNLG
+from NLG.CamRestNLG import CamRestNLG
 from Dialogue.Action import DialogueAct
 
-# from gtts import gTTS
+from gtts import gTTS
 from copy import deepcopy
 
 import os
 import random
 import logging
-# import speech_recognition as speech_rec
+import speech_recognition as speech_rec
 
 """
 The ConversationalSingleAgent implements the standard architecture of a 
@@ -106,7 +106,7 @@ class ConversationalSingleAgent(ConversationalAgent):
 
         # The dialogue will terminate after MAX_TURNS (this agent will issue
         # a bye() dialogue act.
-        self.MAX_TURNS = 30
+        self.MAX_TURNS = 20
 
         self.dialogue_turn = -1
         self.ontology = None
