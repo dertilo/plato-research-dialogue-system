@@ -182,9 +182,13 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
                 np.array([k == len(dialogue) - 1]).astype(np.int)
             ).squeeze()
             env_step = EnvStep(
-                observation, torch.from_numpy(np.array(turn.reward)), done
+                observation,
+                torch.from_numpy(np.array(turn.reward)).type(torch.float32),
+                done,
             )
-            agent_step = AgentStep(action, torch.from_numpy(np.array(turn.state_value)))
+            agent_step = AgentStep(
+                action, torch.from_numpy(np.array(turn.state_value)).type(torch.float32)
+            )
             steps.append({"env": env_step._asdict(), "agent": agent_step._asdict()})
         return steps
 
