@@ -228,15 +228,10 @@ class PyTorchReinforcePolicy(QPolicy):
             self.epsilon *= self.epsilon_decay
 
     def _calc_loss(self, batch: List[List[Dict]]):
-        action, turns, x = self.prepare_batch(batch)
+        action, returns, x = self.prepare_batch(batch)
         distr = self.agent.calc_distr(x)
-        log_probs = distr.log_prob(*action)
-        returns = torch.from_numpy(
-            numpy.array([t.returnn for t in turns], dtype=numpy.float32)
-        ).to(DEVICE)
-        losses = -log_probs * returns
-        policy_loss = losses.mean()
-        return policy_loss
+        losses = -distr.log_prob(*action) * returns
+        return losses.mean()
 
     def prepare_batch(self, batch):
         turns = [
@@ -253,7 +248,12 @@ class PyTorchReinforcePolicy(QPolicy):
             torch.from_numpy(numpy.array(a)).float().to(DEVICE)
             for a in zip(*action_encs)
         )
-        return action, turns, state_enc
+
+        returns = torch.from_numpy(
+            numpy.array([t.returnn for t in turns], dtype=numpy.float32)
+        ).to(DEVICE)
+
+        return action, returns, state_enc
 
     def save(self, path=None):
         torch.save(self.agent.state_dict(), path)
