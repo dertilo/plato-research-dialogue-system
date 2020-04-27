@@ -18,9 +18,10 @@ def flatten_parallel_rollout(d):
         for k, v in d.items()
     }
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def flatten_array(v):
-    return v.transpose(0, 1).reshape(v.shape[0] * v.shape[1], *v.shape[2:])
+    return v.transpose(0, 1).reshape(v.shape[0] * v.shape[1], *v.shape[2:]).to(DEVICE)
 
 
 class EnvStep(NamedTuple):

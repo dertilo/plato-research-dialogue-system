@@ -146,8 +146,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         expmem = build_experience_memory(steps, self.a2c_params.num_rollout_steps)
         rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
 
-        loss = calc_loss(rollout, self.agent, self.a2c_params)
-        return loss
+        return calc_loss(rollout, self.agent, self.a2c_params)
 
     def process_dialogue_to_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
         assert dialogue[0]["action"][0].intent == "welcomemsg"
