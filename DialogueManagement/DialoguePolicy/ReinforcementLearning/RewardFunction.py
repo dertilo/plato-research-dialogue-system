@@ -53,6 +53,7 @@ class SlotFillingReward(Reward):
         self.goal = None
 
         self.turn_penalty = -0.05
+        self.expl_conf_penalty = -0.1
         self.failure_penalty = -1
         self.success_reward = 20
 
@@ -86,6 +87,21 @@ class SlotFillingReward(Reward):
         """
 
         reward = self.turn_penalty
+
+        # penalty for expl-conf
+        # if state.systems_asks_for_explicit_confirmation:
+
+
+        # add additional penalty if system asks for confirmation of a slot, that wasn't filled before
+        if state.last_sys_acts:
+            for act in state.last_sys_acts:
+                # search the explicit confirmation act in the system acts from the previous turn
+                if act.intent == 'expl-conf':
+                    reward += self.expl_conf_penalty
+                    if act.params:
+                        for item in act.params:
+                            if item.slot not in state.slots_filled or state.slots_filled[item.slot] is None:
+                                reward += self.expl_conf_penalty
 
         if goal is None:
             print('Warning: SlotFillingReward() called without a goal.')
