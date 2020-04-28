@@ -86,6 +86,7 @@ class SlotFillingDialogueState(DialogueState):
         super(SlotFillingDialogueState, self).__init__()
 
         self.slots_filled = {}
+        self.slots_confirmed = {}
         self.slot_queries = {}
         self.system_requestable_slot_entropies = {}
 
@@ -146,6 +147,7 @@ class SlotFillingDialogueState(DialogueState):
         :return:
         """
         self.slots_filled = dict.fromkeys(self.slots)
+        self.slots_confirmed = dict.fromkeys(self.slots, False)
         self.slot_queries = {}
         self.system_requestable_slot_entropies = {}
         self.requested_slots = []

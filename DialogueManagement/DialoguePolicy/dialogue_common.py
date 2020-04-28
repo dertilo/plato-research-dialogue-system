@@ -100,11 +100,14 @@ def state_to_json(state:SlotFillingDialogueState)->str:
     del temp.dialogStateUuid
     del temp.user_goal
     del temp.slots
-    del temp.item_in_focus
+    # del temp.item_in_focus
+    temp.item_in_focus = True if temp.item_in_focus else False
     temp.db_matches_ratio = int(round(temp.db_matches_ratio, 2) * 100)
     temp.slots_filled = [s for s,v in temp.slots_filled.items() if v is not None]
     if temp.last_sys_acts is not None:
         temp.last_sys_acts = action_to_string(temp.last_sys_acts, system=True)
+
+    if temp.user_acts is not None:
         temp.user_acts = action_to_string(temp.user_acts, system=False)
 
     d = todict(temp)

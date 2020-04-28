@@ -362,8 +362,8 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                 meets_constraints = True
                 for item in system_act.params:
                     if item.slot in self.goal.constraints and \
-                            self.goal.constraints[item.slot].value != \
-                            'dontcare':
+                            (self.goal.constraints[item.slot].value != 'dontcare' or
+                             system_act.intent == 'expl-conf'):
                         # Remove the inform from the agenda, assuming the
                         # value provided is correct. If it is not, the
                         # act will be pushed again and will be on top of the
@@ -390,6 +390,20 @@ class AgendaBasedUS(UserSimulator.UserSimulator):
                             # operator to NE
 
                             self.agenda.push(dact)
+
+                    elif item.slot not in self.goal.constraints and system_act.intent == 'expl-conf':
+                        # it the slot to be confirmed is not defined in the goal and the value to be confirmed is
+                        # not 'dontcare' it does not meet the constraints
+                        if item.value != 'dontcare':
+                            meets_constraints = False
+                            dact = DialogueAct(
+                                'inform',
+                                [DialogueActItem(item.slot, Operator.EQ, 'dontcare')])
+                            # Remove and push to make sure the act is on top -
+                            # if it already exists
+                            self.agenda.remove(dact)
+                            self.agenda.push(dact)
+
 
 
                 # If it meets the constraints, update the requests

@@ -186,6 +186,26 @@ class HandcraftedPolicy(DialoguePolicy.DialoguePolicy):
                                 'no info')]))
 
             return dacts
+
+        # if not all filled slot confirmed, try confirmation
+        elif not all([v for k, v in dialogue_state.slots_confirmed.items()]):
+            # get unconfirmed slots
+            unconfirmed_slots = [k for k, v in dialogue_state.slots_confirmed.items() if not v]
+
+            # match match unconfirmed slots with filled slots, as we ask only for confirmation of already filled slots
+            confirmation_candidates = []
+            for us in unconfirmed_slots:
+                if dialogue_state.slots_filled[us]:
+                    confirmation_candidates.append(us)
+
+            first_unconfirmed_slot = confirmation_candidates[0]
+
+
+
+            return [DialogueAct('expl-conf', [DialogueActItem(first_unconfirmed_slot,
+                                                              Operator.EQ,
+                                                              dialogue_state.slots_filled[first_unconfirmed_slot])])]
+
         else:
             # Fallback action - cannot help!
             # Note: We can have this check (no item in focus) at the beginning,
