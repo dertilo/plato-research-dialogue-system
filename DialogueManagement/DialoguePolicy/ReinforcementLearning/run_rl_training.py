@@ -1,6 +1,8 @@
 import os
 import shutil
 from os import chdir
+from pprint import pprint
+
 import numpy as np
 from tqdm import tqdm
 from ConversationalAgent.ConversationalSingleAgent import ConversationalSingleAgent
@@ -47,7 +49,8 @@ def build_config(do_train=True):
             },
             "DM": {
                 "policy": {
-                    "type": "pytorch_a2c",
+                    "type": "q_learning",
+                    # "type": "pytorch_a2c",
                     "train": do_train,
                     "learning_rate": 0.01,
                     "learning_decay_rate": 0.995,
@@ -66,18 +69,17 @@ def build_config(do_train=True):
 
 
 def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_factor):
-
     def running_average(running_factor, old_val, new_val, num_deci=2):
         val = running_factor * old_val + (1 - running_factor) * new_val
         return round(val, num_deci)
-
-    if len(ca.dialogue_manager.policy.losses) > 0:
-        loss = ca.dialogue_manager.policy.losses[-1]
-    else:
-        loss = 0
-    pbar.postfix[0]["loss"] = running_average(
-        running_factor, pbar.postfix[0]["loss"], loss,3
-    )
+    if hasattr(ca.dialogue_manager.policy,'losses'):
+        if len(ca.dialogue_manager.policy.losses) > 0:
+            loss = ca.dialogue_manager.policy.losses[-1]
+        else:
+            loss = 0
+        pbar.postfix[0]["loss"] = running_average(
+            running_factor, pbar.postfix[0]["loss"], loss, 3
+        )
     pbar.postfix[0]["dialogue"] = dialogue
     success = int(ca.recorder.dialogues[-1][-1]["success"])
     pbar.postfix[0]["success-rate"] = running_average(
@@ -89,21 +91,27 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
     pbar.update()
 
 
-def run_it(config,num_dialogues=100):
+def run_it(config, num_dialogues=100):
     ca = ConversationalSingleAgent(config)
     ca.initialize()
-    if config["AGENT_0"]["DM"]["policy"]["train"]:
+    if config["AGENT_0"]["DM"]["policy"]["train"] and hasattr(
+        ca.dialogue_manager.policy, "agent"
+    ):
         print(ca.dialogue_manager.policy.agent)
     ca.minibatch_length = 8
     ca.train_epochs = 10
     ca.train_interval = 8
-    params_to_monitor = {"dialogue": 0, "success-rate": 0.0,'loss':0.0}
+    params_to_monitor = {"dialogue": 0, "success-rate": 0.0, "loss": 0.0}
     running_factor = np.exp(np.log(0.05) / 100)  # after 100 steps sunk to 0.05
     with tqdm(postfix=[params_to_monitor]) as pbar:
         for dialogue in range(num_dialogues):
             one_dialogue(ca)
             update_progress_bar(ca, dialogue, pbar, running_factor)
+
     # Collect statistics
+    if hasattr(ca.dialogue_manager.policy,'counter'):
+        pprint(ca.dialogue_manager.policy.counter)
+
     statistics = {"AGENT_0": {}}
     statistics["AGENT_0"]["dialogue_success_percentage"] = 100 * float(
         ca.num_successful_dialogues / num_dialogues
@@ -139,6 +147,6 @@ if __name__ == "__main__":
     clean_dir("policies")
 
     config = build_config(do_train=True)
-    run_it(config,10)
+    run_it(config, 100)
     config = build_config(do_train=False)
     run_it(config)
