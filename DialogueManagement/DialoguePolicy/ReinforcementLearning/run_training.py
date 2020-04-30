@@ -61,9 +61,6 @@ def build_config(algo="pytorch_a2c", do_train=True):
                     "policy_path": "policies/agent",
                 }
             },
-            "NLU": None,
-            "DST": {"dst": "dummy"},
-            "NLG": None,
         },
     }
 
@@ -127,8 +124,14 @@ def run_it(config, num_dialogues=100, verbose=False):
         "avg-turns": avg_turns,
     }
 
+def clean_dir(dir):
+    if os.path.isdir(dir):
+        shutil.rmtree(dir)
+    os.mkdir(dir)
 
 def train_evaluate(algo, train_dialogues=300,eval_dialogues = 100):
+    clean_dir("logs")
+    clean_dir("policies")
     return {
         "train": run_it(build_config(algo, do_train=True), train_dialogues),
         "eval": run_it(build_config(algo, do_train=False), eval_dialogues),
@@ -137,16 +140,10 @@ def train_evaluate(algo, train_dialogues=300,eval_dialogues = 100):
 
 if __name__ == "__main__":
 
-    def clean_dir(dir):
-        if os.path.isdir(dir):
-            shutil.rmtree(dir)
-        os.mkdir(dir)
 
     base_path = "."
 
     chdir("%s" % base_path)
-    clean_dir("logs")
-    clean_dir("policies")
-
-    scores = [{k: train_evaluate(k) for k in ['pytorch_reinforce']}]
+    algos = ['pytorch_reinforce','pytorch_a2c','q_learning']
+    scores = {k: train_evaluate(k,train_dialogues=200) for k in algos}
     pprint(scores)
