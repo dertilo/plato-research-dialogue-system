@@ -93,10 +93,8 @@ class PyTorchReinforcePolicy(QPolicy):
         agent_id=0,
         agent_role="system",
         domain=None,
-        alpha=0.95,
         epsilon=0.95,
         gamma=0.99,
-        alpha_decay=0.995,
         epsilon_decay=0.995,
         print_level="debug",
         epsilon_min=0.05,
@@ -109,10 +107,8 @@ class PyTorchReinforcePolicy(QPolicy):
             agent_id,
             agent_role,
             domain,
-            alpha,
             epsilon,
             gamma,
-            alpha_decay,
             epsilon_decay,
             print_level,
             epsilon_min,
@@ -120,7 +116,7 @@ class PyTorchReinforcePolicy(QPolicy):
 
         self.text_field = self._build_text_field(self.domain)
         self.vocab_size = len(self.text_field.vocab)
-
+        self.num_pos = 0
         self.action_enc = ActionEncoder(self.domain)
         self.NActions = None
 
@@ -214,6 +210,11 @@ class PyTorchReinforcePolicy(QPolicy):
         return slots
 
     def train(self, batch: List[List[Dict]]):
+        self.num_pos = sum([1 for d in batch if d[-1]['success']])
+
+        # batch = self._balance_batch(batch)# TODO(tilo): not yet sure whether it is really necessary
+        # if len(batch)==0:
+        #     return # no training will happen
         self.agent.train()
         self.agent.to(DEVICE)
 
@@ -221,12 +222,25 @@ class PyTorchReinforcePolicy(QPolicy):
 
         self.optimizer.zero_grad()
         loss.backward()
+        grad_norm = torch.nn.utils.clip_grad_norm_(self.agent.parameters(), 100.0)
         self.optimizer.step()
         self.losses.append(float(loss.data.cpu().numpy()))
 
         # Decay exploration rate
         if self.epsilon > self.epsilon_min and not self.warm_up_mode:
             self.epsilon *= self.epsilon_decay
+
+    def _balance_batch(self, batch):
+        '''
+        at least half of the batch must have a positive reward
+        examples with negative rewards are discarded
+        '''
+        self.num_pos = sum([1 for d in batch if d[-1]['success']])
+        batch_pos = [d for d in batch if d[-1]['success']]
+        batch_neg = [d for d in batch if not d[-1]['success']]
+        random.shuffle(batch_neg)
+        batch = batch_pos + batch_neg[:(round(self.num_pos) - 1)]
+        return batch
 
     def _calc_loss(self, batch: List[List[Dict]]):
         action, returns, x = self.prepare_batch(batch)
