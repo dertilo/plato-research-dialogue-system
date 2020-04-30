@@ -27,7 +27,7 @@ def setup_domain(ontology):
 
     dstc2_acts_sys = ['offer', 'canthelp', 'affirm',
                            'deny', 'ack', 'bye', 'reqmore',
-                           'welcomemsg', 'expl-conf', 'select',
+                           'welcomemsg', 'select',
                            'repeat', 'confirm-domain',
                            'confirm']
 
