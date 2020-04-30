@@ -25,6 +25,10 @@ import pprint
 import os.path
 import numpy as np
 import logging
+from typing import List
+
+from DialogueManagement.DialoguePolicy.dialogue_common import setup_domain, \
+    create_random_dialog_act, action_to_string, state_to_json
 
 """
 WoLF_PHC_Policy implements a Win or Lose Fast DialoguePolicy Hill Climbing 
@@ -175,6 +179,11 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
 
         self.statistics = {'supervised_turns': 0, 'total_turns': 0}
 
+        self.hash2actions = {}
+
+        self.domain = setup_domain(self.ontology)
+        self.NActions = self.domain.NActions
+
     def initialize(self, **kwargs):
         """
         Initialize internal structures at the beginning of each dialogue
@@ -232,7 +241,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         :return: a list of dialogue acts, representing the agent's response
         """
 
-        state_enc = self.encode_state(state)
+        # state_enc = self.encode_state(state)
+        state_enc = state_to_json(state)
         self.statistics['total_turns'] += 1
 
         if state_enc not in self.pi or \
@@ -260,9 +270,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                     return self.warmup_simulator.respond()
             else:
                 self.logger.debug('--- {0}: Selecting random action.'.format(self.agent_role))
-                return self.decode_action(
-                    random.choice(range(0, self.NActions)),
-                    self.agent_role == 'system')
+                sys_acts = create_random_dialog_act(self.domain, is_system=True)
+                return sys_acts
 
         if self.IS_GREEDY_POLICY:
             # Get greedy action
@@ -280,9 +289,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                                     'policy. Selecting random action.'
                                     .format(self.agent_role))
 
-                return self.decode_action(
-                    random.choice(range(0, self.NActions)),
-                    self.agent_role == 'system')
+                sys_acts = create_random_dialog_act(self.domain, is_system=True)
+
         else:
             # Sample next action
             sys_acts = \
@@ -291,6 +299,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                                    self.pi[state_enc])[0],
                     self.agent_role == 'system')
 
+        assert sys_acts is not None
         return sys_acts
 
     def encode_state(self, state):
@@ -356,7 +365,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
 
         return state_enc
 
-    def encode_action(self, actions, system=True):
+    def encode_action(self, acts:List[DialogueAct], system=True) -> str:
         """
         Encode the action, given the role. Note that does not have to match
         the agent's role, as the agent may be encoding another agent's action
@@ -368,53 +377,19 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         :return: the encoded action
         """
 
-        # TODO: Handle multiple actions
-        if not actions:
-            self.logger.warning('WARNING: WoLF-PHC DialoguePolicy action encoding called '
-                                'with empty actions list (returning -1).')
-            return -1
+        acts_copy = [deepcopy(x) for x in acts]
+        for act in acts_copy:
+            if act.params:
+                for item in act.params:
+                    if item.slot and item.value:
+                        item.value = None
 
-        action = actions[0]
+        s = action_to_string(acts_copy, system)
+        # enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
+        self.hash2actions[s] = acts_copy
+        return s
 
-        if system:
-            if self.dstc2_acts_sys and action.intent in self.dstc2_acts_sys:
-                return self.dstc2_acts_sys.index(action.intent)
-
-            if action.intent == 'request':
-                return len(self.dstc2_acts_sys) + \
-                       self.system_requestable_slots.index(
-                           action.params[0].slot)
-    
-            if action.intent == 'inform':
-                return len(self.dstc2_acts_sys) + \
-                       len(self.system_requestable_slots) + \
-                       self.requestable_slots.index(action.params[0].slot)
-        else:
-            if self.dstc2_acts_usr and action.intent in self.dstc2_acts_usr:
-                return self.dstc2_acts_usr.index(action.intent)
-
-            if action.intent == 'request':
-                return len(self.dstc2_acts_usr) + \
-                       self.requestable_slots.index(action.params[0].slot)
-
-            if action.intent == 'inform':
-                return len(self.dstc2_acts_usr) + \
-                       len(self.requestable_slots) + \
-                       self.system_requestable_slots.index(
-                           action.params[0].slot)
-
-        if (self.agent_role == 'system') == system:
-            self.logger.warning('WoLF-PHC ({0}) policy action encoder warning: Selecting '
-                                'default action (unable to encode: {1})!'
-                                .format(self.agent_role, action))
-        else:
-            self.logger.warning('WoLF-PHC ({0}) policy action encoder warning: Selecting '
-                                'default action (unable to encode other agent action: {1})!'
-                                .format(self.agent_role, action))
-
-        return -1
-
-    def decode_action(self, action_enc, system=True):
+    def decode_action(self, action_enc: str, system=True) -> List[DialogueAct]:
         """
         Decode the action, given the role. Note that does not have to match
         the agent's role, as the agent may be decoding another agent's action
@@ -426,64 +401,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         :return: the decoded action
         """
 
-        if system:
-            if action_enc < len(self.dstc2_acts_sys):
-                return [DialogueAct(self.dstc2_acts_sys[action_enc], [])]
-            
-            if action_enc < len(self.dstc2_acts_sys) + \
-                    len(self.system_requestable_slots):
-                return [DialogueAct(
-                    'request',
-                    [DialogueActItem(
-                        self.system_requestable_slots[
-                            action_enc-len(self.dstc2_acts_sys)],
-                        Operator.EQ,
-                        '')])]
-
-            if action_enc < len(self.dstc2_acts_sys) + \
-                    len(self.system_requestable_slots) + \
-                    len(self.requestable_slots):
-                index = \
-                    action_enc - len(self.dstc2_acts_sys) - \
-                    len(self.system_requestable_slots)
-                return [DialogueAct(
-                    'inform',
-                    [DialogueActItem(
-                        self.requestable_slots[index],
-                        Operator.EQ,
-                        '')])]
-
-        else:
-            if action_enc < len(self.dstc2_acts_usr):
-                return [DialogueAct(self.dstc2_acts_usr[action_enc], [])]
-            
-            if action_enc < len(self.dstc2_acts_usr) + \
-                    len(self.requestable_slots):
-                return [DialogueAct(
-                    'request',
-                    [DialogueActItem(
-                        self.requestable_slots[
-                            action_enc-len(self.dstc2_acts_usr)],
-                        Operator.EQ,
-                        '')])]
-
-            if action_enc < len(self.dstc2_acts_usr) + \
-                    len(self.requestable_slots) + \
-                    len(self.system_requestable_slots):
-                return [DialogueAct(
-                    'inform',
-                    [DialogueActItem(
-                        self.system_requestable_slots[
-                            action_enc-len(self.dstc2_acts_usr) -
-                            len(self.requestable_slots)],
-                        Operator.EQ,
-                        '')])]
-
-        # Default fall-back action
-        self.logger.warning('WoLF-PHC DialoguePolicy ({0}) policy action decoder warning: '
-                            'Selecting repeat() action (index: {1})!'
-                            .format(self.agent_role, action_enc))
-        return [DialogueAct('repeat', [])]
+        return self.hash2actions[action_enc]
 
     def train(self, dialogues):
         """
@@ -502,15 +420,15 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                 dialogue[-2]['reward'] = dialogue[-1]['reward']
 
             for turn in dialogue:
-                state_enc = self.encode_state(turn['state'])
-                new_state_enc = self.encode_state(turn['new_state'])
+                state_enc = state_to_json(turn['state'])
+                new_state_enc = state_to_json(turn['new_state'])
                 action_enc = \
                     self.encode_action(
                         turn['action'],
                         self.agent_role == 'system')
 
                 # Skip unrecognised actions
-                if action_enc < 0 or turn['action'][0].intent == 'bye':
+                if not action_enc or turn['action'][0].intent == 'bye':
                     continue
 
                 if state_enc not in self.Q:
@@ -628,7 +546,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                'e': self.epsilon,
                'e_decay': self.epsilon_decay,
                'e_min': self.epsilon_min,
-               'g': self.gamma}
+               'g': self.gamma,
+               'hash2actions': self.hash2actions}
 
         with open(path, 'wb') as file:
             pickle.dump(obj, file, pickle.HIGHEST_PROTOCOL)
@@ -678,6 +597,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                         self.epsilon_min = obj['e_min']
                     if 'g' in obj:
                         self.gamma = obj['g']
+                    if 'hash2actions' in obj:
+                        self.hash2actions = obj['hash2actions']
 
                     self.logger.info('WoLF-PHC DialoguePolicy loaded from {0}.'.format(path))
 
