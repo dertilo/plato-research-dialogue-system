@@ -183,8 +183,25 @@ class DummyStateTracker(DialogueStateTracker):
 
         # Reset past request
         self.DState.requested_slots = []
+        self.DState.user_affirmed_last_sys_acts = False
+        self.DState.user_denied_last_sys_acts = False
 
         for dact in dacts:
+            if dact.intent == 'affirm':
+                # The user affirms a explicit confirmation
+                self.DState.user_affirmed_last_sys_acts = True
+                # store confirmed slots
+                if self.DState.last_sys_acts:
+                    ec_acts = [act for act in self.DState.last_sys_acts if act.intent == 'expl-conf']
+                    for act in ec_acts:
+                        if act.params:
+                            for p in act.params:
+                                self.DState.slots_confirmed[p.slot] = True
+
+            if dact.intent == 'deny':
+                # The user denies an explicit confirmation
+                self.DState.user_denied_last_sys_acts = True
+
             if dact.intent in ['inform', 'offer']:
                 # The user provided new information so the system hasn't made
                 # any offers taking that into account yet.

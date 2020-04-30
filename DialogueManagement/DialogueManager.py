@@ -517,6 +517,39 @@ class DialogueManager(ConversationalModule):
                 # Remove the empty inform
                 sys_acts_copy.remove(sys_act)
 
+            elif sys_act.intent == 'expl-conf':
+                if self.agent_role == 'system':
+                    if sys_act.params and sys_act.params[0].value:
+                        continue
+
+                    slots = []
+
+                    if sys_act.params:
+                        # use the slots addressed by the expl-conf act (slots selected by the policy)
+                        slots = [x.slot for x in sys_act.params]
+
+                    for slot in slots:
+                        if d_state.slots_filled[slot]:
+                            new_sys_acts.append(
+                                DialogueAct(
+                                    'expl-conf',
+                                    [DialogueActItem(
+                                        slot,
+                                        Operator.EQ,
+                                        d_state.slots_filled[slot])]))
+                        else:
+                            new_sys_acts.append(
+                                DialogueAct(
+                                    'expl-conf',
+                                    [DialogueActItem(
+                                        slot,
+                                        Operator.EQ,
+                                        'no info')]))
+
+                    # Remove the empty expl-conf
+                    sys_acts_copy.remove(sys_act)
+
+
             elif sys_act.intent == 'request':
                 # If the policy did not select a slot
                 if not sys_act.params:

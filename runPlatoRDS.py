@@ -101,8 +101,10 @@ class Controller(object):
 
                 Controller.update_progress_bar(ca, dialogue, pbar, running_factor)
 
-        print(len(ca.dialogue_manager.policy.Q.keys()))
-        print(ca.dialogue_manager.policy.counter)
+        if hasattr(ca.dialogue_manager.policy, 'Q'):
+            print(len(ca.dialogue_manager.policy.Q.keys()))
+        if hasattr(ca.dialogue_manager.policy, 'counter'):
+            print(ca.dialogue_manager.policy.counter)
 
         # Collect statistics
         statistics = {'AGENT_0': {}}
@@ -132,7 +134,7 @@ class Controller(object):
             running_factor * pbar.postfix[0]['success-rate'] + (
                         1 - running_factor) * success, 2)
 
-        eps = ca.dialogue_manager.policy.epsilon
+        eps = ca.dialogue_manager.policy.epsilon if hasattr(ca.dialogue_manager.policy, 'epsilon') else -1
         pbar.postfix[0]["eps"] = eps
         pbar.update()
 

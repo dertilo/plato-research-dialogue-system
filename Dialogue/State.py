@@ -86,6 +86,7 @@ class SlotFillingDialogueState(DialogueState):
         super(SlotFillingDialogueState, self).__init__()
 
         self.slots_filled = {}
+        self.slots_confirmed = {}
         self.slot_queries = {}
         self.system_requestable_slot_entropies = {}
 
@@ -103,6 +104,10 @@ class SlotFillingDialogueState(DialogueState):
 
         self.user_acts = None
         self.system_made_offer = False
+
+        # tracking of user replies to explicit confirmation
+        self.user_affirmed_last_sys_acts = False
+        self.user_denied_last_sys_acts = False
 
         # TODO: Have a list of past items in focus - e.g. current and 2 past
         #  items
@@ -143,6 +148,7 @@ class SlotFillingDialogueState(DialogueState):
         :return:
         """
         self.slots_filled = dict.fromkeys(self.slots)
+        self.slots_confirmed = dict.fromkeys(self.slots, False)
         self.slot_queries = {}
         self.system_requestable_slot_entropies = {}
         self.requested_slots = []

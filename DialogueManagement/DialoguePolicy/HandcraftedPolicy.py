@@ -17,6 +17,8 @@ from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 
 from copy import deepcopy
 
+from typing import List
+
 import random
 
 """
@@ -63,6 +65,24 @@ class HandcraftedPolicy(DialoguePolicy.DialoguePolicy):
         # Check for terminal state
         if dialogue_state.is_terminal_state:
             return [DialogueAct('bye', [DialogueActItem('', Operator.EQ, '')])]
+
+        # Check if the user denies and the system has sent an expl-conf in the previous turn
+        elif dialogue_state.user_denied_last_sys_acts and \
+                dialogue_state.last_sys_acts and \
+                'expl-conf' in [x.intent for x in dialogue_state.last_sys_acts]:
+            # If the user denies an explicit confirmation, request the slots to be confirmed again
+            act: DialogueAct
+            request_act = DialogueAct('request', [])
+            for act in dialogue_state.last_sys_acts:
+                # search the explicit confirmation act in the system acts from the previous turn
+                item: DialogueActItem
+                if act.intent == 'expl-conf' and act.params:
+                    for item in act.params:
+                        new_item = DialogueActItem(slot=item.slot, op=Operator.EQ, value=None)
+                        request_act.params.append(new_item)
+
+            return [request_act]
+
 
         # Check if the user has made any requests
         elif len(dialogue_state.requested_slots) > 0:
@@ -166,6 +186,26 @@ class HandcraftedPolicy(DialoguePolicy.DialoguePolicy):
                                 'no info')]))
 
             return dacts
+
+        # if not all filled slot confirmed, try confirmation
+        elif not all([v for k, v in dialogue_state.slots_confirmed.items()]):
+            # get unconfirmed slots
+            unconfirmed_slots = [k for k, v in dialogue_state.slots_confirmed.items() if not v]
+
+            # match match unconfirmed slots with filled slots, as we ask only for confirmation of already filled slots
+            confirmation_candidates = []
+            for us in unconfirmed_slots:
+                if dialogue_state.slots_filled[us]:
+                    confirmation_candidates.append(us)
+
+            first_unconfirmed_slot = confirmation_candidates[0]
+
+
+
+            return [DialogueAct('expl-conf', [DialogueActItem(first_unconfirmed_slot,
+                                                              Operator.EQ,
+                                                              dialogue_state.slots_filled[first_unconfirmed_slot])])]
+
         else:
             # Fallback action - cannot help!
             # Note: We can have this check (no item in focus) at the beginning,
