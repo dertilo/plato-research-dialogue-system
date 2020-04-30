@@ -15,7 +15,7 @@ def one_dialogue(ca):
     ca.end_dialogue()
 
 
-def build_config(do_train=True):
+def build_config(algo="pytorch_a2c", do_train=True):
     return {
         "GENERAL": {
             "print_level": "info",
@@ -49,10 +49,10 @@ def build_config(do_train=True):
             },
             "DM": {
                 "policy": {
-                    "type": "q_learning",
-                    # "type": "pytorch_a2c",
+                    # "type": "q_learning",
+                    "type": algo,
                     "train": do_train,
-                    "learning_rate": 0.01,
+                    "learning_rate": 0.25,  # not use by policy-based (pytorch) agents
                     "learning_decay_rate": 0.995,
                     "discount_factor": 0.99,
                     "exploration_rate": 1.0,
@@ -72,7 +72,8 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
     def running_average(running_factor, old_val, new_val, num_deci=2):
         val = running_factor * old_val + (1 - running_factor) * new_val
         return round(val, num_deci)
-    if hasattr(ca.dialogue_manager.policy,'losses'):
+
+    if hasattr(ca.dialogue_manager.policy, "losses"):
         if len(ca.dialogue_manager.policy.losses) > 0:
             loss = ca.dialogue_manager.policy.losses[-1]
         else:
@@ -91,7 +92,7 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
     pbar.update()
 
 
-def run_it(config, num_dialogues=100):
+def run_it(config, num_dialogues=100, verbose=False):
     ca = ConversationalSingleAgent(config)
     ca.initialize()
     if config["AGENT_0"]["DM"]["policy"]["train"] and hasattr(
@@ -108,29 +109,30 @@ def run_it(config, num_dialogues=100):
             one_dialogue(ca)
             update_progress_bar(ca, dialogue, pbar, running_factor)
 
-    # Collect statistics
-    if hasattr(ca.dialogue_manager.policy,'counter'):
+    if hasattr(ca.dialogue_manager.policy, "counter"):
         pprint(ca.dialogue_manager.policy.counter)
 
-    statistics = {"AGENT_0": {}}
-    statistics["AGENT_0"]["dialogue_success_percentage"] = 100 * float(
-        ca.num_successful_dialogues / num_dialogues
-    )
-    statistics["AGENT_0"]["avg_cumulative_rewards"] = float(
-        ca.cumulative_rewards / num_dialogues
-    )
-    statistics["AGENT_0"]["avg_turns"] = float(ca.total_dialogue_turns / num_dialogues)
-    statistics["AGENT_0"]["objective_task_completion_percentage"] = 100 * float(
-        ca.num_task_success / num_dialogues
-    )
-    print(
-        "\n\nDialogue Success Rate: {0}\nAverage Cumulative Reward: {1}"
-        "\nAverage Turns: {2}".format(
-            statistics["AGENT_0"]["dialogue_success_percentage"],
-            statistics["AGENT_0"]["avg_cumulative_rewards"],
-            statistics["AGENT_0"]["avg_turns"],
+    success_rate = 100 * float(ca.num_successful_dialogues / num_dialogues)
+    avg_reward = ca.cumulative_rewards / num_dialogues
+    avg_turns = float(ca.total_dialogue_turns / num_dialogues)
+    if verbose:
+        print(
+            "\n\nDialogue Success Rate: {0}\nAverage Cumulative Reward: {1}"
+            "\nAverage Turns: {2}".format(success_rate, avg_reward, avg_turns,)
         )
-    )
+
+    return {
+        "success-rate": success_rate,
+        "avg-reward": avg_reward,
+        "avg-turns": avg_turns,
+    }
+
+
+def train_evaluate(algo, train_dialogues=300,eval_dialogues = 100):
+    return {
+        "train": run_it(build_config(algo, do_train=True), train_dialogues),
+        "eval": run_it(build_config(algo, do_train=False), eval_dialogues),
+    }
 
 
 if __name__ == "__main__":
@@ -146,7 +148,5 @@ if __name__ == "__main__":
     clean_dir("logs")
     clean_dir("policies")
 
-    config = build_config(do_train=True)
-    run_it(config, 100)
-    config = build_config(do_train=False)
-    run_it(config)
+    scores = [{k: train_evaluate(k) for k in ['pytorch_reinforce']}]
+    pprint(scores)
