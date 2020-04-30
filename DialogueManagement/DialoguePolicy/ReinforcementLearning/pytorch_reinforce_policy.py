@@ -219,7 +219,7 @@ class PyTorchReinforcePolicy(QPolicy):
         self.losses.append(float(loss.data.cpu().numpy()))
 
         # Decay exploration rate
-        if self.epsilon > self.epsilon_min:
+        if self.epsilon > self.epsilon_min and not self.warm_up_mode:
             self.epsilon *= self.epsilon_decay
 
     def _calc_loss(self, batch: List[List[Dict]]):

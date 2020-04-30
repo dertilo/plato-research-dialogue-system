@@ -201,11 +201,8 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                           (state, action, reward triplets).
         :return:
         """
-        self.warm_up_mode = True
         self.logger.info('Train Q with {} dialogues'.format(len(dialogues)))
         for k,dialogue in enumerate(dialogues):
-            # if k>50:
-            #     self.warmup_mode = False
             if len(dialogue) > 1:
                 dialogue[-2]['reward'] = dialogue[-1]['reward']
 
@@ -241,11 +238,11 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
                 self.Q_info[state_enc][action_enc] += 1
 
         # Decay learning rate
-        if self.alpha > 0.001:
+        if self.alpha > 0.001:#TODO(tilo):why?
             self.alpha *= self.alpha_decay
 
         # Decay exploration rate
-        if self.epsilon > self.epsilon_min:
+        if self.epsilon > self.epsilon_min and not self.warm_up_mode:
             self.epsilon *= self.epsilon_decay
 
         self.logger.debug('Q-Learning factors: [alpha: {0}, epsilon: {1}]'.format(self.alpha, self.epsilon))

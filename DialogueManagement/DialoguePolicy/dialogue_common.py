@@ -113,9 +113,7 @@ def state_to_json(state:SlotFillingDialogueState)->str:
     d = todict(temp)
     assert d is not None
     # d['item_in_focus'] = [(k,d['item_in_focus'] is not None and d['item_in_focus'].get(k,None) is not None) for k in self.domain.requestable_slots]
-    s = json.dumps(d)
-    # state_enc = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 32)
-    return s
+    return json.dumps(d)
 
 
 def todict(obj, classkey=None):

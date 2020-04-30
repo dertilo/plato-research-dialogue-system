@@ -89,7 +89,7 @@ class A2CParams(NamedTuple):
     entropy_coef: float = 0.01
     value_loss_coef: float = 0.5
     max_grad_norm: float = 1.5
-    num_rollout_steps: int = 9
+    num_rollout_steps: int = 4
     discount: float = 0.99
     gae_lambda: float = 0.95
 

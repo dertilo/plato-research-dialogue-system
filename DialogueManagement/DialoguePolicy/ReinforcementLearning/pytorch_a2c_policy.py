@@ -152,7 +152,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         dialogue[-2]["reward"] = dialogue[-1]["reward"]
         dialogue = dialogue[1:-1]
         rewards = [t["reward"] for t in dialogue]
-        returns = calc_discounted_returns(rewards, self.gamma)
+        returns = calc_discounted_returns(rewards, self.gamma)#TODO: currently unused, but what happens if used like reward?
         turns = [
             DialogTurn(
                 d["action"][0],
@@ -160,7 +160,7 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
                 d["reward"],
                 d["state"].value,
             )
-            for d, ret in zip(dialogue, returns)
+            for d in dialogue
             if d["state"].value is not None
         ]
         return turns
