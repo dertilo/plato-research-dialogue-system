@@ -81,9 +81,12 @@ class ActionEncoder:
         return intent_enc, slots_enc
 
     def decode(self, intent_enc, slots_enc):
+        decoded_intent = self.intent_enc.inverse_transform([intent_enc])[0]
+        decoded_slots = self.slot_enc.inverse_transform(slots_enc)[0]
+
         return (
-            self.intent_enc.inverse_transform([intent_enc])[0],
-            self.slot_enc.inverse_transform(slots_enc)[0],
+            decoded_intent,
+            decoded_slots,
         )
 
 
@@ -170,6 +173,9 @@ class PyTorchReinforcePolicy(QPolicy):
             with torch.no_grad():
                 agent_step = self.agent.step(state_enc.to(DEVICE))
             sys_acts = [self.decode_action(agent_step)]
+
+        if not sys_acts or len(sys_acts) == 0:
+            raise Exception('At least least one action has to be selected!')
 
         return sys_acts
 

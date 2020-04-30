@@ -389,10 +389,12 @@ class DialogueManager(ConversationalModule):
                     #       'one!')
 
             if sys_act.intent == 'offer' and not sys_act.params:
-                # Remove the empty offer
-                sys_acts_copy.remove(sys_act)
 
+                # TODO: What should happen if a policy selects offer, but there is no item in focus?
                 if d_state.item_in_focus:
+                    # Remove the empty offer
+                    sys_acts_copy.remove(sys_act)
+
                     new_sys_acts.append(
                         DialogueAct(
                             'offer',
@@ -528,6 +530,12 @@ class DialogueManager(ConversationalModule):
                         # use the slots addressed by the expl-conf act (slots selected by the policy)
                         slots = [x.slot for x in sys_act.params]
 
+                    if len(slots) == 0:
+                        # if no slot was selected by the policy, do randomly select one
+                        random_slot = random.choices(list(d_state.slots_filled.keys()))
+                        slots.extend(random_slot)
+
+
                     for slot in slots:
                         if d_state.slots_filled[slot]:
                             new_sys_acts.append(
@@ -545,6 +553,7 @@ class DialogueManager(ConversationalModule):
                                         slot,
                                         Operator.EQ,
                                         'no info')]))
+
 
                     # Remove the empty expl-conf
                     sys_acts_copy.remove(sys_act)
@@ -604,6 +613,9 @@ class DialogueManager(ConversationalModule):
                 sys_acts_copy.append(sa)
 
         self.DSTracker.update_state_sysact(sys_acts_copy)
+
+        if len(sys_acts_copy) == 0:
+            raise Exception("At least on system act has to be returned!")
 
         return sys_acts_copy
 

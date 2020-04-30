@@ -100,10 +100,16 @@ def process_dialogue_to_turns(
 
     rewards = [t["reward"] for t in dialogue]
     returns = calc_discounted_returns(rewards, gamma)
-    turns = [
-        DialogTurn(a[0], tokenize(text_field, s), r, ret)
-        for (a, s, r), ret in zip(x, returns)
-    ]
+
+    try:
+        turns = [
+            DialogTurn(a[0], tokenize(text_field, s), r, ret)
+            for (a, s, r), ret in zip(x, returns)
+        ]
+    except IndexError as error:
+        print(error)
+        raise error
+
     return turns
 
 
