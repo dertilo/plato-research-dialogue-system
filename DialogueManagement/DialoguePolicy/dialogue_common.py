@@ -2,6 +2,7 @@ import json
 import random
 from copy import deepcopy
 from typing import NamedTuple, List
+from math import factorial
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 from Dialogue.State import SlotFillingDialogueState
@@ -15,7 +16,39 @@ class Domain(NamedTuple):
     system_requestable_slots:List[str] = None
     requestable_slots:List[str] = None
     NActions:int=None
-    
+
+
+def get_estimated_number_of_actions(domain: Domain, max_slots: int) -> int:
+    """
+    Gives an estimate of the number of actions that could occur
+
+    :param domain: the used domain
+    :param max_slots: number of slots that will be used at maximum by system intents addressing slots. Must be at least 1
+    :return: number of estimated actions
+    """
+
+    if max_slots < 1:
+        raise ValueError('max_slots must be greater than 0!')
+
+    num_of_actions = len(domain.dstc2_acts_sys)  # number of intents without slots
+
+    # get number unique slots
+    unique_slots = set()
+    unique_slots.update(domain.system_requestable_slots)
+    unique_slots.update(domain.requestable_slots)
+    num_of_unique_slots = len(unique_slots)
+
+    # calculate number of possible slot combinations according to max_slots
+    slot_combinations = 0
+    for i in range(max_slots):
+        slot_combinations += num_of_unique_slots - i
+
+    # we assume that each slot combination could be used by each intent with slots
+    num_of_actions += len(domain.acts_params) * slot_combinations
+
+    return num_of_actions
+
+
 def setup_domain(ontology):
     # Extract lists of slots that are frequently used
     informable_slots = \
@@ -39,13 +72,21 @@ def setup_domain(ontology):
                            'reqalts', 'restart', 'confirm']
 
     dstc2_acts = dstc2_acts_sys
-    NActions = len(dstc2_acts)  # system acts without parameters
-    NActions += len(
-        system_requestable_slots)  # system request with certain slots
-    NActions += len(requestable_slots)  # system inform with certain slot
+    #NActions = len(dstc2_acts)  # system acts without parameters
+    #NActions += len(
+    #    system_requestable_slots)  # system request with certain slots
+    #NActions += len(requestable_slots)  # system inform with certain slot
 
-    return Domain(['inform', 'request', 'expl-conf'],dstc2_acts_sys, dstc2_acts_usr,
-                         system_requestable_slots, requestable_slots,NActions)
+    domain = Domain(['inform', 'request', 'expl-conf'], dstc2_acts_sys, dstc2_acts_usr, system_requestable_slots,
+                    requestable_slots, -1)
+
+    # TODO: NamedTupel are immutable, that is why we create the domain two times (before and after calculating the
+    # number of actions using the domain ...
+    num_of_actions = get_estimated_number_of_actions(domain, 1)
+    domain = Domain(['inform', 'request', 'expl-conf'], dstc2_acts_sys, dstc2_acts_usr, system_requestable_slots,
+           requestable_slots, num_of_actions)
+
+    return domain
 
 def pick_some(x,num_min,num_max):
     num_to_pick = random.randint(num_min,num_max)
