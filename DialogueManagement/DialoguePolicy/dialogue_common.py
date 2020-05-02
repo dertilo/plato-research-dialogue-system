@@ -39,9 +39,9 @@ def get_estimated_number_of_actions(domain: Domain, max_slots: int) -> int:
     num_of_unique_slots = len(unique_slots)
 
     # calculate number of possible slot combinations according to max_slots
-    slot_combinations = 0
+    slot_combinations = 1
     for i in range(max_slots):
-        slot_combinations += num_of_unique_slots - i
+        slot_combinations *= num_of_unique_slots - i
 
     # we assume that each slot combination could be used by each intent with slots
     num_of_actions += len(domain.acts_params) * slot_combinations
@@ -82,7 +82,7 @@ def setup_domain(ontology):
 
     # TODO: NamedTupel are immutable, that is why we create the domain two times (before and after calculating the
     # number of actions using the domain ...
-    num_of_actions = get_estimated_number_of_actions(domain, 1)
+    num_of_actions = get_estimated_number_of_actions(domain, 2)
     domain = Domain(['inform', 'request', 'expl-conf'], dstc2_acts_sys, dstc2_acts_usr, system_requestable_slots,
            requestable_slots, num_of_actions)
 
