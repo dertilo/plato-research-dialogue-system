@@ -55,7 +55,7 @@ def build_config(algo="pytorch_a2c", do_train=True):
                     "learning_decay_rate": 0.995,
                     "discount_factor": 0.99,
                     "exploration_rate": 1.0,
-                    "exploration_decay_rate": 0.98,
+                    "exploration_decay_rate": 0.99,
                     "min_exploration_rate": 0.01,
                     "policy_path": "policies/agent",
                 }
@@ -82,6 +82,11 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
     pbar.postfix[0]["success-rate"] = running_average(
         running_factor, pbar.postfix[0]["success-rate"], success
     )
+    if hasattr(ca.dialogue_manager.policy,'num_pos'):
+        num_pos = ca.dialogue_manager.policy.num_pos
+        pbar.postfix[0]["num-pos"] = running_average(
+            running_factor, pbar.postfix[0]["num-pos"], num_pos
+        )
 
     eps = ca.dialogue_manager.policy.epsilon
     pbar.postfix[0]["eps"] = eps
@@ -98,12 +103,12 @@ def run_it(config, num_dialogues=100, verbose=False):
     ca.minibatch_length = 8
     ca.train_epochs = 10
     ca.train_interval = 8
-    params_to_monitor = {"dialogue": 0, "success-rate": 0.0, "loss": 0.0}
+    params_to_monitor = {"dialogue": 0, "success-rate": 0.0, "loss": 0.0,'num-pos':0.0}
     running_factor = np.exp(np.log(0.05) / 100)  # after 100 steps sunk to 0.05
     ca.dialogue_manager.policy.warm_up_mode = True
     with tqdm(postfix=[params_to_monitor]) as pbar:
         for dialogue in range(num_dialogues):
-            if dialogue>150 and ca.dialogue_manager.policy.warm_up_mode:
+            if dialogue>400 and ca.dialogue_manager.policy.warm_up_mode:
                 ca.dialogue_manager.policy.warm_up_mode = False
             one_dialogue(ca)
             update_progress_bar(ca, dialogue, pbar, running_factor)
@@ -147,6 +152,7 @@ if __name__ == "__main__":
 
     chdir("%s" % base_path)
     algos = ['pytorch_reinforce','pytorch_a2c','q_learning']
+    # algos = ['pytorch_a2c']
     # algos = ['pytorch_reinforce']
-    scores = {k: train_evaluate(k,train_dialogues=300) for k in algos}
+    scores = {k: train_evaluate(k,train_dialogues=800) for k in algos}
     pprint(scores)
