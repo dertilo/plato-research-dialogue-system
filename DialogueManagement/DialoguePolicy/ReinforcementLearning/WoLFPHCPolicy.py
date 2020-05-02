@@ -200,7 +200,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                     self.logger.warning(f'\nWARNING! WoLF-PHC state not found in policy '
                                         f'pi ({self.agent_role}).\n')
 
-            if random.random() < 0.5:
+            if self.is_training and random.random() < 0.5:
+                # use warm up / hand crafted only in training
                 self.logger.debug('--- {0}: Selecting warmup action.'
                                   .format(self.agent_role))
                 self.statistics['supervised_turns'] += 1
