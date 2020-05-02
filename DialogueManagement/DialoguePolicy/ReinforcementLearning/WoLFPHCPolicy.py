@@ -218,23 +218,28 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                 return sys_acts
 
         if self.IS_GREEDY_POLICY:
-            # TODO Adapt IS_GREEDY condition to new state and action encoding
             # Get greedy action
-            max_pi = max(self.pi[state_enc][:-1])  # Do not consider 'UNK'
-            maxima = \
-                [i for i, j in enumerate(self.pi[state_enc]) if j == max_pi]
+            # Do not consider 'UNK' or an empty action
+            state_actions = {}
+            for k, v in self.pi[state_enc].items():
+                if k and len(k) > 0:
+                    state_actions[k] = v
 
-            # Break ties randomly
-            if maxima:
-                sys_acts = \
-                    self.decode_action(random.choice(maxima),
-                                       self.agent_role == 'system')
-            else:
+            if len(state_actions) < 1:
                 self.logger.warning('--- {0}: Warning! No maximum value identified for '
                                     'policy. Selecting random action.'
                                     .format(self.agent_role))
 
                 sys_acts = create_random_dialog_act(self.domain, is_system=True)
+            else:
+
+                # find all actions with same max_value
+                max_value = max(state_actions.values())
+                max_actions = [k for k, v in state_actions.items() if v == max_value]
+
+                # break ties randomly
+                action = random.choice(max_actions)
+                sys_acts = self.decode_action(action, system=True)
 
         else:
             # Sample next action
