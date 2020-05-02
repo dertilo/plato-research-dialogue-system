@@ -214,9 +214,9 @@ class PyTorchReinforcePolicy(QPolicy):
     def train(self, batch: List[List[Dict]]):
         self.num_pos = sum([1 for d in batch if d[-1]['success']])
 
-        # batch = self._balance_batch(batch)# TODO(tilo): not yet sure whether it is really necessary
-        # if len(batch)==0:
-        #     return # no training will happen
+        batch = self._balance_batch(batch)# TODO(tilo): not yet sure whether it is really necessary
+        if len(batch)==0:
+            return # no training will happen
         self.agent.train()
         self.agent.to(DEVICE)
 
@@ -241,7 +241,7 @@ class PyTorchReinforcePolicy(QPolicy):
         batch_pos = [d for d in batch if d[-1]['success']]
         batch_neg = [d for d in batch if not d[-1]['success']]
         random.shuffle(batch_neg)
-        batch = batch_pos + batch_neg[:(round(self.num_pos) - 1)]
+        batch = batch_pos# + batch_neg[:(round(self.num_pos) - 1)]
         return batch
 
     def _calc_loss(self, batch: List[List[Dict]]):
