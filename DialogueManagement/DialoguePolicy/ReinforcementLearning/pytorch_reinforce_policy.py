@@ -135,7 +135,7 @@ class PyTorchReinforcePolicy(QPolicy):
             self.num_slots,
             padding_idx=self.text_field.vocab.stoi["<pad>"],
         )
-        self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-2)
+        self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-3)
         self.losses = []
 
     def get_policy_agent_model_class(self, kwargs):

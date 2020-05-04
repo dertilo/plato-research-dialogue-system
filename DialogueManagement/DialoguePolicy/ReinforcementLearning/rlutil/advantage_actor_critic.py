@@ -86,7 +86,7 @@ def generalized_advantage_estimation(
 
 
 class A2CParams(NamedTuple):
-    entropy_coef: float = 0.01
+    entropy_coef: float = 0.001
     value_loss_coef: float = 0.5
     max_grad_norm: float = 1.5
     num_rollout_steps: int = 4

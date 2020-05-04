@@ -55,7 +55,7 @@ def build_config(algo="pytorch_a2c", do_train=True):
                     "learning_decay_rate": 0.995,
                     "discount_factor": 0.99,
                     "exploration_rate": 1.0,
-                    "exploration_decay_rate": 0.99,
+                    "exploration_decay_rate": 0.995,
                     "min_exploration_rate": 0.01,
                     "policy_path": "policies/agent",
                 }
@@ -108,7 +108,7 @@ def run_it(config, num_dialogues=100, verbose=False):
     ca.dialogue_manager.policy.warm_up_mode = True
     with tqdm(postfix=[params_to_monitor]) as pbar:
         for dialogue in range(num_dialogues):
-            if dialogue>400 and ca.dialogue_manager.policy.warm_up_mode:
+            if dialogue>100 and ca.dialogue_manager.policy.warm_up_mode:
                 ca.dialogue_manager.policy.warm_up_mode = False
             one_dialogue(ca)
             update_progress_bar(ca, dialogue, pbar, running_factor)
@@ -136,7 +136,7 @@ def clean_dir(dir):
         shutil.rmtree(dir)
     os.mkdir(dir)
 
-def train_evaluate(algo, train_dialogues=300,eval_dialogues = 1000):
+def train_evaluate(algo, train_dialogues=300,eval_dialogues = 100):
     clean_dir("logs")
     clean_dir("policies")
     return {
@@ -154,5 +154,5 @@ if __name__ == "__main__":
     algos = ['pytorch_reinforce','pytorch_a2c','q_learning']
     # algos = ['pytorch_a2c']
     # algos = ['pytorch_reinforce']
-    scores = {k: train_evaluate(k,train_dialogues=800) for k in algos}
+    scores = {k: train_evaluate(k,train_dialogues=1000) for k in algos}
     pprint(scores)
