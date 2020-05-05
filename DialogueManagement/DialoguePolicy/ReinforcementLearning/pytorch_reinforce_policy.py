@@ -237,9 +237,9 @@ class PyTorchReinforcePolicy(QPolicy):
         at least half of the batch must have a positive reward
         examples with negative rewards are discarded
         '''
-        self.num_pos = sum([1 for d in batch if d[-1]['success']])
-        batch_pos = [d for d in batch if d[-1]['success']]
-        batch_neg = [d for d in batch if not d[-1]['success']]
+        self.num_pos = sum([1 for d in batch if d[-1]['reward']>0])
+        batch_pos = [d for d in batch if d[-1]['reward']>0]
+        batch_neg = [d for d in batch if d[-1]['reward']<0]
         random.shuffle(batch_neg)
         batch = batch_pos# + batch_neg[:(round(self.num_pos) - 1)]
         return batch
