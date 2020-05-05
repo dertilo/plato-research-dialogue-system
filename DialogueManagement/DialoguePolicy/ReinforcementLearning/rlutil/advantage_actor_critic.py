@@ -131,9 +131,11 @@ def collect_experiences_calc_advantage(
 
 def build_experience_memory(steps: List[Dict], rollout_len=5) -> ExperienceMemory:
     num_steps = rollout_len + 1  # +1 cause the very first is the "initial-step"
+    num_windows = len(steps) // num_steps
+    assert num_windows>0
     windows = [
         steps[i : (i + num_steps)]
-        for i in range(0, max((len(steps) // num_steps) * num_steps,1), num_steps)
+        for i in range(0, num_windows * num_steps, num_steps)
     ]
     expmem = None
     for k in range(num_steps):

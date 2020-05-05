@@ -137,7 +137,8 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.text_field.fix_length = max_seq_len
 
         steps = [e for d in batch_of_turns for e in self._dialogue_to_steps(d)]
-        expmem = build_experience_memory(steps, self.a2c_params.num_rollout_steps)
+        num_rollout_steps = min(len(steps),self.a2c_params.num_rollout_steps)
+        expmem = build_experience_memory(steps, num_rollout_steps)
         rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
 
         return calc_loss(rollout, self.agent, self.a2c_params)
