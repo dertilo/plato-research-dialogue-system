@@ -129,10 +129,9 @@ class Controller(object):
     @staticmethod
     def update_progress_bar(ca, dialogue, pbar, running_factor):
         pbar.postfix[0]['dialogue'] = dialogue
-        success = int(ca.recorder.dialogues[-1][-1]['success'])
-        pbar.postfix[0]['success-rate'] = round(
-            running_factor * pbar.postfix[0]['success-rate'] + (
-                        1 - running_factor) * success, 2)
+        success_data = [int(d[-1]['success']) for d in ca.recorder.dialogues[-100:]]
+        success_rate = sum(success_data)/len(success_data)
+        pbar.postfix[0]['success-rate'] = round(success_rate, 2)
 
         eps = ca.dialogue_manager.policy.epsilon if hasattr(ca.dialogue_manager.policy, 'epsilon') else -1
         pbar.postfix[0]["eps"] = eps
