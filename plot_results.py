@@ -4,8 +4,7 @@ from util import data_io
 
 
 if __name__ == "__main__":
-    scoring_runs = data_io.read_jsonl("/tmp/scores.jsonl")
-    num_cross_val = 5
+    scoring_runs = list(data_io.read_jsonl("/tmp/scores.jsonl"))
 
     sns.set(style="ticks", palette="pastel")
     data = [
@@ -23,7 +22,7 @@ if __name__ == "__main__":
         x="algo", y="success-rate", hue="split-name", palette=["m", "g", "r"], data=df
     )
     # sns.despine(offset=10, trim=True)
-    ax.set_title("%d runs, 1000 train and 1000 eval dialogues" % (num_cross_val))
+    ax.set_title("%d runs, 1000 train and 1000 eval dialogues" % (len(scoring_runs)))
     # ax.set_xlabel("")
     ax.figure.savefig("results.png")
     from matplotlib import pyplot as plt
