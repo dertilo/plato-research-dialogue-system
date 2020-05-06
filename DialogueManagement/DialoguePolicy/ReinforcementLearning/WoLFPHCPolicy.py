@@ -56,7 +56,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         """
 
         self.logger = logging.getLogger(__name__)
-
+        self.warm_up_mode = False
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
@@ -199,8 +199,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                 else:
                     self.logger.warning(f'\nWARNING! WoLF-PHC state not found in policy '
                                         f'pi ({self.agent_role}).\n')
-
-            if self.is_training and random.random() < 0.5:
+            threshold = 1.0 if self.warm_up_mode else 0.5
+            if self.is_training and random.random() < threshold:
                 # use warm up / hand crafted only in training
                 self.logger.debug('--- {0}: Selecting warmup action.'
                                   .format(self.agent_role))
@@ -426,7 +426,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
 
         :return:
         """
-        if self.epsilon > self.epsilon_min:
+        if self.epsilon > self.epsilon_min and not self.warm_up_mode:
             self.epsilon *= self.epsilon_decay
 
 
