@@ -161,6 +161,8 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                                         'user simulator @ initialize')
                     self.warmup_simulator.initialize({})
 
+        self.counter = {'warmup':0,'learned':0,'random':0}
+
     def restart(self, args):
         """
         Re-initialize relevant parameters / variables at the beginning of each
@@ -207,6 +209,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                 self.statistics['supervised_turns'] += 1
 
                 if self.agent_role == 'system':
+                    self.counter['warmup']+=1
                     return self.warmup_policy.next_action(state)
 
                 else:
@@ -216,6 +219,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
             else:
                 self.logger.debug('--- {0}: Selecting random action.'.format(self.agent_role))
                 sys_acts = create_random_dialog_act(self.domain, is_system=True)
+                self.counter['random'] += 1
                 return sys_acts
 
         if self.IS_GREEDY_POLICY:
@@ -232,6 +236,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                                     .format(self.agent_role))
 
                 sys_acts = create_random_dialog_act(self.domain, is_system=True)
+                self.counter['random'] += 1
             else:
 
                 # find all actions with same max_value
@@ -241,6 +246,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
                 # break ties randomly
                 action = random.choice(max_actions)
                 sys_acts = self.decode_action(action, system=True)
+                self.counter['learned'] += 1
 
         else:
             # Sample next action
