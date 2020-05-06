@@ -12,7 +12,8 @@ from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_common impo
     calc_discounted_returns,
     tokenize,
     Actor,
-    DEVICE)
+    DEVICE,
+)
 from DialogueManagement.DialoguePolicy.ReinforcementLearning.pytorch_reinforce_policy import (
     PyTorchReinforcePolicy,
 )
@@ -137,9 +138,11 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         self.text_field.fix_length = max_seq_len
 
         steps = [e for d in batch_of_turns for e in self._dialogue_to_steps(d)]
-        num_rollout_steps = min(len(steps)-1,self.a2c_params.num_rollout_steps)
+        num_rollout_steps = min(len(steps) - 1, self.a2c_params.num_rollout_steps)
         expmem = build_experience_memory(steps, num_rollout_steps)
-        rollout = collect_experiences_calc_advantage(expmem, self.a2c_params)
+        rollout = collect_experiences_calc_advantage(
+            expmem, self.a2c_params, num_rollout_steps
+        )
 
         return calc_loss(rollout, self.agent, self.a2c_params)
 
@@ -149,7 +152,9 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         dialogue[-2]["reward"] = dialogue[-1]["reward"]
         dialogue = dialogue[1:-1]
         rewards = [t["reward"] for t in dialogue]
-        returns = calc_discounted_returns(rewards, self.gamma)#TODO: currently unused, but what happens if used like reward?
+        returns = calc_discounted_returns(
+            rewards, self.gamma
+        )  # TODO: currently unused, but what happens if used like reward?
         turns = [
             DialogTurn(
                 d["action"][0],

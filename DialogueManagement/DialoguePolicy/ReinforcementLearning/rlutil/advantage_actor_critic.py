@@ -104,9 +104,9 @@ def calc_loss(rollout: Rollout, agent: AbstractA2CAgent, p: A2CParams):
 
 
 def collect_experiences_calc_advantage(
-    exp_mem: ExperienceMemory, params: A2CParams
+    exp_mem: ExperienceMemory, params: A2CParams,num_rollout_steps
 ) -> Rollout:
-    assert exp_mem.last_written_idx == params.num_rollout_steps
+    assert exp_mem.last_written_idx == num_rollout_steps
 
     env_steps = exp_mem.buffer.env
     agent_steps = exp_mem.buffer.agent
@@ -115,7 +115,7 @@ def collect_experiences_calc_advantage(
         rewards=env_steps.reward,
         values=agent_steps.v_values,
         dones=env_steps.done,
-        num_rollout_steps=params.num_rollout_steps,
+        num_rollout_steps=num_rollout_steps,
         discount=params.discount,
         gae_lambda=params.gae_lambda,
     )
