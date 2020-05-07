@@ -193,14 +193,14 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
 
         if state_enc not in self.pi or \
                 (self.is_training and random.random() < self.epsilon):
-            if not self.is_training:
-                if not self.pi:
-                    self.logger.warning(f'\nWARNING! WoLF-PHC pi is empty '
-                                        f'({self.agent_role}). Did you load the correct '
-                                        f'file?\n')
-                else:
-                    self.logger.warning(f'\nWARNING! WoLF-PHC state not found in policy '
-                                        f'pi ({self.agent_role}).\n')
+            # if not self.is_training:
+            #     if not self.pi:
+            #         self.logger.warning(f'\nWARNING! WoLF-PHC pi is empty '
+            #                             f'({self.agent_role}). Did you load the correct '
+            #                             f'file?\n')
+            #     else:
+            #         self.logger.warning(f'\nWARNING! WoLF-PHC state not found in policy '
+            #                             f'pi ({self.agent_role}).\n')
             threshold = 1.0 if self.warm_up_mode else 0.5
             if self.is_training and random.random() < threshold:
                 # use warm up / hand crafted only in training
