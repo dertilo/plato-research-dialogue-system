@@ -68,7 +68,7 @@ class Controller(object):
         self.goal = None
 
     @staticmethod
-    def run_single_agent(config, num_dialogues):
+    def run_single_agent(config, num_dialogues, num_warm_up_dialogues=0):
         """
         This function will create an agent and orchestrate the conversation.
 
@@ -91,6 +91,9 @@ class Controller(object):
 
 
             for dialogue in range(num_dialogues):
+
+                if dialogue > num_warm_up_dialogues and ca.dialogue_manager.policy.warm_up_mode:
+                    ca.dialogue_manager.policy.warm_up_mode = False
 
                 ca.start_dialogue()
 
@@ -373,11 +376,14 @@ def arg_parse(args=None):
 
     tests = 1
     dialogues = 10
+    num_warm_up_dialogues = 0
     interaction_mode = 'simulation'
     num_agents = 1
 
     if cfg_parser:
         dialogues = int(cfg_parser['DIALOGUE']['num_dialogues'])
+        if 'num_warm_up_dialogues' in cfg_parser['DIALOGUE']:
+            num_warm_up_dialogues = int(cfg_parser['DIALOGUE']['num_warm_up_dialogues'])
 
         if 'interaction_mode' in cfg_parser['GENERAL']:
             interaction_mode = cfg_parser['GENERAL']['interaction_mode']
@@ -395,6 +401,7 @@ def arg_parse(args=None):
     return {'cfg_parser': cfg_parser,
             'tests': tests,
             'dialogues': dialogues,
+            'num_warm_up_dialogues': num_warm_up_dialogues,
             'interaction_mode': interaction_mode,
             'num_agents': num_agents,
             'test_mode': False}
@@ -413,6 +420,7 @@ def run_controller(args):
     cfg_parser = args['cfg_parser']
     tests = args['tests']
     dialogues = args['dialogues']
+    num_warm_up_dialogues = args['num_warm_up_dialogues']
     interaction_mode = args['interaction_mode']
     num_agents = args['num_agents']
 
@@ -433,7 +441,7 @@ def run_controller(args):
         if interaction_mode in ['simulation', 'text', 'speech']:
             # YAML version
             statistics = controller.run_single_agent(
-                cfg_parser, dialogues)
+                cfg_parser, dialogues, num_warm_up_dialogues=num_warm_up_dialogues)
 
         elif interaction_mode == 'multi_agent':
             # YAML version
