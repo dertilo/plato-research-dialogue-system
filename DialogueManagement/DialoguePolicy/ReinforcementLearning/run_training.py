@@ -5,6 +5,8 @@ from pprint import pprint
 
 import numpy as np
 from tqdm import tqdm
+from util import data_io
+
 from ConversationalAgent.ConversationalSingleAgent import ConversationalSingleAgent
 
 
@@ -46,6 +48,10 @@ def build_config(algo="pytorch_a2c", do_train=True):
                 "slot_confuse_prob": 0.0,
                 "op_confuse_prob": 0.0,
                 "value_confuse_prob": 0.0,
+                # "pop_distribution": [50, 50],
+                # "slot_confuse_prob": 0.05,
+                # "op_confuse_prob": 0.0,
+                # "value_confuse_prob": 0.05,
             },
             "DM": {
                 "policy": {
@@ -55,7 +61,7 @@ def build_config(algo="pytorch_a2c", do_train=True):
                     "learning_decay_rate": 0.995,
                     "discount_factor": 0.99,
                     "exploration_rate": 1.0,
-                    "exploration_decay_rate": 0.995,
+                    "exploration_decay_rate": 0.996,
                     "min_exploration_rate": 0.01,
                     "policy_path": "policies/agent",
                 }
@@ -82,7 +88,7 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
     pbar.postfix[0]["success-rate"] = running_average(
         running_factor, pbar.postfix[0]["success-rate"], success
     )
-    if hasattr(ca.dialogue_manager.policy,'num_pos'):
+    if hasattr(ca.dialogue_manager.policy, "num_pos"):
         num_pos = ca.dialogue_manager.policy.num_pos
         pbar.postfix[0]["num-pos"] = running_average(
             running_factor, pbar.postfix[0]["num-pos"], num_pos
@@ -93,7 +99,7 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
     pbar.update()
 
 
-def run_it(config, num_dialogues=100, verbose=False):
+def run_it(config, num_dialogues=100, num_warmup_dialogues=100, verbose=False):
     ca = ConversationalSingleAgent(config)
     ca.initialize()
     if config["AGENT_0"]["DM"]["policy"]["train"] and hasattr(
@@ -103,12 +109,20 @@ def run_it(config, num_dialogues=100, verbose=False):
     ca.minibatch_length = 8
     ca.train_epochs = 10
     ca.train_interval = 8
-    params_to_monitor = {"dialogue": 0, "success-rate": 0.0, "loss": 0.0,'num-pos':0.0}
+    params_to_monitor = {
+        "dialogue": 0,
+        "success-rate": 0.0,
+        "loss": 0.0,
+        "num-pos": 0.0,
+    }
     running_factor = np.exp(np.log(0.05) / 100)  # after 100 steps sunk to 0.05
     ca.dialogue_manager.policy.warm_up_mode = True
     with tqdm(postfix=[params_to_monitor]) as pbar:
         for dialogue in range(num_dialogues):
-            if dialogue>100 and ca.dialogue_manager.policy.warm_up_mode:
+            if (
+                dialogue > num_warmup_dialogues
+                and ca.dialogue_manager.policy.warm_up_mode
+            ):
                 ca.dialogue_manager.policy.warm_up_mode = False
             one_dialogue(ca)
             update_progress_bar(ca, dialogue, pbar, running_factor)
@@ -131,33 +145,49 @@ def run_it(config, num_dialogues=100, verbose=False):
         "avg-turns": avg_turns,
     }
 
+
 def clean_dir(dir):
     if os.path.isdir(dir):
         shutil.rmtree(dir)
     os.mkdir(dir)
 
-def train_evaluate(algo, train_dialogues=300,eval_dialogues = 1000):
+
+def train_evaluate(algo, train_dialogues=300, eval_dialogues=1000):
     clean_dir("logs")
     clean_dir("policies")
     return {
-        "train": run_it(build_config(algo, do_train=True), train_dialogues),
+        "train": run_it(
+            build_config(algo, do_train=True), train_dialogues, num_warmup_dialogues=100
+        ),
         "eval": run_it(build_config(algo, do_train=False), eval_dialogues),
     }
 
 
-if __name__ == "__main__":
+def multi_eval(algos):
+    def generate_scores():
+        for i in range(5):
+            scores = {
+                k: train_evaluate(k, train_dialogues=1000, eval_dialogues=1000)
+                for k in algos
+            }
+            yield scores
 
+    data_io.write_jsonl("scores.jsonl", generate_scores())
+
+
+if __name__ == "__main__":
 
     base_path = "."
 
     chdir("%s" % base_path)
-    algos = ['pytorch_reinforce','pytorch_a2c','q_learning']
-    # algos = ['pytorch_a2c']
+    algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
+    # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
-    scores = {k: train_evaluate(k,train_dialogues=1000,eval_dialogues=1000) for k in algos}
-    pprint(scores)
+    multi_eval(algos)
+    # scores = {k: train_evaluate(k,train_dialogues=1000,eval_dialogues=1000) for k in algos}
+    # pprint(scores)
 
-    '''
+    """
     1000it [03:20,  4.98it/s[{'dialogue': 999, 'success-rate': 0.84, 'loss': 24.072, 'num-pos': 7.84, 'eps': 0.00998645168764533}]]
     {'learned': 0, 'random': 0, 'warmup': 0}
     WARNING! SlotFillingDialogueState not provided with slots, using default CamRest slots.
@@ -193,4 +223,4 @@ if __name__ == "__main__":
                     'train': {'avg-reward': 14.83264999999999,
                               'avg-turns': 12.204,
                               'success-rate': 78.5}}}
-    '''
+    """
