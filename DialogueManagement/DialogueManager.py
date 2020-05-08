@@ -535,24 +535,15 @@ class DialogueManager(ConversationalModule):
                         random_slot = random.choices(list(d_state.slots_filled.keys()))
                         slots.extend(random_slot)
 
+                    def _build_expl_confirm_act_item(slot):
+                        value = d_state.slots_filled[slot] if d_state.slots_filled[slot] else "no info"
+                        item = DialogueActItem(slot, Operator.EQ, value)
+                        return item
 
-                    for slot in slots:
-                        if d_state.slots_filled[slot]:
-                            new_sys_acts.append(
-                                DialogueAct(
-                                    'expl-conf',
-                                    [DialogueActItem(
-                                        slot,
-                                        Operator.EQ,
-                                        d_state.slots_filled[slot])]))
-                        else:
-                            new_sys_acts.append(
-                                DialogueAct(
-                                    'expl-conf',
-                                    [DialogueActItem(
-                                        slot,
-                                        Operator.EQ,
-                                        'no info')]))
+                    new_sys_acts.append(
+                        DialogueAct(
+                            'expl-conf',
+                            [_build_expl_confirm_act_item(slot) for slot in slots]))
 
 
                     # Remove the empty expl-conf
