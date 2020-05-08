@@ -56,7 +56,7 @@ class WoLFPHCPolicy(DialoguePolicy.DialoguePolicy):
         """
 
         self.logger = logging.getLogger(__name__)
-        self.warm_up_mode = False
+        self.warm_up_mode = warm_up_mode
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
