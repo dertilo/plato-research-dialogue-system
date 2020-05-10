@@ -40,11 +40,11 @@ appropriate input to each agent.
 
 # prepare logging
 root_logger = logging.getLogger()
-root_logger.setLevel(logging.WARNING)
+root_logger.setLevel(logging.ERROR)
 
 #  create console handler
 ch = logging.StreamHandler()
-ch.setLevel(logging.WARNING)
+ch.setLevel(logging.ERROR)
 #  create formatter and add it to the handlers
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
