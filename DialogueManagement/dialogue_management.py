@@ -1,25 +1,26 @@
 import random
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
-"""
-if "name" in slots and not self.inform_requested_name:
+
+
+def build_offer_from_inform(d_state, new_sys_acts, slots):
 
     new_sys_acts.append(
         DialogueAct(
-            'offer',
-            [DialogueActItem(
-                "name",
-                Operator.EQ,
-                d_state.item_in_focus["name"])]))
+            "offer",
+            [DialogueActItem("name", Operator.EQ, d_state.item_in_focus["name"])],
+        )
+    )
 
     new_sys_acts.append(
-        DialogueAct("inform",
-                    [DialogueActItem(
-                        slot,
-                        Operator.EQ,
-                        d_state.item_in_focus[slot]) for slot in slots
-                        if slot is not "name"]))
-
-"""
+        DialogueAct(
+            "inform",
+            [
+                DialogueActItem(slot, Operator.EQ, d_state.item_in_focus[slot])
+                for slot in slots
+                if slot is not "name"
+            ],
+        )
+    )
 
 
 def build_offer(d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy):
@@ -62,7 +63,7 @@ def build_offer(d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy):
                     )
 
 
-def build_inform(inform_requested_name, d_state, new_sys_acts, sys_act):
+def build_inform(d_state, new_sys_acts, sys_act):
     slots = []
     if sys_act.params:
         # use the slots addressed by the inform act (slots selected by the policy)
@@ -83,28 +84,16 @@ def build_inform(inform_requested_name, d_state, new_sys_acts, sys_act):
                     )
                 )
             else:
-                if not inform_requested_name and slot == "name":
-                    new_sys_acts.append(
-                        DialogueAct(
-                            "offer",
-                            [
-                                DialogueActItem(
-                                    slot, Operator.EQ, d_state.item_in_focus[slot]
-                                )
-                            ],
-                        )
+                new_sys_acts.append(
+                    DialogueAct(
+                        "inform",
+                        [
+                            DialogueActItem(
+                                slot, Operator.EQ, d_state.item_in_focus[slot]
+                            )
+                        ],
                     )
-                else:
-                    new_sys_acts.append(
-                        DialogueAct(
-                            "inform",
-                            [
-                                DialogueActItem(
-                                    slot, Operator.EQ, d_state.item_in_focus[slot]
-                                )
-                            ],
-                        )
-                    )
+                )
 
         else:
             new_sys_acts.append(

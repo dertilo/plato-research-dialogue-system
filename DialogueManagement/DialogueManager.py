@@ -17,7 +17,7 @@ __author__ = "Alexandros Papangelis"
 
 from Dialogue.Action import DialogueAct, DialogueActItem, Operator
 from DialogueManagement.dialogue_management import build_offer, build_inform, \
-    build_explicit_confirm
+    build_explicit_confirm, build_offer_from_inform
 from DialogueStateTracker.DialogueStateTracker import DummyStateTracker
 # from DialogueStateTracker.CamRestLudwigDST import CamRestLudwigDST
 
@@ -389,18 +389,22 @@ class DialogueManager(ConversationalModule):
                     # print('DialogueManager Warning! No slot provided by '
                     #       'policy for canthelp and cannot find a reasonable '
                     #       'one!')
-
+            slots = [x.slot for x in sys_act.params]
+            offer_from_inform =  "name" in slots and not self.inform_requested_name
             if sys_act.intent == 'offer' and not sys_act.params:
 
                 build_offer(d_state, new_sys_acts, sys_act, sys_acts,
                             sys_acts_copy)
+            elif offer_from_inform:
+                build_offer_from_inform(d_state, new_sys_acts, slots)
+
 
             elif sys_act.intent == 'inform':
                 if self.agent_role == 'system':
                     if sys_act.params and sys_act.params[0].value:
                         continue
 
-                    build_inform(self.inform_requested_name,d_state, new_sys_acts, sys_act)
+                    build_inform(d_state, new_sys_acts, sys_act)
 
                 elif self.agent_role == 'user':
                     if sys_act.params:
