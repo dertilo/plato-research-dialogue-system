@@ -11,6 +11,7 @@ from util import data_io
 from util.worker_pool import GenericTask, WorkerPool
 
 from ConversationalAgent.ConversationalSingleAgent import ConversationalSingleAgent
+from plot_results import plot_results
 
 
 def one_dialogue(ca):
@@ -20,18 +21,14 @@ def one_dialogue(ca):
     ca.end_dialogue()
 
 
-def build_config(log_dir, policies_dir, algo="pytorch_a2c", do_train=True):
+def build_config(algo="pytorch_a2c", error_sim=False, two_slots=False):
     return {
         "GENERAL": {
             "print_level": "info",
             "interaction_mode": "simulation",
             "agents": 1,
             "runs": 5,
-            "experience_logs": {
-                "save": False,
-                "load": False,
-                "path": "%s/train_reinforce_logs.pkl" % log_dir,
-            },
+            "experience_logs": {"save": False, "load": False, "path": None,},
         },
         "DIALOGUE": {
             "num_dialogues": 1000,
@@ -47,26 +44,22 @@ def build_config(log_dir, policies_dir, algo="pytorch_a2c", do_train=True):
             "USER_SIMULATOR": {
                 "simulator": "agenda",
                 "patience": 5,
-                "pop_distribution": [1.0],
-                # "slot_confuse_prob": 0.0,
-                # "op_confuse_prob": 0.0,
-                # "value_confuse_prob": 0.0,
-                # "pop_distribution": [50, 50],
-                "slot_confuse_prob": 0.05,
+                "pop_distribution": [50, 50] if two_slots else [1.0],
+                "slot_confuse_prob": 0.05 if error_sim else 0.0,
                 "op_confuse_prob": 0.0,
-                "value_confuse_prob": 0.05,
+                "value_confuse_prob": 0.05 if error_sim else 0.0,
             },
             "DM": {
                 "policy": {
                     "type": algo,
-                    "train": do_train,
+                    "train": False,
                     "learning_rate": 0.25,  # not use by policy-based (pytorch) agents
                     "learning_decay_rate": 0.995,
                     "discount_factor": 0.99,
                     "exploration_rate": 1.0,
                     "exploration_decay_rate": 0.996,
                     "min_exploration_rate": 0.01,
-                    "policy_path": "%s/agent" % policies_dir,
+                    "policy_path": None,
                 }
             },
         },
@@ -124,6 +117,7 @@ def run_it(config, num_dialogues=100, num_warmup_dialogues=100, use_progress_bar
     class Dummy:
         def __enter__(self):
             pass
+
         def __exit__(self, exc_type, exc_val, exc_tb):
             pass
 
@@ -165,7 +159,8 @@ import tempfile
 
 
 class Job(NamedTuple):
-    algo: str
+    name: str
+    config: dict
     train_dialogues: int = 1000
     eval_dialogues: int = 1000
 
@@ -173,41 +168,64 @@ class Job(NamedTuple):
 def train_evaluate(job: Job):
     log_dir = tempfile.mkdtemp(suffix="logs")
     policies_dir = tempfile.mkdtemp(suffix="policies")
+    job.config["GENERAL"]["experience_logs"]["path"] = (
+        "%s/train_reinforce_logs.pkl" % log_dir
+    )
+    job.config["AGENT_0"]["DM"]["policy"]["policy_path"] = "%s/agent" % policies_dir
+    train_config = {k: v for k, v in job.config.items()}
+    train_config["AGENT_0"]["DM"]["policy"]["train"] = True
+    eval_config = {k: v for k, v in job.config.items()}
     return {
         "train": run_it(
-            build_config(log_dir, policies_dir, job.algo, do_train=True),
+            train_config,
             job.train_dialogues,
             num_warmup_dialogues=50,
             use_progress_bar=False,
         ),
-        "eval": run_it(
-            build_config(log_dir, policies_dir, job.algo, do_train=False),
-            job.eval_dialogues,
-            use_progress_bar=False,
-        ),
+        "eval": run_it(eval_config, job.eval_dialogues, use_progress_bar=False,),
     }
 
 
 class PlatoScoreTask(GenericTask):
     @classmethod
     def process(cls, job: Job, task_data: Dict[str, Any]):
-        return train_evaluate(job)
+        return {job.algo: train_evaluate(job)}
 
 
-def multi_eval(algos, num_eval=2):
+def multi_eval(algos, num_eval=3, num_workers=12):
+
+    """
+    evaluating 12 jobs with 1 workers took: 415.78 seconds
+    evaluating 12 jobs with 3 workers took: 154.78 seconds
+    evaluating 12 jobs with 6 workers took: 91.88 seconds
+    evaluating 12 jobs with 12 workers took: 70.68 seconds
+
+    on gunther one gets cuda out of mem error with num_workers>12
+    """
 
     task = PlatoScoreTask()
     jobs = [
-        Job(algo, train_dialogues=100, eval_dialogues=100) for algo in algos
+        Job(
+            name="%s" % (algo),
+            config=build_config(algo),
+            train_dialogues=1000,
+            eval_dialogues=1000,
+        )
+        for algo in algos
     ] * num_eval
-    num_workers = 1
     start = time()
 
+    scores_file = "scores.jsonl"
     with WorkerPool(processes=num_workers, task=task, daemons=False) as p:
         results_g = p.process_unordered(jobs)
-        data_io.write_jsonl("scores.jsonl", results_g)
+        data_io.write_jsonl(scores_file, results_g)
+    scoring_runs = list(data_io.read_jsonl(scores_file))
+    plot_results(scoring_runs,)
 
-    print("evaluation with %d workers took: %0.2f seconds"% (num_workers,time()-start))
+    print(
+        "evaluating %d jobs with %d workers took: %0.2f seconds"
+        % (len(jobs), num_workers, time() - start)
+    )
 
 
 if __name__ == "__main__":
