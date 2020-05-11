@@ -180,7 +180,7 @@ def train_evaluate(job: Job):
         "train": run_it(
             train_config,
             job.train_dialogues,
-            num_warmup_dialogues=25,
+            num_warmup_dialogues=100,
             use_progress_bar=False,
         ),
         "eval": run_it(eval_config, job.eval_dialogues, use_progress_bar=False,),
@@ -205,23 +205,25 @@ def multi_eval(algos, num_eval=3, num_workers=12):
     """
 
     task = PlatoScoreTask()
+
+    def build_name(algo, error_sim, two_slots):
+        name = [algo]
+        name += ["error_sim"] if error_sim else []
+        name += ["two_slots"] if two_slots else []
+        return "_".join(name)
+
     jobs = [
         Job(
-            name="_".join(
-                [algo] + ["error_sim"]
-                if error_sim
-                else [] + ["two_slots"]
-                if two_slots
-                else []
-            ),
+            name=build_name(algo, error_sim, two_slots),
             config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
-            train_dialogues=50,
-            eval_dialogues=50,
+            train_dialogues=1000,
+            eval_dialogues=1000,
         )
+        for _ in range(num_eval)
+        for error_sim in [False]
+        for two_slots in [False]
         for algo in algos
-        for error_sim in [True, False]
-        for two_slots in [True, False]
-    ] * num_eval
+    ]
     start = time()
 
     scores_file = "scores.jsonl"
@@ -243,9 +245,10 @@ if __name__ == "__main__":
 
     chdir("%s" % base_path)
     algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
+    # algos = ["q_learning", "wolf_phc"]
     # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
-    multi_eval(algos)
+    multi_eval(algos, num_workers=6)
     # scores = {k: train_evaluate(k,train_dialogues=1000,eval_dialogues=1000) for k in algos}
     # pprint(scores)
 

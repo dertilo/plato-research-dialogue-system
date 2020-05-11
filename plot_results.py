@@ -3,6 +3,7 @@ from typing import Dict, List
 import seaborn as sns
 import pandas as pd
 from util import data_io
+from matplotlib import pyplot as plt
 
 
 def plot_results(scoring_runs: List[Dict], figure_file="results.png"):
@@ -18,14 +19,15 @@ def plot_results(scoring_runs: List[Dict], figure_file="results.png"):
         for split_name in ["train", "eval"]
     ]
     df = pd.DataFrame(data=data)
+    fig, ax = plt.subplots(figsize=(30, 10))
     ax = sns.boxplot(
+        ax=ax,
         x="exp_name", y="success-rate", hue="split-name", palette=["m", "g", "r"], data=df
     )
     # sns.despine(offset=10, trim=True)
     ax.set_title("%d runs, 1000 train and 1000 eval dialogues" % (len(scoring_runs)))
     # ax.set_xlabel("")
     ax.figure.savefig(figure_file)
-    from matplotlib import pyplot as plt
 
     # plt.show()
     plt.close()
