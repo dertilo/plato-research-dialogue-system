@@ -12,8 +12,10 @@ from DialogueManagement.DialoguePolicy.dialogue_common import state_to_json
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def to_torch(x:float):
+
+def to_torch(x: float):
     return torch.tensor(x).type(torch.float32).to(DEVICE)
+
 
 class StateEncoder(nn.Module):
     def __init__(
@@ -100,6 +102,9 @@ class DialogTurn(NamedTuple):
 def process_dialogue_to_turns(
     text_field, dialogue: List[Dict], gamma=0.99
 ) -> List[DialogTurn]:
+    assert all(
+        d["action"][0].intent == "offer" or len(d["action"]) == 1 for d in dialogue
+    )
     x = [(d["action"], d["state"], d["reward"]) for d in dialogue]
 
     rewards = [t["reward"] for t in dialogue]

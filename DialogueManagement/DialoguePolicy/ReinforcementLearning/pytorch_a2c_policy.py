@@ -147,6 +147,9 @@ class PyTorchA2CPolicy(PyTorchReinforcePolicy):
         return calc_loss(rollout, self.agent, self.a2c_params)
 
     def process_dialogue_to_turns(self, dialogue: List[Dict]) -> List[DialogTurn]:
+        assert all(
+            d["action"][0].intent == "offer" or len(d["action"]) == 1 for d in dialogue
+        )
         assert dialogue[0]["action"][0].intent == "welcomemsg"
         assert dialogue[-1]["action"][0].intent == "bye"
         dialogue[-2]["reward"] = dialogue[-1]["reward"]
