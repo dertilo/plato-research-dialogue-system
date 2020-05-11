@@ -102,6 +102,7 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         self.NActions = self.domain.NActions
 
         self.hash2actions = {}
+        self.counter = {'warmup':0,'learned':0,'random':0}
 
     def initialize(self, **kwargs):
         """
@@ -116,7 +117,6 @@ class QPolicy(DialoguePolicy.DialoguePolicy):
         if 'agent_role' in kwargs:
             self.agent_role = kwargs['agent_role']
 
-        self.counter = {'warmup':0,'learned':0,'random':0}
 
     def restart(self, args):
         """

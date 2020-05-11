@@ -1,5 +1,6 @@
 import os
 import re
+from collections import Counter
 from typing import List, Dict, Tuple, NamedTuple
 
 import numpy
@@ -137,6 +138,7 @@ class PyTorchReinforcePolicy(QPolicy):
         )
         self.optimizer = optim.Adam(self.agent.parameters(), lr=1e-3)
         self.losses = []
+        self.counter = {"warmup":Counter(),"learned":Counter()}
 
     def get_policy_agent_model_class(self, kwargs):
         return kwargs.get("PolicyAgentModelClass", PolicyAgent)
@@ -161,11 +163,13 @@ class PyTorchReinforcePolicy(QPolicy):
         self.agent.to(DEVICE)
         if self.is_training and random.random() < self.epsilon:
             sys_acts = self.warmup_policy.next_action(state)
+            self.counter["warmup"].update({len(sys_acts[0].params):1})
         else:
             state_enc = self.encode_state(state)
             with torch.no_grad():
                 agent_step = self.agent.step(state_enc.to(DEVICE))
             sys_acts = [self.decode_action(agent_step)]
+            self.counter["learned"].update({len(sys_acts[0].params):1})
 
         if not sys_acts or len(sys_acts) == 0:
             raise Exception('At least least one action has to be selected!')
