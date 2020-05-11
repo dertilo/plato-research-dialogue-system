@@ -86,7 +86,6 @@ def convert_on_dialog_level(log, csv_p):
         d = dict()
         d['cumulative_reward'] = last_turn['cumulative_reward']
         d['success'] = int(last_turn['success'])
-        d['task_success'] = int(last_turn['task_success'])
         d['length'] = len(dialog)
 
         csv_data.append(d)
