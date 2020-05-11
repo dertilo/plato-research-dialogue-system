@@ -75,30 +75,18 @@ def build_inform(d_state, new_sys_acts, sys_act):
     if not slots:
         # if we still have no slot(s) use one from the filled slots
         slots = [random.choice(list(d_state.slots_filled.keys()))]
-    for slot in slots:
-        if d_state.item_in_focus:
-            if slot not in d_state.item_in_focus or not d_state.item_in_focus[slot]:
-                new_sys_acts.append(
-                    DialogueAct(
-                        "inform", [DialogueActItem(slot, Operator.EQ, "no info")]
-                    )
-                )
-            else:
-                new_sys_acts.append(
-                    DialogueAct(
-                        "inform",
-                        [
-                            DialogueActItem(
-                                slot, Operator.EQ, d_state.item_in_focus[slot]
-                            )
-                        ],
-                    )
-                )
 
+    def get_value(slot):
+        if not d_state.item_in_focus or (
+            slot not in d_state.item_in_focus or not d_state.item_in_focus[slot]
+        ):
+            value = "no info"
         else:
-            new_sys_acts.append(
-                DialogueAct("inform", [DialogueActItem(slot, Operator.EQ, "no info")])
-            )
+            value = d_state.item_in_focus[slot]
+        return value
+
+    act_items = [DialogueActItem(slot, Operator.EQ, get_value(slot)) for slot in slots]
+    new_sys_acts.append(DialogueAct("inform", act_items))
 
 
 def build_explicit_confirm(d_state, new_sys_acts, sys_act, sys_acts_copy):
