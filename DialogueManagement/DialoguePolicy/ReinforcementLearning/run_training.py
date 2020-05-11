@@ -180,10 +180,10 @@ def train_evaluate(job: Job):
         "train": run_it(
             train_config,
             job.train_dialogues,
-            num_warmup_dialogues=100,
+            num_warmup_dialogues=200,
             use_progress_bar=False,
         ),
-        "eval": run_it(eval_config, job.eval_dialogues, use_progress_bar=False,),
+        "eval": run_it(eval_config, job.eval_dialogues, use_progress_bar=False),
     }
 
 
@@ -191,6 +191,13 @@ class PlatoScoreTask(GenericTask):
     @classmethod
     def process(cls, job: Job, task_data: Dict[str, Any]):
         return {job.name: train_evaluate(job)}
+
+
+def build_name(algo, error_sim, two_slots):
+    name = [algo]
+    name += ["error_sim"] if error_sim else []
+    name += ["two_slots"] if two_slots else []
+    return "_".join(name)
 
 
 def multi_eval(algos, num_eval=3, num_workers=12):
@@ -205,12 +212,6 @@ def multi_eval(algos, num_eval=3, num_workers=12):
     """
 
     task = PlatoScoreTask()
-
-    def build_name(algo, error_sim, two_slots):
-        name = [algo]
-        name += ["error_sim"] if error_sim else []
-        name += ["two_slots"] if two_slots else []
-        return "_".join(name)
 
     jobs = [
         Job(
@@ -227,9 +228,15 @@ def multi_eval(algos, num_eval=3, num_workers=12):
     start = time()
 
     scores_file = "scores.jsonl"
-    with WorkerPool(processes=num_workers, task=task, daemons=False) as p:
-        results_g = p.process_unordered(jobs)
-        data_io.write_jsonl(scores_file, results_g)
+    if num_workers > 0:
+        with WorkerPool(processes=num_workers, task=task, daemons=False) as p:
+            results_g = p.process_unordered(jobs)
+            data_io.write_jsonl(scores_file, results_g)
+    else:
+        with task as t:
+            results_g = [t(job) for job in jobs]
+            data_io.write_jsonl(scores_file, results_g)
+
     scoring_runs = list(data_io.read_jsonl(scores_file))
     plot_results(scoring_runs,)
 
@@ -249,43 +256,20 @@ if __name__ == "__main__":
     # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
     multi_eval(algos, num_workers=6)
+    # algo = "pytorch_reinforce"
+    # error_sim = False
+    # two_slots = True
+    # train_evaluate(
+    #     Job(
+    #         name=build_name(algo, error_sim, two_slots),
+    #         config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
+    #         train_dialogues=200,
+    #         eval_dialogues=100,
+    #     )
+    # )
     # scores = {k: train_evaluate(k,train_dialogues=1000,eval_dialogues=1000) for k in algos}
     # pprint(scores)
 
     """
-    1000it [03:20,  4.98it/s[{'dialogue': 999, 'success-rate': 0.84, 'loss': 24.072, 'num-pos': 7.84, 'eps': 0.00998645168764533}]]
-    {'learned': 0, 'random': 0, 'warmup': 0}
-    WARNING! SlotFillingDialogueState not provided with slots, using default CamRest slots.
-    1000it [02:12,  7.54it/s[{'dialogue': 999, 'success-rate': 0.84, 'loss': 0.0, 'num-pos': 0.0, 'eps': 1.0}]]
-    {'learned': 0, 'random': 0, 'warmup': 0}
-    
-    1000it [03:07,  5.32it/s[{'dialogue': 999, 'success-rate': 0.84, 'loss': 10.094, 'num-pos': 5.16, 'eps': 0.00998645168764533}]]
-    {'learned': 0, 'random': 0, 'warmup': 0}
-    WARNING! SlotFillingDialogueState not provided with slots, using default CamRest slots.
-    1000it [02:06,  7.90it/s[{'dialogue': 999, 'success-rate': 0.84, 'loss': 0.0, 'num-pos': 0.0, 'eps': 1.0}]]
-    {'learned': 0, 'random': 0, 'warmup': 0}
-    Warning! Q DialoguePolicy file policies/agent not found
-    
-    1000it [03:03,  5.44it/s[{'dialogue': 999, 'success-rate': 0.83, 'loss': 0.0, 'num-pos': 0.0, 'eps': 0.00998645168764533}]]
-    {'learned': 6062, 'random': 1585, 'warmup': 2464}
-    1000it [01:54,  8.75it/s[{'dialogue': 999, 'success-rate': 0.84, 'loss': 0.0, 'num-pos': 0.0, 'eps': 0.00998645168764533}]]
-    {'learned': 8803, 'random': 537, 'warmup': 0}
-    {'pytorch_a2c': {'eval': {'avg-reward': 15.235800000000026,
-                              'avg-turns': 12.926,
-                              'success-rate': 80.2},
-                     'train': {'avg-reward': 13.434699999999989,
-                               'avg-turns': 11.9,
-                               'success-rate': 71.39999999999999}},
-     'pytorch_reinforce': {'eval': {'avg-reward': 19.058649999999957,
-                                    'avg-turns': 11.407,
-                                    'success-rate': 98.0},
-                           'train': {'avg-reward': 18.72715000000002,
-                                     'avg-turns': 11.301,
-                                     'success-rate': 96.39999999999999}},
-     'q_learning': {'eval': {'avg-reward': 15.733949999999988,
-                             'avg-turns': 11.423,
-                             'success-rate': 82.39999999999999},
-                    'train': {'avg-reward': 14.83264999999999,
-                              'avg-turns': 12.204,
-                              'success-rate': 78.5}}}
+    evaluating 12 jobs with 6 workers took: 801.11 seconds
     """
