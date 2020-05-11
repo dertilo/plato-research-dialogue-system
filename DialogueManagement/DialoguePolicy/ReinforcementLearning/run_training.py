@@ -2,10 +2,13 @@ import os
 import shutil
 from os import chdir
 from pprint import pprint
+from time import time
+from typing import Dict, Any, NamedTuple
 
 import numpy as np
 from tqdm import tqdm
 from util import data_io
+from util.worker_pool import GenericTask, WorkerPool
 
 from ConversationalAgent.ConversationalSingleAgent import ConversationalSingleAgent
 
@@ -17,7 +20,7 @@ def one_dialogue(ca):
     ca.end_dialogue()
 
 
-def build_config(algo="pytorch_a2c", do_train=True):
+def build_config(log_dir, policies_dir, algo="pytorch_a2c", do_train=True):
     return {
         "GENERAL": {
             "print_level": "info",
@@ -27,7 +30,7 @@ def build_config(algo="pytorch_a2c", do_train=True):
             "experience_logs": {
                 "save": False,
                 "load": False,
-                "path": "logs/train_reinforce_logs.pkl",
+                "path": "%s/train_reinforce_logs.pkl" % log_dir,
             },
         },
         "DIALOGUE": {
@@ -45,13 +48,13 @@ def build_config(algo="pytorch_a2c", do_train=True):
                 "simulator": "agenda",
                 "patience": 5,
                 "pop_distribution": [1.0],
-                "slot_confuse_prob": 0.0,
-                "op_confuse_prob": 0.0,
-                "value_confuse_prob": 0.0,
-                # "pop_distribution": [50, 50],
-                # "slot_confuse_prob": 0.05,
+                # "slot_confuse_prob": 0.0,
                 # "op_confuse_prob": 0.0,
-                # "value_confuse_prob": 0.05,
+                # "value_confuse_prob": 0.0,
+                # "pop_distribution": [50, 50],
+                "slot_confuse_prob": 0.05,
+                "op_confuse_prob": 0.0,
+                "value_confuse_prob": 0.05,
             },
             "DM": {
                 "policy": {
@@ -63,7 +66,7 @@ def build_config(algo="pytorch_a2c", do_train=True):
                     "exploration_rate": 1.0,
                     "exploration_decay_rate": 0.996,
                     "min_exploration_rate": 0.01,
-                    "policy_path": "policies/agent",
+                    "policy_path": "%s/agent" % policies_dir,
                 }
             },
         },
@@ -99,13 +102,13 @@ def update_progress_bar(ca: ConversationalSingleAgent, dialogue, pbar, running_f
     pbar.update()
 
 
-def run_it(config, num_dialogues=100, num_warmup_dialogues=100, verbose=False):
+def run_it(config, num_dialogues=100, num_warmup_dialogues=100, use_progress_bar=True):
     ca = ConversationalSingleAgent(config)
     ca.initialize()
-    if config["AGENT_0"]["DM"]["policy"]["train"] and hasattr(
-        ca.dialogue_manager.policy, "agent"
-    ):
-        print(ca.dialogue_manager.policy.agent)
+    # if config["AGENT_0"]["DM"]["policy"]["train"] and hasattr(
+    #     ca.dialogue_manager.policy, "agent"
+    # ):
+    #     print(ca.dialogue_manager.policy.agent)
     ca.minibatch_length = 8
     ca.train_epochs = 10
     ca.train_interval = 8
@@ -117,7 +120,17 @@ def run_it(config, num_dialogues=100, num_warmup_dialogues=100, verbose=False):
     }
     running_factor = np.exp(np.log(0.05) / 100)  # after 100 steps sunk to 0.05
     ca.dialogue_manager.policy.warm_up_mode = True
-    with tqdm(postfix=[params_to_monitor]) as pbar:
+
+    class Dummy:
+        def __enter__(self):
+            pass
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    pbar_supplier = (
+        lambda: tqdm(postfix=[params_to_monitor]) if use_progress_bar else Dummy()
+    )
+    with pbar_supplier() as pbar:
         for dialogue in range(num_dialogues):
             if (
                 dialogue > num_warmup_dialogues
@@ -125,7 +138,8 @@ def run_it(config, num_dialogues=100, num_warmup_dialogues=100, verbose=False):
             ):
                 ca.dialogue_manager.policy.warm_up_mode = False
             one_dialogue(ca)
-            update_progress_bar(ca, dialogue, pbar, running_factor)
+            if use_progress_bar:
+                update_progress_bar(ca, dialogue, pbar, running_factor)
 
     if hasattr(ca.dialogue_manager.policy, "counter"):
         pprint(ca.dialogue_manager.policy.counter)
@@ -133,11 +147,6 @@ def run_it(config, num_dialogues=100, num_warmup_dialogues=100, verbose=False):
     success_rate = 100 * float(ca.num_successful_dialogues / num_dialogues)
     avg_reward = ca.cumulative_rewards / num_dialogues
     avg_turns = float(ca.total_dialogue_turns / num_dialogues)
-    if verbose:
-        print(
-            "\n\nDialogue Success Rate: {0}\nAverage Cumulative Reward: {1}"
-            "\nAverage Turns: {2}".format(success_rate, avg_reward, avg_turns,)
-        )
 
     return {
         "success-rate": success_rate,
@@ -152,27 +161,53 @@ def clean_dir(dir):
     os.mkdir(dir)
 
 
-def train_evaluate(algo, train_dialogues=300, eval_dialogues=1000):
-    clean_dir("logs")
-    clean_dir("policies")
+import tempfile
+
+
+class Job(NamedTuple):
+    algo: str
+    train_dialogues: int = 1000
+    eval_dialogues: int = 1000
+
+
+def train_evaluate(job: Job):
+    log_dir = tempfile.mkdtemp(suffix="logs")
+    policies_dir = tempfile.mkdtemp(suffix="policies")
     return {
         "train": run_it(
-            build_config(algo, do_train=True), train_dialogues, num_warmup_dialogues=100
+            build_config(log_dir, policies_dir, job.algo, do_train=True),
+            job.train_dialogues,
+            num_warmup_dialogues=50,
+            use_progress_bar=False,
         ),
-        "eval": run_it(build_config(algo, do_train=False), eval_dialogues),
+        "eval": run_it(
+            build_config(log_dir, policies_dir, job.algo, do_train=False),
+            job.eval_dialogues,
+            use_progress_bar=False,
+        ),
     }
 
 
-def multi_eval(algos):
-    def generate_scores():
-        for i in range(5):
-            scores = {
-                k: train_evaluate(k, train_dialogues=1000, eval_dialogues=1000)
-                for k in algos
-            }
-            yield scores
+class PlatoScoreTask(GenericTask):
+    @classmethod
+    def process(cls, job: Job, task_data: Dict[str, Any]):
+        return train_evaluate(job)
 
-    data_io.write_jsonl("scores.jsonl", generate_scores())
+
+def multi_eval(algos, num_eval=2):
+
+    task = PlatoScoreTask()
+    jobs = [
+        Job(algo, train_dialogues=100, eval_dialogues=100) for algo in algos
+    ] * num_eval
+    num_workers = 1
+    start = time()
+
+    with WorkerPool(processes=num_workers, task=task, daemons=False) as p:
+        results_g = p.process_unordered(jobs)
+        data_io.write_jsonl("scores.jsonl", results_g)
+
+    print("evaluation with %d workers took: %0.2f seconds"% (num_workers,time()-start))
 
 
 if __name__ == "__main__":
