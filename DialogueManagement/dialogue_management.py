@@ -35,7 +35,7 @@ def build_offer(d_state, new_sys_acts, sys_act, sys_acts, sys_acts_copy):
                 [DialogueActItem("name", Operator.EQ, d_state.item_in_focus["name"])],
             )
         )
-
+        assert len(sys_acts)==1
         # Only add these slots if no other acts were output
         # by the DM
         if len(sys_acts) == 1:
