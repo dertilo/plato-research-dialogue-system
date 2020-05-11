@@ -1,5 +1,6 @@
 import os
 import shutil
+from copy import copy, deepcopy
 from os import chdir
 from pprint import pprint
 from time import time
@@ -172,14 +173,14 @@ def train_evaluate(job: Job):
         "%s/train_reinforce_logs.pkl" % log_dir
     )
     job.config["AGENT_0"]["DM"]["policy"]["policy_path"] = "%s/agent" % policies_dir
-    train_config = {k: v for k, v in job.config.items()}
+    train_config = deepcopy(job.config)
     train_config["AGENT_0"]["DM"]["policy"]["train"] = True
-    eval_config = {k: v for k, v in job.config.items()}
+    eval_config = deepcopy(job.config)
     return {
         "train": run_it(
             train_config,
             job.train_dialogues,
-            num_warmup_dialogues=50,
+            num_warmup_dialogues=25,
             use_progress_bar=False,
         ),
         "eval": run_it(eval_config, job.eval_dialogues, use_progress_bar=False,),
@@ -206,12 +207,20 @@ def multi_eval(algos, num_eval=3, num_workers=12):
     task = PlatoScoreTask()
     jobs = [
         Job(
-            name="%s" % (algo),
-            config=build_config(algo),
-            train_dialogues=100,
-            eval_dialogues=100,
+            name="_".join(
+                [algo] + ["error_sim"]
+                if error_sim
+                else [] + ["two_slots"]
+                if two_slots
+                else []
+            ),
+            config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
+            train_dialogues=50,
+            eval_dialogues=50,
         )
         for algo in algos
+        for error_sim in [True, False]
+        for two_slots in [True, False]
     ] * num_eval
     start = time()
 
