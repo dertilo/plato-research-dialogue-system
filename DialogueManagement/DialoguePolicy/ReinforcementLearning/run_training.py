@@ -189,7 +189,7 @@ def train_evaluate(job: Job):
 class PlatoScoreTask(GenericTask):
     @classmethod
     def process(cls, job: Job, task_data: Dict[str, Any]):
-        return {job.algo: train_evaluate(job)}
+        return {job.name: train_evaluate(job)}
 
 
 def multi_eval(algos, num_eval=3, num_workers=12):
@@ -208,8 +208,8 @@ def multi_eval(algos, num_eval=3, num_workers=12):
         Job(
             name="%s" % (algo),
             config=build_config(algo),
-            train_dialogues=1000,
-            eval_dialogues=1000,
+            train_dialogues=100,
+            eval_dialogues=100,
         )
         for algo in algos
     ] * num_eval
