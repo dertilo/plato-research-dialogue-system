@@ -1,5 +1,6 @@
 import os
 import shutil
+import traceback
 from copy import copy, deepcopy
 from os import chdir
 from pprint import pprint
@@ -167,9 +168,8 @@ class Job(NamedTuple):
     eval_dialogues: int = 1000
 
 
-LOGS_DIR = os.environ["HOME"] + "/data/plato_results"
 
-def train_evaluate(job: Job):
+def train_evaluate(job: Job,LOGS_DIR):
     # log_dir = tempfile.mkdtemp(suffix="logs")
     policies_dir = tempfile.mkdtemp(suffix="policies")
     exp_name = job.name + "_" + str(job.job_id)
@@ -192,9 +192,22 @@ def train_evaluate(job: Job):
 
 
 class PlatoScoreTask(GenericTask):
+
+    @staticmethod
+    def build_task_data(**task_params) -> Dict[str, Any]:
+        return task_params
+
     @classmethod
     def process(cls, job: Job, task_data: Dict[str, Any]):
-        return {job.name: train_evaluate(job)}
+        result = None
+        for retry in range(3):
+            try:
+                result = train_evaluate(job,task_data["LOGS_DIR"])
+                break
+            except Exception as e:
+                traceback.print_exc()
+                pass
+        return {job.name: result}
 
 
 def build_name(algo, error_sim, two_slots):
@@ -204,7 +217,7 @@ def build_name(algo, error_sim, two_slots):
     return "_".join(name)
 
 
-def multi_eval(algos, num_eval=5, num_workers=12):
+def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
     """
     evaluating 12 jobs with 1 workers took: 415.78 seconds
@@ -215,13 +228,13 @@ def multi_eval(algos, num_eval=5, num_workers=12):
     on gunther one gets cuda out of mem error with num_workers>12
     """
 
-    task = PlatoScoreTask()
+    task = PlatoScoreTask(LOGS_DIR = LOGS_DIR)
 
     experiement_configuratoins = [
         (algo, error_sim, two_slots)
         for _ in range(num_eval)
-        for error_sim in [True, False]
-        for two_slots in [True, False]
+        for error_sim in [True,False]
+        for two_slots in [False]
         for algo in algos
     ]
     jobs = [
@@ -236,7 +249,7 @@ def multi_eval(algos, num_eval=5, num_workers=12):
     ]
     start = time()
 
-    scores_file = "scores.jsonl"
+    scores_file = LOGS_DIR+"/scores.jsonl"
     if num_workers > 0:
         with WorkerPool(processes=num_workers, task=task, daemons=False) as p:
             results_g = p.process_unordered(jobs)
@@ -256,6 +269,7 @@ def multi_eval(algos, num_eval=5, num_workers=12):
 
 
 if __name__ == "__main__":
+    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/2000_dialogues_single_slot"
     clean_dir(LOGS_DIR)
 
     base_path = "."
@@ -265,7 +279,7 @@ if __name__ == "__main__":
     # algos = ["q_learning", "wolf_phc"]
     # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
-    multi_eval(algos, num_workers=6)
+    multi_eval(algos,LOGS_DIR, num_workers=6)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True
