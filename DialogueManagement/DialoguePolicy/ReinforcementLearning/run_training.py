@@ -160,17 +160,21 @@ import tempfile
 
 
 class Job(NamedTuple):
+    job_id: int
     name: str
     config: dict
     train_dialogues: int = 1000
     eval_dialogues: int = 1000
 
 
+LOGS_DIR = os.environ["HOME"] + "/data/plato_results"
+
 def train_evaluate(job: Job):
-    log_dir = tempfile.mkdtemp(suffix="logs")
+    # log_dir = tempfile.mkdtemp(suffix="logs")
     policies_dir = tempfile.mkdtemp(suffix="policies")
+    exp_name = job.name + "_" + str(job.job_id)
     job.config["GENERAL"]["experience_logs"]["path"] = (
-        "%s/train_reinforce_logs.pkl" % log_dir
+        LOGS_DIR + "/" + exp_name + ".pkl"
     )
     job.config["AGENT_0"]["DM"]["policy"]["policy_path"] = "%s/agent" % policies_dir
     train_config = deepcopy(job.config)
@@ -213,17 +217,22 @@ def multi_eval(algos, num_eval=3, num_workers=12):
 
     task = PlatoScoreTask()
 
+    experiement_configuratoins = [
+        (algo, error_sim, two_slots)
+        for _ in range(num_eval)
+        for error_sim in [True, False]
+        for two_slots in [True, False]
+        for algo in algos
+    ]
     jobs = [
         Job(
+            job_id=job_id,
             name=build_name(algo, error_sim, two_slots),
             config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
             train_dialogues=1000,
             eval_dialogues=1000,
         )
-        for _ in range(num_eval)
-        for error_sim in [False]
-        for two_slots in [False]
-        for algo in algos
+        for job_id,(algo, error_sim, two_slots) in enumerate(experiement_configuratoins)
     ]
     start = time()
 
