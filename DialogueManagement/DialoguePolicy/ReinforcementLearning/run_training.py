@@ -29,7 +29,7 @@ def build_config(algo="pytorch_a2c", error_sim=False, two_slots=False):
             "interaction_mode": "simulation",
             "agents": 1,
             "runs": 5,
-            "experience_logs": {"save": False, "load": False, "path": None,},
+            "experience_logs": {"save": True, "load": False, "path": None,},
         },
         "DIALOGUE": {
             "num_dialogues": 1000,
@@ -204,7 +204,7 @@ def build_name(algo, error_sim, two_slots):
     return "_".join(name)
 
 
-def multi_eval(algos, num_eval=3, num_workers=12):
+def multi_eval(algos, num_eval=5, num_workers=12):
 
     """
     evaluating 12 jobs with 1 workers took: 415.78 seconds
@@ -229,7 +229,7 @@ def multi_eval(algos, num_eval=3, num_workers=12):
             job_id=job_id,
             name=build_name(algo, error_sim, two_slots),
             config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
-            train_dialogues=1000,
+            train_dialogues=2000,
             eval_dialogues=1000,
         )
         for job_id,(algo, error_sim, two_slots) in enumerate(experiement_configuratoins)
@@ -247,7 +247,7 @@ def multi_eval(algos, num_eval=3, num_workers=12):
             data_io.write_jsonl(scores_file, results_g)
 
     scoring_runs = list(data_io.read_jsonl(scores_file))
-    plot_results(scoring_runs,)
+    plot_results(scoring_runs)
 
     print(
         "evaluating %d jobs with %d workers took: %0.2f seconds"
@@ -256,6 +256,7 @@ def multi_eval(algos, num_eval=3, num_workers=12):
 
 
 if __name__ == "__main__":
+    clean_dir(LOGS_DIR)
 
     base_path = "."
 
