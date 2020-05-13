@@ -176,13 +176,18 @@ def train_evaluate(job: Experiment, LOGS_DIR)->Dict:
     # log_dir = tempfile.mkdtemp(suffix="logs")
     policies_dir = tempfile.mkdtemp(suffix="policies")
     exp_name = job.name + "_" + str(job.job_id)
-    job.config["GENERAL"]["experience_logs"]["path"] = (
-        LOGS_DIR + "/" + exp_name + ".pkl"
-    )
+
     job.config["AGENT_0"]["DM"]["policy"]["policy_path"] = "%s/agent" % policies_dir
     train_config = deepcopy(job.config)
+    train_config["GENERAL"]["experience_logs"]["path"] = (
+        LOGS_DIR + "/" + exp_name + "_train.pkl"
+    )
     train_config["AGENT_0"]["DM"]["policy"]["train"] = True
     eval_config = deepcopy(job.config)
+    eval_config["GENERAL"]["experience_logs"]["path"] = (
+        LOGS_DIR + "/" + exp_name + "_eval.pkl"
+    )
+
     return {
         "train": run_it(
             train_config,
