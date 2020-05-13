@@ -2,6 +2,7 @@ import os
 import shutil
 import traceback
 from copy import copy, deepcopy
+from dataclasses import dataclass
 from os import chdir
 from pprint import pprint
 from time import time
@@ -159,18 +160,19 @@ def clean_dir(dir):
 
 import tempfile
 
-
-class Job(NamedTuple):
+@dataclass
+class Experiment:
     job_id: int
     name: str
     config: dict
     train_dialogues: int = 1000
     eval_dialogues: int = 1000
     num_warmup_dialogues:int = 200
+    scores:dict=None
 
 
 
-def train_evaluate(job: Job,LOGS_DIR):
+def train_evaluate(job: Experiment, LOGS_DIR)->Dict:
     # log_dir = tempfile.mkdtemp(suffix="logs")
     policies_dir = tempfile.mkdtemp(suffix="policies")
     exp_name = job.name + "_" + str(job.job_id)
@@ -199,16 +201,15 @@ class PlatoScoreTask(GenericTask):
         return task_params
 
     @classmethod
-    def process(cls, job: Job, task_data: Dict[str, Any]):
-        result = None
+    def process(cls, job: Experiment, task_data: Dict[str, Any]):
         for retry in range(3):
             try:
-                result = train_evaluate(job,task_data["LOGS_DIR"])
+                job.scores = train_evaluate(job,task_data["LOGS_DIR"])
                 break
             except Exception as e:
                 traceback.print_exc()
                 pass
-        return {job.name: result}
+        return job
 
 
 def build_name(algo, error_sim, two_slots):
@@ -239,7 +240,7 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
 
     jobs = [
-        Job(
+        Experiment(
             job_id=get_id(),
             name=build_name(algo, error_sim, two_slots),
             config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
@@ -248,25 +249,25 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
             num_warmup_dialogues=warmupd
         )
         for _ in range(num_eval)
-        for error_sim in [True, False]
+        for error_sim in [False]
         for two_slots in [False]
-        for td in [1000,2000]
-        for warmupd in [100,200,500]
+        for td in [200]
+        for warmupd in [50]
         for algo in algos
     ]
     start = time()
 
-    scores_file = LOGS_DIR+"/scores.jsonl"
+    outfile = LOGS_DIR+"/results.jsonl"
     if num_workers > 0:
         with WorkerPool(processes=num_workers, task=task, daemons=False) as p:
-            results_g = p.process_unordered(jobs)
-            data_io.write_jsonl(scores_file, results_g)
+            processed_jobs = p.process_unordered(jobs)
+            data_io.write_jsonl(outfile, processed_jobs)
     else:
         with task as t:
-            results_g = [t(job) for job in jobs]
-            data_io.write_jsonl(scores_file, results_g)
+            processed_jobs = [t(job) for job in jobs]
+            data_io.write_jsonl(outfile, processed_jobs)
 
-    scoring_runs = list(data_io.read_jsonl(scores_file))
+    scoring_runs = list(data_io.read_jsonl(outfile))
     plot_results(scoring_runs,LOGS_DIR)
 
     print(
@@ -276,17 +277,14 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
 
 if __name__ == "__main__":
-    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/mittwoch_morgen"
+    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/test"
     clean_dir(LOGS_DIR)
 
-    base_path = "DialogueManagement/DialoguePolicy/ReinforcementLearning"
-
-    chdir("%s" % base_path)
     algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
     # algos = ["q_learning", "wolf_phc"]
     # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
-    multi_eval(algos,LOGS_DIR, num_workers=6)
+    multi_eval(algos,LOGS_DIR, num_workers=2)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True
