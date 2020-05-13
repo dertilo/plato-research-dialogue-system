@@ -145,11 +145,16 @@ def run_it(config, num_dialogues=100, num_warmup_dialogues=100, use_progress_bar
     avg_reward = ca.cumulative_rewards / num_dialogues
     avg_turns = float(ca.total_dialogue_turns / num_dialogues)
 
-    return {
+
+    results = {
         "success-rate": success_rate,
         "avg-reward": avg_reward,
         "avg-turns": avg_turns,
     }
+
+    if hasattr(ca.dialogue_manager.policy, "counter"):
+        results["counter"]=ca.dialogue_manager.policy.counter
+    return results
 
 
 def clean_dir(dir):
@@ -214,7 +219,7 @@ class PlatoScoreTask(GenericTask):
             except Exception as e:
                 traceback.print_exc()
                 pass
-        return job
+        return job.__dict__
 
 
 def build_name(algo, error_sim, two_slots):
@@ -250,7 +255,7 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
             name=build_name(algo, error_sim, two_slots),
             config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
             train_dialogues=td,
-            eval_dialogues=1000,
+            eval_dialogues=100,
             num_warmup_dialogues=warmupd
         )
         for _ in range(num_eval)
@@ -289,7 +294,7 @@ if __name__ == "__main__":
     # algos = ["q_learning", "wolf_phc"]
     # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
-    multi_eval(algos,LOGS_DIR, num_workers=2)
+    multi_eval(algos,LOGS_DIR, num_workers=6,num_eval=2)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True

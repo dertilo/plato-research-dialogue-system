@@ -13,11 +13,11 @@ def plot_results(scoring_runs: List[Dict], save_path):
     data = [
         {
             "exp_name": name,
-            "success-rate": scores[split_name]["success-rate"],
+            "success-rate": exp["scores"][split_name]["success-rate"],
             "split-name": split_name,
         }
         for run in scoring_runs
-        for name, scores in run.items()
+        for name, exp in run.items()
         for split_name in ["train", "eval"]
     ]
     num_runs = get_num_runs(data)
