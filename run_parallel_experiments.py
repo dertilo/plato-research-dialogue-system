@@ -279,7 +279,7 @@ if __name__ == "__main__":
     LOGS_DIR = os.environ["HOME"] + "/data/plato_results/mittwoch_morgen"
     clean_dir(LOGS_DIR)
 
-    base_path = "."
+    base_path = "DialogueManagement/DialoguePolicy/ReinforcementLearning"
 
     chdir("%s" % base_path)
     algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
