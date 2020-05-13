@@ -26,6 +26,7 @@ def plot_results(scoring_runs: List[Dict], save_path):
         lambda d: d['exp_name'].startswith('pytorch_a2c'),
         lambda d: d['exp_name'].endswith('error_sim'),
         lambda d: d['exp_name'].endswith('two_slots'),
+        lambda d: any([s in d['exp_name'] for s in ['q_learning','wolf']]),
         lambda d: True,
     ]
     for filter_fun in filter_funs:
