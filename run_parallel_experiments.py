@@ -1,11 +1,12 @@
 import os
+import random
 import shutil
 import traceback
 from copy import copy, deepcopy
 from dataclasses import dataclass
 from os import chdir
 from pprint import pprint
-from time import time
+from time import time, sleep
 from typing import Dict, Any, NamedTuple
 
 import numpy as np
@@ -212,13 +213,21 @@ class PlatoScoreTask(GenericTask):
 
     @classmethod
     def process(cls, job: Experiment, task_data: Dict[str, Any]):
-        for retry in range(3):
-            try:
-                job.scores = train_evaluate(job,task_data["LOGS_DIR"])
-                break
-            except Exception as e:
-                traceback.print_exc()
-                pass
+        for retry in range(5):
+            import torch
+            # mems = [torch.cuda.memory_allocated(device=i) for i in [0, 1]]
+            # device_id = np.argmin(mems)
+            # print("USING GPU: %d; mems: %s"%(device_id,str(mems)))
+            random.seed(job.job_id*random.randint(0,9999))
+            device_id = random.randint(0,1)
+            with torch.cuda.device(device_id):
+                try:
+                    job.scores = train_evaluate(job,task_data["LOGS_DIR"])
+                    break
+                except Exception as e:
+                    # traceback.print_exc()
+                    pass
+            sleep(5)
         return job.__dict__
 
 
@@ -290,11 +299,11 @@ if __name__ == "__main__":
     LOGS_DIR = os.environ["HOME"] + "/data/plato_results/test"
     clean_dir(LOGS_DIR)
 
-    algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
+    algos = ["pytorch_a2c", "pytorch_reinforce"]#, "q_learning", "wolf_phc"]
     # algos = ["q_learning", "wolf_phc"]
     # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
-    multi_eval(algos,LOGS_DIR, num_workers=6,num_eval=2)
+    multi_eval(algos,LOGS_DIR, num_workers=6,num_eval=6)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True
