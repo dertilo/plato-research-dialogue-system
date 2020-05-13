@@ -213,13 +213,13 @@ class PlatoScoreTask(GenericTask):
 
     @classmethod
     def process(cls, job: Experiment, task_data: Dict[str, Any]):
-        for retry in range(5):
+        for retry in range(15):
             import torch
-            # mems = [torch.cuda.memory_allocated(device=i) for i in [0, 1]]
+            mems = [torch.cuda.memory_allocated(device=i) for i in [0, 1]]
             # device_id = np.argmin(mems)
-            # print("USING GPU: %d; mems: %s"%(device_id,str(mems)))
             random.seed(job.job_id*random.randint(0,9999))
             device_id = random.randint(0,1)
+            print("USING GPU: %d; mems: %s"%(device_id,str(mems)))
             with torch.cuda.device(device_id):
                 try:
                     job.scores = train_evaluate(job,task_data["LOGS_DIR"])
@@ -264,14 +264,14 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
             name=build_name(algo, error_sim, two_slots),
             config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
             train_dialogues=td,
-            eval_dialogues=100,
+            eval_dialogues=1000,
             num_warmup_dialogues=warmupd
         )
         for _ in range(num_eval)
-        for error_sim in [False]
-        for two_slots in [False]
-        for td in [200]
-        for warmupd in [50]
+        for error_sim in [False,True]
+        for two_slots in [False,True]
+        for td in [5000]
+        for warmupd in [500]
         for algo in algos
     ]
     start = time()
@@ -296,14 +296,14 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
 
 if __name__ == "__main__":
-    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/test"
+    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/5000_500_again"
     clean_dir(LOGS_DIR)
 
-    algos = ["pytorch_a2c", "pytorch_reinforce"]#, "q_learning", "wolf_phc"]
+    algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
     # algos = ["q_learning", "wolf_phc"]
     # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
-    multi_eval(algos,LOGS_DIR, num_workers=6,num_eval=6)
+    multi_eval(algos,LOGS_DIR, num_workers=12,num_eval=5)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True
