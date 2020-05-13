@@ -12,12 +12,11 @@ def plot_results(scoring_runs: List[Dict], save_path):
     sns.set(style="ticks", palette="pastel")
     data = [
         {
-            "exp_name": name,
-            "success-rate": exp["scores"][split_name]["success-rate"],
+            "exp_name": run["name"],
+            "success-rate": run["scores"][split_name]["success-rate"],
             "split-name": split_name,
         }
         for run in scoring_runs
-        for name, exp in run.items()
         for split_name in ["train", "eval"]
     ]
     num_runs = get_num_runs(data)
@@ -56,8 +55,8 @@ def get_num_runs(data):
 
 
 if __name__ == "__main__":
-    path = os.environ["HOME"] + "/gunther/interspeech_2020/data/5000_500"
+    path = os.environ["HOME"] + "/gunther/data/plato_results/test"
     # file = "scores_2000traindialogues.jsonl"
-    scoring_runs = list(data_io.read_jsonl(path + '/scores.jsonl'))
+    scoring_runs = list(data_io.read_jsonl(path + '/results.jsonl'))
 
     plot_results(scoring_runs,path)
