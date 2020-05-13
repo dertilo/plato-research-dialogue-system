@@ -166,6 +166,7 @@ class Job(NamedTuple):
     config: dict
     train_dialogues: int = 1000
     eval_dialogues: int = 1000
+    num_warmup_dialogues:int = 200
 
 
 
@@ -184,7 +185,7 @@ def train_evaluate(job: Job,LOGS_DIR):
         "train": run_it(
             train_config,
             job.train_dialogues,
-            num_warmup_dialogues=200,
+            num_warmup_dialogues=job.num_warmup_dialogues,
             use_progress_bar=False,
         ),
         "eval": run_it(eval_config, job.eval_dialogues, use_progress_bar=False),
@@ -217,6 +218,12 @@ def build_name(algo, error_sim, two_slots):
     return "_".join(name)
 
 
+eid=[0]
+def get_id():
+    global eid
+    eid[0]+=1
+    return eid[0]
+
 def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
     """
@@ -230,22 +237,22 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
     task = PlatoScoreTask(LOGS_DIR = LOGS_DIR)
 
-    experiement_configuratoins = [
-        (algo, error_sim, two_slots)
-        for _ in range(num_eval)
-        for error_sim in [True,False]
-        for two_slots in [False]
-        for algo in algos
-    ]
+
     jobs = [
         Job(
-            job_id=job_id,
+            job_id=get_id(),
             name=build_name(algo, error_sim, two_slots),
             config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
-            train_dialogues=2000,
+            train_dialogues=td,
             eval_dialogues=1000,
+            num_warmup_dialogues=warmupd
         )
-        for job_id,(algo, error_sim, two_slots) in enumerate(experiement_configuratoins)
+        for _ in range(num_eval)
+        for error_sim in [True, False]
+        for two_slots in [False]
+        for td in [1000,2000]
+        for warmupd in [100,200,500]
+        for algo in algos
     ]
     start = time()
 
@@ -260,7 +267,7 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
             data_io.write_jsonl(scores_file, results_g)
 
     scoring_runs = list(data_io.read_jsonl(scores_file))
-    plot_results(scoring_runs)
+    plot_results(scoring_runs,LOGS_DIR)
 
     print(
         "evaluating %d jobs with %d workers took: %0.2f seconds"
@@ -269,7 +276,7 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
 
 if __name__ == "__main__":
-    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/2000_dialogues_single_slot"
+    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/mittwoch_morgen"
     clean_dir(LOGS_DIR)
 
     base_path = "."
