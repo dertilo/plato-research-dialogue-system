@@ -270,8 +270,8 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
         for _ in range(num_eval)
         for error_sim in [False,True]
         for two_slots in [False,True]
-        for td in [5000]
-        for warmupd in [500]
+        for td in [40000]
+        for warmupd in [4000]
         for algo in algos
     ]
     start = time()
@@ -286,6 +286,8 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
         print('only got %d jobs to do'%len(jobs))
         print([e.job_id for e in jobs])
         mode = "ab"
+    else:
+        os.makedirs(LOGS_DIR)
 
     if num_workers > 0:
         num_workers = min(len(jobs),num_workers)
@@ -307,14 +309,14 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
 
 if __name__ == "__main__":
-    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/5000_500_again"
+    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/40000_4000_rl_only"
     # clean_dir(LOGS_DIR)
 
-    algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
+    algos = ["pytorch_a2c", "pytorch_reinforce"]#, "q_learning", "wolf_phc"]
     # algos = ["q_learning", "wolf_phc"]
     # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
-    multi_eval(algos,LOGS_DIR, num_workers=12,num_eval=5)
+    multi_eval(algos,LOGS_DIR, num_workers=12,num_eval=3)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True
