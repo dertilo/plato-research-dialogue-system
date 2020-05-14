@@ -36,24 +36,25 @@ def plot_results(scoring_runs: List[Dict], save_path):
         df = pd.DataFrame(data=list(filter(filter_fun, data)))
         if df.size == 0:
             continue
-        fig, ax = plt.subplots(figsize=(12, 4))
-        sns.scatterplot(
+        fig, ax = plt.subplots(figsize=(16, 8))
+        chart = sns.boxplot(
             ax=ax,
-            y="exp_name",
-            x="success-rate",
+            x="exp_name",
+            y="success-rate",
             hue="split-name",
-            palette=["m", "r"],
+            palette="deep",
             data=df,
-            alpha=0.6,s=100
+            # alpha=0.6,s=100
         )
         # sns.despine(offset=10, trim=True)
         ax.set_title(
             "%d runs, %d train and %d eval dialogues, %d warmup"
             % (num_runs, train_dialogues, eval_dialogues, warmup_dialogues)
         )
-        sns.set()
+        # sns.set()
+        sns.set_style("whitegrid")
         plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
-        # ax.set_xlabel("")
+        chart.set_xticklabels(chart.get_xticklabels(), rotation=90)
         filter_fun_str = (
             inspect.getsourcelines(filter_fun)[0][0]
             .split(":")[1]
