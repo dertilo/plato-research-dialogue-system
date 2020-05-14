@@ -269,22 +269,33 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
         )
         for _ in range(num_eval)
         for error_sim in [False,True]
-        for two_slots in [False]
-        for td in [40000]
-        for warmupd in [4000]
+        for two_slots in [False,True]
+        for td in [5000]
+        for warmupd in [500]
         for algo in algos
     ]
     start = time()
 
     outfile = LOGS_DIR+"/results.jsonl"
+
+    mode = "wb"
+    if os.path.isdir(LOGS_DIR):
+        results = list(data_io.read_jsonl(outfile))
+        done_ids = [e['job_id'] for e in results]
+        jobs = [e for e in jobs if e.job_id not in done_ids]
+        print('only got %d jobs to do'%len(jobs))
+        print([e.job_id for e in jobs])
+        mode = "ab"
+
     if num_workers > 0:
+        num_workers = min(len(jobs),num_workers)
         with WorkerPool(processes=num_workers, task=task, daemons=False) as p:
             processed_jobs = p.process_unordered(jobs)
-            data_io.write_jsonl(outfile, processed_jobs)
+            data_io.write_jsonl(outfile, processed_jobs, mode=mode)
     else:
         with task as t:
             processed_jobs = [t(job) for job in jobs]
-            data_io.write_jsonl(outfile, processed_jobs)
+            data_io.write_jsonl(outfile, processed_jobs, mode=mode)
 
     scoring_runs = list(data_io.read_jsonl(outfile))
     plot_results(scoring_runs,LOGS_DIR)
@@ -296,14 +307,14 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
 
 if __name__ == "__main__":
-    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/40000_4000"
-    clean_dir(LOGS_DIR)
+    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/5000_500_again"
+    # clean_dir(LOGS_DIR)
 
     algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
     # algos = ["q_learning", "wolf_phc"]
     # algos = ['wolf_phc']
     # algos = ['pytorch_reinforce']
-    multi_eval(algos,LOGS_DIR, num_workers=12,num_eval=3)
+    multi_eval(algos,LOGS_DIR, num_workers=12,num_eval=5)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True
