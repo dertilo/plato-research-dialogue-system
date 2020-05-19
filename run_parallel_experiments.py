@@ -309,14 +309,11 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
 
 if __name__ == "__main__":
-    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/40000_4000_rl_only"
+    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/40000_4000"
     # clean_dir(LOGS_DIR)
 
-    algos = ["pytorch_a2c", "pytorch_reinforce"]#, "q_learning", "wolf_phc"]
-    # algos = ["q_learning", "wolf_phc"]
-    # algos = ['wolf_phc']
-    # algos = ['pytorch_reinforce']
-    multi_eval(algos,LOGS_DIR, num_workers=12,num_eval=3)
+    algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
+    multi_eval(algos,LOGS_DIR, num_workers=3,num_eval=1)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True
