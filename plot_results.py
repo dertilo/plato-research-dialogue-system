@@ -37,14 +37,14 @@ def plot_results(scoring_runs: List[Dict]):
         if df.size == 0:
             continue
         fig, ax = plt.subplots(figsize=(16, 8))
-        chart = sns.scatterplot(
+        chart = sns.boxplot(
             ax=ax,
-            y="exp_name",
-            x="success-rate",
+            x="exp_name",
+            y="success-rate",
             hue="split-name",
             palette="deep",
             data=df,
-            alpha=0.8,s=100
+            # alpha=0.8,s=100
         )
         # sns.despine(offset=10, trim=True)
         ax.set_title(
@@ -54,7 +54,7 @@ def plot_results(scoring_runs: List[Dict]):
         # sns.set()
         sns.set_style("whitegrid")
         plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
-        # chart.set_xticklabels(chart.get_xticklabels(), rotation=90)
+        chart.set_xticklabels(chart.get_xticklabels(), rotation=45)
         filter_fun_str = (
             inspect.getsourcelines(filter_fun)[0][0]
             .split(":")[1]
@@ -63,7 +63,7 @@ def plot_results(scoring_runs: List[Dict]):
         )
         # plt.gcf().subplots_adjust(bottom=0.15,left=0.15, right=0.15)
         plt.tight_layout()
-        ax.figure.savefig("scatterplot_%s.png" % filter_fun_str)
+        ax.figure.savefig("boxplot_%s.png" % filter_fun_str)
 
     # plt.show()
     plt.close()
@@ -85,6 +85,7 @@ if __name__ == "__main__":
     # path = os.environ["HOME"] + "/gunther/data/plato_results/40000_4000"
     # path = os.environ["HOME"] + "/gunther/data/plato_results/5000_500_again"
     # file = "scores_2000traindialogues.jsonl"
-    scoring_runs = list(data_io.read_jsonl("results/40000_4000/results.jsonl"))
+    # scoring_runs = list(data_io.read_jsonl("results/40000_4000/results.jsonl"))
+    scoring_runs = list(data_io.read_jsonl("results/5000_500/results.jsonl"))
 
     plot_results(scoring_runs)
