@@ -8,7 +8,7 @@ from util import data_io
 from matplotlib import pyplot as plt
 
 
-def plot_results(scoring_runs: List[Dict], save_path):
+def plot_results(scoring_runs: List[Dict]):
     sns.set(style="ticks", palette="pastel")
     train_dialogues = scoring_runs[0]["train_dialogues"]
     eval_dialogues = scoring_runs[0]["eval_dialogues"]
@@ -63,7 +63,7 @@ def plot_results(scoring_runs: List[Dict], save_path):
         )
         # plt.gcf().subplots_adjust(bottom=0.15,left=0.15, right=0.15)
         plt.tight_layout()
-        ax.figure.savefig("boxplots_%s.png" % filter_fun_str)
+        ax.figure.savefig("scatterplot_%s.png" % filter_fun_str)
 
     # plt.show()
     plt.close()
@@ -82,9 +82,9 @@ def get_num_runs(data):
 
 
 if __name__ == "__main__":
-    path = os.environ["HOME"] + "/gunther/data/plato_results/40000_4000"
+    # path = os.environ["HOME"] + "/gunther/data/plato_results/40000_4000"
     # path = os.environ["HOME"] + "/gunther/data/plato_results/5000_500_again"
     # file = "scores_2000traindialogues.jsonl"
-    scoring_runs = list(data_io.read_jsonl(path + "/results.jsonl"))
+    scoring_runs = list(data_io.read_jsonl("results/40000_4000/results.jsonl"))
 
-    plot_results(scoring_runs, path)
+    plot_results(scoring_runs)

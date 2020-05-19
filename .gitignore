@@ -26,7 +26,6 @@ eggs/
 lib/
 lib64/
 parts/
-results/
 sdist/
 mnist_data/
 var/
