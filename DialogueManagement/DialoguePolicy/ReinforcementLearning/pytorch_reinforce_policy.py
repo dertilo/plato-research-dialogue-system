@@ -193,7 +193,7 @@ class PyTorchReinforcePolicy(QPolicy):
         self, acts: List[DialogueAct], system=True
     ) -> Tuple[numpy.ndarray, numpy.ndarray]:
         # TODO(tilo): DialogueManager makes offer with many informs, these should not be encoded here!
-        if any([a.intent == "offer" for a in acts]):
+        if acts[0].intent == "offer":
             acts = acts[:1]
         assert len(acts) == 1
         slots = [p.slot for p in acts[0].params]
