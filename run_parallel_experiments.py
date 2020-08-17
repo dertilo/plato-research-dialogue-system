@@ -263,15 +263,14 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
             job_id=get_id(),
             name=build_name(algo, error_sim, two_slots),
             config=build_config(algo, error_sim=error_sim, two_slots=two_slots),
-            train_dialogues=td,
+            train_dialogues=warmupd*10,
             eval_dialogues=1000,
             num_warmup_dialogues=warmupd
         )
         for _ in range(num_eval)
         for error_sim in [False,True]
         for two_slots in [False,True]
-        for td in [40000]
-        for warmupd in [4000]
+        for warmupd in [500,4000]
         for algo in algos
     ]
     start = time()
@@ -309,11 +308,11 @@ def multi_eval(algos,LOGS_DIR, num_eval=5, num_workers=12):
 
 
 if __name__ == "__main__":
-    LOGS_DIR = os.environ["HOME"] + "/data/plato_results/40000_4000"
+    LOGS_DIR = "plato_results"
     # clean_dir(LOGS_DIR)
 
     algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
-    multi_eval(algos,LOGS_DIR, num_workers=3,num_eval=1)
+    multi_eval(algos,LOGS_DIR, num_workers=4,num_eval=1)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True

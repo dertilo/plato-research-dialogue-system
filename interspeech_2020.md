@@ -5,9 +5,15 @@
 #### Stefan Hillmann, Tilo Himmelsbach, Benjamin Weiss
 
 #### to reproduce the results
+0. setup env: 
+    0. `wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh`
+    0. `bash Miniconda3-latest-Linux-x86_64.sh`
+    1. `conda install -c anaconda pip`
+    2. `pip install -r requirements.txt`
+0. clone: `git clone git@gitlab.tubit.tu-berlin.de:OKS/plato.git`
 0. checkout interspeech branch: `git checkout interspeech_2020`
 0. copy domain-folder from alex-plato:`git clone https://gitlab.tubit.tu-berlin.de/OKS/alex-plato.git` and `cp -r alex-plato/experiments/essv_2020/domain plato/`
-1. [run_parallel_experiments.py](run_parallel_experiments.py)
+1. python [run_parallel_experiments.py](run_parallel_experiments.py)
 2. (optional) [plot_results.py](plot_results.py)
 
 
