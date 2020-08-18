@@ -153,6 +153,9 @@ def run_it(config, num_dialogues=100, num_warmup_dialogues=100, use_progress_bar
         "avg-turns": avg_turns,
     }
 
+    if hasattr(ca.dialogue_manager.policy,"Q_info"):
+        results["state_counts"]=ca.dialogue_manager.policy.Q_info
+
     if hasattr(ca.dialogue_manager.policy, "counter"):
         results["counter"]=ca.dialogue_manager.policy.counter
     return results
@@ -311,8 +314,9 @@ if __name__ == "__main__":
     LOGS_DIR = "plato_results"
     # clean_dir(LOGS_DIR)
 
-    algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
-    multi_eval(algos,LOGS_DIR, num_workers=4,num_eval=1)
+    # algos = ["pytorch_a2c", "pytorch_reinforce", "q_learning", "wolf_phc"]
+    algos = ["q_learning"]
+    multi_eval(algos,LOGS_DIR, num_workers=8,num_eval=1)
     # algo = "pytorch_reinforce"
     # error_sim = False
     # two_slots = True
