@@ -23,3 +23,12 @@
 
 #### scatterplots
 ![boxplots](results/40000_4000/scatterplot_%20True.png)
+
+### [analyze states](analyze_states.py)
+```shell script
+'num_states': {
+            'q_learning': 5973,
+            'q_learning_error_sim': 16461,
+            'q_learning_error_sim_two_slots': 53652,
+            'q_learning_two_slots': 21448}}
+```
